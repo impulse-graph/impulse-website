@@ -1,0 +1,31 @@
+site_name: Impulse Graph Engine
+site_description: High-Performance C-ABI Binary Snapshot Graph Engine
+site_url: https://docs.impulsegraph.io
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - admonition
+
+nav:
+  - Home: index.md
+  - Architecture & Modules: software-modules.md
+  - Binary Specification (v2.3): spec/FORMAT_SPECIFICATION.md
