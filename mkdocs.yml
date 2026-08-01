@@ -22,10 +22,55 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+  - pymdownx.details
   - tables
   - admonition
 
 nav:
   - Home: index.md
-  - Architecture & Modules: software-modules.md
-  - Binary Specification (v2.3): spec/FORMAT_SPECIFICATION.md
+
+  - Getting Started:
+    - Overview: getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Quickstart: getting-started/quickstart.md
+    - Core Concepts: getting-started/core-concepts.md
+
+  - Concepts:
+    - Snapshots: concepts/snapshots.md
+    - Graph Model: concepts/graph-model.md
+    - Delta Overlay: concepts/delta-overlay.md
+    - GraphView: concepts/graph-view.md
+    - Schema: concepts/schema.md
+
+  - Query API:
+    - Overview: query-api/index.md
+    - Building Queries: query-api/building-queries.md
+    - Operations:
+      - Walk Edge: query-api/operations/walk-edge.md
+      - Set Algebra: query-api/operations/set-algebra.md
+      - Iteration: query-api/operations/iteration.md
+      - Terminals: query-api/operations/terminals.md
+    - Schema Binding: query-api/schema-binding.md
+    - Execution Context: query-api/execution-context.md
+    - Memory Layout: query-api/memory-layout.md
+    - GraphView & Execution: query-api/graph-view-execution.md
+
+  - Deployment:
+    - Dynamic Service: deployment/dynamic-service.md
+    - Fixed Snapshot: deployment/fixed-snapshot.md
+    - Capacity & Growth: deployment/capacity-growth.md
+    - Concurrency Model: deployment/concurrency.md
+
+  - Showcase:
+    - Authorization (ReBAC): showcase/authz.md
+    - Anti-Money Laundering: showcase/aml.md
+    - Power Grid Stability: showcase/powergrid.md
+    - Graph Neural Networks: showcase/gnn.md
+
+  - Reference:
+    - Operations Cheatsheet: reference/operations-cheatsheet.md
+    - Binary Spec (v2.3): reference/binary-spec.md
+    - Schema Evolution: reference/schema-evolution.md
+    - Package Registry: reference/packages.md
+
+  - Contributing: contributing/index.md
