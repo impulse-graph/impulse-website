@@ -143,7 +143,7 @@ Four dedicated **Showcase Repositories** highlight real-world use cases across k
 
 ### 4.1 `impulse-powergrid` — Critical Infrastructure & Grid Stability
 * **Domain**: Real-time electrical power systems engineering, Balancing Authority monitoring, and grid reliability.
-* **Key Features**: CIM XML / CGMES compiler, SIMD connected-component island detector, 10,000 parallel N-1 contingency simulator, and 60 Hz PMU stream consumer.
+* **Key Features**: MATPOWER / CIM XML converter to C-ABI `.imps` v2.4 snapshots, ARM NEON / AVX2 SIMD connected-component island detector, 1,000,000+ N-1 / N-2 contingency simulator (361x faster than PYPOWER), and inter-BA tie-line analyzer.
 
 ### 4.2 `impulse-gnn` — Python PyTorch AI/ML Graph Acceleration
 * **Domain**: High-performance Graph Neural Network (GNN) training and LLM knowledge graph embeddings.
