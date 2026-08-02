@@ -68,6 +68,8 @@ nav:
     - Graph Neural Networks: showcase/gnn.md
 
   - Reference:
+    - Java API Reference: reference/java-api.md
+    - CLI Reference: reference/cli.md
     - Operations Cheatsheet: reference/operations-cheatsheet.md
     - Binary Snapshot Spec:
       - Version Selector Hub: reference/spec/index.md
