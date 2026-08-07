@@ -46,6 +46,7 @@ nav:
   - Query API:
     - Overview: query-api/index.md
     - Building Queries: query-api/building-queries.md
+    - Bytecode Virtual Machine (ImpOps): query-api/bytecode-vm.md
     - Operations:
       - Walk Edge: query-api/operations/walk-edge.md
       - Set Algebra: query-api/operations/set-algebra.md
