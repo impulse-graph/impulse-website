@@ -28,6 +28,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Benchmarks & Performance: benchmarks.md
 
   - Getting Started:
     - Overview: getting-started/index.md
