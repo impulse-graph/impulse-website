@@ -35,7 +35,7 @@ impulse inspect [OPTIONS]
 
 ---
 ### `impulse validate`
-Validate binary snapshot file against Spec v2.4 normative requirements
+Validate binary snapshot file against Spec v0.9.0 normative requirements
 
 **Usage:**
 ```bash

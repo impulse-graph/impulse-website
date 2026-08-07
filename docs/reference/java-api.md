@@ -5,7 +5,7 @@ Welcome to the **Java 25 Foreign Function & Memory (FFM) API Reference** for the
 The Java engine is distributed on Maven Central across 3 decoupled modules:
 * **`io.impulse.graph:impulse-api`**: Public interfaces, query AST builders, and ID mappers.
 * **`io.impulse.graph:impulse-core`**: Off-heap Java 25 FFM CSR engine (zero external runtime dependencies).
-* **`io.impulse.graph:impulse-spec`**: Java binary protocol layouts for C-ABI Spec v2.4.
+* **`io.impulse.graph:impulse-spec`**: Java binary protocol layouts for C-ABI Spec v0.9.0.
 
 ---
 
@@ -86,11 +86,11 @@ oldSnapshot.drainAndClose(5, TimeUnit.SECONDS);
 ```
 
 ### `SnapshotBuilder`
-Streaming snapshot compactor interface. Compacts live graph states and writes page-aligned C-ABI Spec v2.4 binary files direct-to-disk in $O(\text{chunk})$ physical memory footprint.
+Streaming snapshot compactor interface. Compacts live graph states and writes page-aligned C-ABI Spec v0.9.0 binary files direct-to-disk in $O(\text{chunk})$ physical memory footprint.
 
 ```java
 SnapshotBuilder builder = new DefaultSnapshotBuilder();
-ImpulseGraphSnapshot newSnapshot = builder.buildSnapshot(liveGraph, Path.of("compacted_v2.imps"));
+ImpulseGraphSnapshot newSnapshot = builder.buildSnapshot(liveGraph, Path.of("compacted_v09.imps"));
 ```
 
 ---
@@ -145,7 +145,7 @@ swapManager.swap(newGraphSnapshot);
 
 ## 4. Binary Snapshot Loader (`BinarySnapshotLoader`)
 
-Conforms 100% to **C-ABI Binary Snapshot Specification v2.4**:
+Conforms 100% to **C-ABI Binary Snapshot Specification v0.9.0**:
 * Direct-to-memory-mapped binary loader.
 * Validates SHA-256 payload checksums.
 * Supports SIMDComp / PFOR-Delta (`0x04`), Delta-VByte (`0x01`), UINT16 (`0x02`), HYBRID (`0x03`), RAW_UINT64 (`0x07`), and RAW_UINT32 (`0x00`) encodings.

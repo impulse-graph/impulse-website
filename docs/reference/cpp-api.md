@@ -33,7 +33,7 @@ impulse_snapshot_t* snapshot = impulse_snapshot_open("datasets/rbac.imps", &stat
 
 if (status == IMPULSE_OK && snapshot) {
     uint32_t magic = impulse_snapshot_magic(snapshot);       // 0x494D5053 ("IMPS")
-    uint16_t version = impulse_snapshot_version(snapshot);   // 2 (v2.4 spec)
+    uint16_t version = impulse_snapshot_version(snapshot);   // 9 (v0.9.0 spec)
     uint16_t domains = impulse_snapshot_domain_count(snapshot);
     uint16_t rels = impulse_snapshot_relation_count(snapshot);
 }

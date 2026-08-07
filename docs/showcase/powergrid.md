@@ -23,16 +23,16 @@ Evaluating 10 Million N-2 scenarios using traditional power flow tools (MATPOWER
 
 ---
 
-## Architecture & Binary Format (`.imps` v2.4)
+## Architecture & Binary Format (`.imps` v0.9.0)
 
-Instead of parsing slow text files or allocating millions of heap objects, `impulse-powergrid` compiles MATPOWER network models into **Impulse Graph C-ABI `.imps` v2.4 binary snapshots**:
+Instead of parsing slow text files or allocating millions of heap objects, `impulse-powergrid` compiles MATPOWER network models into **Impulse Graph C-ABI `.imps` v0.9.0 binary snapshots**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Impulse Snapshot v2.4 (.imps)                          │
+│                      Impulse Graph Snapshot v0.9.0 (.imps)                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Section 1: Header (4096 bytes, 4KB page aligned)                           │
-│ Section 2: Domain Catalog & Relation Directory Descriptor                    │
+│ Section 2: Domain Catalog, Shared String Table & Relation Directory          │
 │ Section 3: CSR Topology (Row Offsets & Column Targets)                       │
 │ Section 4: Edge Branch Index Map (col_branch_ids for parallel line tracking) │
 │ Section 5: Bus DTO Payloads (baseKV, Pd, Qd, Vm, Va)                        │

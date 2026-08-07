@@ -81,8 +81,7 @@ nav:
     - Operations Cheatsheet: reference/operations-cheatsheet.md
     - Binary Snapshot Spec:
       - Version Selector Hub: reference/spec/index.md
-      - Specification v2.4 (Current): reference/spec/v2.4.md
-      - Specification v2.3 (Legacy): reference/spec/v2.3.md
+      - Specification v0.9.0 (Current): reference/spec/v0.9.0.md
     - Schema Evolution: reference/schema-evolution.md
     - Package Registry: reference/packages.md
 

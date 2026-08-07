@@ -52,7 +52,7 @@ with Snapshot("power_grid.imps") as snap:
 
 ### `Writer`
 
-Streaming compiler for constructing C-ABI v2.4 binary snapshots.
+Streaming compiler for constructing C-ABI v0.9.0 binary snapshots.
 
 ```python
 from impulse_graph import Writer
