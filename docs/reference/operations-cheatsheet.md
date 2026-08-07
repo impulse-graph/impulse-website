@@ -1,6 +1,6 @@
 # Query Operations Cheatsheet
 
-The `ImpulseQuery` builder provides a polyglot, declarative API for constructing type-safe graph traversals. Below is a cheatsheet of all available operations.
+The `ImpulseQueryBuilder` API provides a polyglot, declarative API for constructing type-safe graph traversals. Below is a cheatsheet of all available operations.
 
 ## Core Traversals
 
@@ -36,18 +36,6 @@ The `ImpulseQuery` builder provides a polyglot, declarative API for constructing
     .union(step -> step.walkEdge("A"), step -> step.walkEdge("B"))
     ```
 
-## Universe & Constants
-
-| Operation | Signature | Description |
-|-----------|-----------|-------------|
-| `universe(EntityType)` | `() → Bitset<A>` | The full set of live nodes for a given entity type (tombstones applied). |
-| `empty(EntityType)` | `() → Bitset<A>` | The empty set. |
-
-=== "Java"
-    ```java
-    .universe(EntityType.USER)
-    ```
-
 ## Iteration & Transitive Closure
 
 | Operation | Signature | Description |
@@ -68,10 +56,35 @@ The `ImpulseQuery` builder provides a polyglot, declarative API for constructing
 | `collect(DENSE_BITSET)` | `long[]` | Dense words. Good for downstream SIMD logic. |
 | `collect(NODE_ARRAY)` | `long[]` (Java) / `Tensor` (Python) | Sorted ID array. Best for serialization or ML batches. |
 | `collect(COUNT)` | `long` | Cardinality only. Avoids memory materialization. |
-| `collect(EXISTS)` | `boolean` | Short-circuits true if the result is non-empty. Hot-path Authz. |
-| `contains(nodeId)` | `boolean` | Membership test. Short-circuits. |
 
 === "Java"
     ```java
     .collect(ReturnType.ROARING_BITSET)
+    ```
+
+## AST & Disassembler Export
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `exportAst()` | `() → String` | Pretty-prints the query AST pipeline steps. |
+| `disassemble(snapshot)` | `(ImpulseGraphSnapshot) → String` | Disassembles compiled VM bytecodes into annotated assembly text. |
+
+=== "Java"
+    ```java
+    String astTree = query.exportAst();
+    String asmText = query.disassemble(snapshot);
+    ```
+
+## Snapshot Blue/Green & Drain Operations
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `compiledQuery.rebind(newSnap)` | `(GraphSnapshot) → void` | Atomically re-binds relation IDs and JIT MethodHandles to a new blue/green snapshot. |
+| `snapshot.getActiveQueryCount()` | `() → long` | Returns the count of in-flight queries currently executing against this snapshot. |
+| `snapshot.drainAndClose(timeout, unit)`| `(long, TimeUnit) → void` | Awaits in-flight queries to drain and closes off-heap memory segments safely. |
+
+=== "Java"
+    ```java
+    compiledQuery.rebind(newSnapshot);
+    oldSnapshot.drainAndClose(5, TimeUnit.SECONDS);
     ```

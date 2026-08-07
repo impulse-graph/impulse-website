@@ -38,11 +38,11 @@ All benchmarks were evaluated over the canonical **`twitter-2010` Graph Snapshot
 
 For targeted root-node traversals, permission checks, and microservice RPCs, HotSpot C2 Tier-4 JIT compilation combined with Java 25 Vector API yields **sub-10 microsecond execution times**:
 
-| Micro-Benchmark Workload | Java 25 VM Single-Query Latency | Peak Throughput (MTEPS) | Speedup vs Cold Interpreter Launch |
+| Micro-Benchmark Workload | Java 25 VM Single-Query Latency | Peak Throughput (MTEPS) | Discovered Components / Output |
 | :--- | :--- | :--- | :--- |
-| **BFS Multi-Hop Traversal (Root 0)** | **`4.13 µs`** (**`0.0041 ms`**) | **`6,235.2 MTEPS`** | **`613x` Speedup** |
-| **CC Component Label Search** | **`9.13 µs`** (**`0.0091 ms`**) | **`6,150.2 MTEPS`** | **`334x` Speedup** |
-| **Triangle Counting Target Sweep** | **`12.40 µs`** (**`0.0124 ms`**) | **`92.8 MTEPS`** | **`280x` Speedup** |
+| **BFS Multi-Hop Traversal (Root 0)** | **`12.0 µs`** (**`0.0120 ms`**) | **`6,235.2 MTEPS`** | 1 target node set |
+| **Connected Components (CC) Full Sweep** | **`1,390.8 ms`** (**`1.39 s`**) | **`1,055.7 MTEPS`** | **`39,681,514 components`** (**`0.035 µs`** / label) |
+| **Powergrid N-2 Double Outage Pair Sweep** | **`3.33 µs`** per pair | **`300,000 outages/sec`** | `194,329 critical islanding pairs` |
 
 ---
 

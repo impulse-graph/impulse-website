@@ -1,29 +1,260 @@
-# Building Queries
+# Building Queries with the Java Query API
 
-The Query Builder API is designed to create immutable, serializable query plans safely and ergonomically.
+The Impulse Graph Engine provides **two complementary query building patterns**:
+1. **Dynamic Fluent Builder API** ([`ImpulseQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseQueryBuilder.java)): Ideal for runtime, dynamic, or ad-hoc query construction.
+2. **Strongly-Typed Generated Query Builder API** ([`SchemaCodeGenerator`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/SchemaCodeGenerator.java) / [`TypedQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/TypedQueryBuilder.java)): Ideal for production codebases requiring **compile-time type safety** and **IDE auto-complete**.
 
-## The Builder Pattern
+Both patterns produce pure, immutable Abstract Syntax Tree (AST) representations ([`ImpulseGraphQuery`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseGraphQuery.java)) and execute on the exact same zero-copy off-heap JIT engine ([`ImpulseQueryCompiler`](file:///Users/jesse/impulse/impulse-graph-java/impulse-core/src/main/java/org/impulsegraph/vm/ImpulseQueryCompiler.java)).
 
-In Java, Rust, and Python, queries are built using a fluent builder interface. The builder is decoupled from any graph instance — you build the plan once and execute it later.
+---
 
+## 1. Dual Query Building Patterns
+
+```
+Pattern 1: Dynamic Fluent Builder (Runtime Resolved)
+┌────────────────────────────────────────────────────────────────────────┐
+│ ImpulseQueryBuilder.<RoaringBitmap>builder()                           │
+│     .input("USER", ArgType.ROARING_BITSET)                             │
+│     .walkEdge("userToGroup")  <── String-based relation lookup        │
+│     .walkEdge("groupToRole")  <── String-based relation lookup        │
+│     .collect(ReturnType.ROARING_BITSET);                               │
+└────────────────────────────────────────────────────────────────────────┘
+                                 vs
+Pattern 2: Strongly-Typed Generated Builder (Compile-Time Checked + IDE Auto-Complete)
+┌────────────────────────────────────────────────────────────────────────┐
+│ UserQueryBuilder.from(userKeys)                                        │
+│     .walkUserToGroup()        <── IDE Auto-complete & Compile-time check│
+│     .filterFuelSurcharge(">", 5.0) <── Type-checked attribute filter   │
+│     .walkGroupToRole()        <── IDE Auto-complete & Compile-time check│
+│     .collectRoaringBitset();   <── Strongly-typed return type          │
+└────────────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼ (Delegates under the hood)
+┌────────────────────────────────────────────────────────────────────────┐
+│ AST Step Pipeline ──► ImpulseQueryCompiler ──► impulse-vm Bytecodes   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Pattern 1: Dynamic Fluent Builder Syntax
 ```java
-// === STARTUP: build once ===
-ImpulseQuery<RoaringBitmap> userRolesQuery = ImpulseQuery.builder()
-    .input(EntityType.USER, ArgType.ROARING_BITSET)
+import org.impulsegraph.api.*;
+
+// Multi-hop Relationship-Based Access Control (ReBAC) query: USER -> Group -> Role
+ImpulseGraphQuery<BitSet> userRolesQuery = ImpulseGraphQuery.<BitSet>builder()
+    .input("USER", ArgType.SINGLE_NODE)
     .walkEdge("userToGroup")
     .walkEdge("groupToRole")
     .collect(ReturnType.ROARING_BITSET);
 ```
 
-## Immutability and Reusability
+### Pattern 2: Generated Strongly-Typed Builder Syntax
+Generate entity query builders from a [`GraphSchema`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/GraphSchema.java) using `SchemaCodeGenerator`:
 
-An `ImpulseQuery` instance is deeply immutable. It holds no reference to any snapshot, `ImpulseGraph`, or schema instance. It is a pure tree of operation nodes that you can safely share across all threads in your application.
+```java
+GraphSchema.EntityDef user = new GraphSchema.EntityDef("User", Map.of("fuelSurcharge", "DOUBLE"));
+GraphSchema.EntityDef group = new GraphSchema.EntityDef("Group", Map.of());
+GraphSchema.RelationDef userToGroup = new GraphSchema.RelationDef("userToGroup", "User", "Group");
 
-## Type Safety Guarantees
+GraphSchema schema = new GraphSchema(List.of(user, group), List.of(userToGroup));
+SchemaCodeGenerator generator = new SchemaCodeGenerator("com.example.generated");
 
-The builder enforces type safety. There are two tiers of type safety available:
+// Generates UserQueryBuilder.java, GroupQueryBuilder.java source code files
+Map<String, String> generatedClasses = generator.generateClasses(schema);
+```
 
-1. **Stringly-typed**: `walkEdge("userToGroup")` — validated against the schema either at `build()` or lazily at first `compile()`.
-2. **Code-generated**: `walkEdge(Relation.USER_TO_GROUP)` — using typed constants from `impulse-codegen` for full compile-time safety and IDE autocomplete.
+**Using the Generated Typed Builder in Code:**
+```java
+// Full compile-time type checking and IDE auto-complete!
+ImpulseGraphQuery<BitSet> query = UserQueryBuilder.from(seedUserKey)
+    .walkUserToGroup()        // Auto-completed by IDE
+    .walkGroupToRole()        // Auto-completed by IDE
+    .collectRoaringBitset();
+```
 
-The builder is also parameterized on the current pipeline entity type, meaning it tracks the graph schema as you build. If you attempt to feed the output of one step into an incompatible step, the compiler (or builder validation) catches it.
+### Maven Plugin Configuration (`impulse-maven-plugin`)
+Automatically generate strongly-typed query builder classes during `mvn generate-sources`:
+
+```xml
+<plugin>
+    <groupId>io.impulse.graph</groupId>
+    <artifactId>impulse-maven-plugin</artifactId>
+    <version>2.3.0-SNAPSHOT</version>
+    <executions>
+        <execution>
+            <goals>
+                <goal>generate</goal>
+            </goals>
+            <configuration>
+                <schemaFile>${project.basedir}/src/main/resources/schema.yaml</schemaFile>
+                <outputDirectory>${project.build.directory}/generated-sources/impulse</outputDirectory>
+                <packageName>org.impulsegraph.generated</packageName>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+```
+
+### Gradle Task Configuration (`build.gradle`)
+Automatically generate query builder classes during `./gradlew compileJava`:
+
+```groovy
+configurations {
+    impulseCodegen
+}
+
+dependencies {
+    impulseCodegen 'io.impulse.graph:impulse-codegen:2.3.0-SNAPSHOT'
+}
+
+task generateImpulseSources(type: JavaExec) {
+    classpath = configurations.impulseCodegen
+    mainClass = 'org.impulsegraph.codegen.GeneratorMain'
+    args = [
+        "${projectDir}/src/main/resources/schema.yaml",
+        "${buildDir}/generated/sources/impulse/java/main",
+        'org.impulsegraph.generated'
+    ]
+}
+
+sourceSets.main.java.srcDir "${buildDir}/generated/sources/impulse/java/main"
+compileJava.dependsOn generateImpulseSources
+```
+
+---
+
+## 2. Attribute Filtering, Expression Projections & Reducers
+
+The Query API supports node and edge attribute filtering, parallel off-heap array expression projections (`node.fuelSurcharge * edge.miles`), and scalar reducers:
+
+```java
+// Project node.fuelSurcharge * edge.miles and compute total scalar cost sum
+ImpulseGraphQuery<Double> totalCostQuery = ImpulseGraphQuery.<Double>builder()
+    .input("TRUCK", ArgType.SINGLE_NODE)
+    .filterNodeAttribute("fuelSurcharge", ">", 5.0)
+    .walkEdgeFilteredAttribute("routeToCity", "miles", "<", 500.0)
+    .projectExpression("fuelSurcharge", "*", "miles")
+    .reduceSum();
+
+// Early termination reducer (short-circuits on first matching value)
+ImpulseGraphQuery<Object> firstMatchQuery = ImpulseGraphQuery.<Object>builder()
+    .input("TRUCK", ArgType.SINGLE_NODE)
+    .walkEdge("routeToCity")
+    .projectExpression("fuelSurcharge", "*", "miles")
+    .reduceFirst();
+```
+
+### Namespaced Extended Operations (`builder.extended()`)
+Specialized domain opcodes (such as Powergrid island detection `OP_ISLAND_DETECT`, ReBAC checks `OP_REBAC_CHECK`, motif matching `OP_MOTIF_MATCH_3`) are namespaced under `.extended()`, keeping the core query builder API clean:
+
+```java
+ImpulseGraphQuery<BitSet> gridQuery = ImpulseGraphQuery.<BitSet>builder()
+    .input("POWERGRID", ArgType.SINGLE_NODE)
+    .extended().islandDetect(branch1, branch2)
+    .extended().rebacCheck("viewer")
+    .collect(ReturnType.ROARING_BITSET);
+```
+
+---
+
+## 3. AST Representation & Debugging Tools
+
+Queries export human-readable tree structures and bytecode disassembly for inspection and CLI tooling (`impulse-inspect`).
+
+### Exporting AST Trees (`exportAst`)
+
+```java
+String astTree = userRolesQuery.exportAst();
+System.out.println(astTree);
+```
+
+**Console Output:**
+```text
+AST Query Pipeline [4 steps]:
+├── Step 0: INPUT [argType=SINGLE_NODE]
+├── Step 1: WALK_EDGE [relation=userToGroup]
+├── Step 2: WALK_EDGE [relation=groupToRole]
+├── Step 3: COLLECT [returnType=ROARING_BITSET]
+```
+
+### Bytecode Disassembly (`disassemble`)
+
+```java
+String disassembly = userRolesQuery.disassemble(graphSnapshot);
+System.out.println(disassembly);
+```
+
+**Console Output:**
+```text
+=========================================================================
+                  IMPULSE VM BYTECODE DISASSEMBLY                       
+=========================================================================
+Instruction Count: 5
+Program Memory Segment Size: 40 bytes
+-------------------------------------------------------------------------
+0x0000: OP_INIT_INPUT_NODE       [flags=0x00, dst=R0 , payload=0x00000000 (0)]
+0x0001: OP_CSR_WALK              [flags=0x00, dst=R1 , payload=0x00000000 (0)] -> WALK src=R0 -> dst=R1 via rel[0] ("userToGroup")
+0x0002: OP_CSR_WALK              [flags=0x00, dst=R2 , payload=0x00010001 (65537)] -> WALK src=R1 -> dst=R2 via rel[1] ("groupToRole")
+0x0003: OP_COLLECT_BITSET        [flags=0x00, dst=R2 , payload=0x00000000 (0)]
+0x0004: OP_HALT                  [flags=0x00, dst=R0 , payload=0x00000000 (0)]
+=========================================================================
+```
+
+---
+
+## 4. Zero-Delay Blue/Green Swaps & Snapshot Unloading
+
+Graph snapshots are frequently swapped at runtime (e.g. blue/green snapshot deployments). Physical relation indices (`0`, `1`, `2`...) can change between snapshot versions.
+
+```
+                          Zero-Delay Query Execution Path
+                                 (Lock-free read)
+                        ┌─────────────────────────────────┐
+                        │ AtomicReference<BindingState>   │
+                        └────────────────┬────────────────┘
+                                         │
+                                         ▼
+                             QueryBindingState (Immutable)
+                         ├── GraphSnapshot snapshot
+                         ├── MethodHandle methodHandle
+                         └── MemorySegment programSeg
+                                         │
+                                         ▼
+                         ┌────────────────────────────────┐
+                         │      Active Query Tracking     │
+                         │  snapshot.enterQuery()         │
+                         │     try {                      │
+                         │         methodHandle.invoke()  │
+                         │     } finally {                │
+                         │         snapshot.exitQuery()   │
+                         │     }                          │
+                         └────────────────────────────────┘
+
+                              Blue/Green Swap & Unload Path
+                                 (Non-blocking swap)
+ [ New Snapshot ] ─────────► Validate & Build New BindingState
+                                         │
+                                         ▼
+                              Atomic Swap: bindingState.set(newState)
+                                         │
+                                         ▼
+ [ Old Snapshot ] ─────────► oldSnapshot.drainAndClose(timeoutMs)
+                             (Waits for activeQueryCount == 0, then closes off-heap Arena)
+```
+
+### Atomic Re-binding (`rebind`)
+`CompiledQuery` stores query state inside an `AtomicReference<QueryBindingState>`. Calling `rebind(newSnapshot)`:
+1. Verifies that all logical relations required by the AST exist in `newSnapshot`.
+2. Clones the instruction program segment and patches relation payload IDs in-place.
+3. Compiles a new JIT `MethodHandle`.
+4. Performs an **atomic reference update** (`bindingState.set(newState)`), eliminating lock pauses and latency spikes for concurrent reader threads ("zero delay").
+
+### Active Query Draining & Safe Memory Unloading (`drainAndClose`)
+Each `GraphSnapshot` uses a high-throughput `LongAdder activeQueryCount` to track in-flight query executions.
+
+```java
+// Swap compiled query binding to new blue/green snapshot
+compiledQuery.rebind(newSnapshot);
+
+// Await active queries on old snapshot to drain, then safely unmap off-heap memory
+oldSnapshot.drainAndClose(5, TimeUnit.SECONDS);
+```

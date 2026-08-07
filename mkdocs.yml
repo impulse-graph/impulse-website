@@ -28,7 +28,10 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Benchmarks & Performance: benchmarks.md
+  - Benchmarks & Performance:
+    - Overview: benchmarks.md
+    - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
+    - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
 
   - Getting Started:
     - Overview: getting-started/index.md
@@ -70,8 +73,11 @@ nav:
     - Graph Neural Networks: showcase/gnn.md
 
   - Reference:
+    - C++ API Reference: reference/cpp-api.md
     - Java API Reference: reference/java-api.md
+    - Python API Reference: reference/python-api.md
     - CLI Reference: reference/cli.md
+
     - Operations Cheatsheet: reference/operations-cheatsheet.md
     - Binary Snapshot Spec:
       - Version Selector Hub: reference/spec/index.md

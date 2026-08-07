@@ -15,7 +15,7 @@ Impulse Graph is distributed across a wide variety of package managers and regis
 | **.NET / C#** | NuGet.org | `ImpulseGraph.Native` | Cross-platform embedded native binaries. |
 | **F#** | NuGet.org | `ImpulseGraph.FSharp` | F# idiomatic bindings. |
 | **Node.js** | npm | `impulse-graph` | TypeScript definitions & N-API bindings. |
-| **C / C++** | Vcpkg / Conan | `impulse-graph` | C-ABI headers (`impulse_graph.h`) and static/shared libs. |
+| **C / C++** | Vcpkg / Conan | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`), C++20 Fluent API (`impulse_vm_fluent.hpp`), and static/shared libs (`ImpulseGraph::impulse_graph_static`). |
 | **Docker** | GHCR | `ghcr.io/impulse-graph/impulse-platform-server:latest` | Enterprise cloud infrastructure platform. |
 
 ## Static Core Engine Linking

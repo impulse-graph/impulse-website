@@ -34,7 +34,7 @@ liveGraph.removeEdge("userToGroup", uBobId, gEngineeringId); // Tombstone
 ```
 
 ### `ImpulseGraphQuery<R>` & `ImpulseQueryBuilder<R>`
-Immutable Query AST contract and fluent builder for constructing type-safe graph traversals.
+Immutable Query AST contract and fluent builder for constructing type-safe graph traversals. Supports AST tree exports (`exportAst()`) and VM disassembly (`disassemble(snapshot)`).
 
 ```java
 ImpulseGraphQuery<RoaringBitmap> userRolesQuery = ImpulseGraphQuery.builder()
@@ -43,7 +43,46 @@ ImpulseGraphQuery<RoaringBitmap> userRolesQuery = ImpulseGraphQuery.builder()
     .walkEdge("groupToRole")
     .collect(ReturnType.ROARING_BITSET);
 
+// Execute query (automatically compiled and cached via ImpulseQueryCompiler)
 RoaringBitmap roleIds = userRolesQuery.execute(snapshot, userBitset);
+
+// Debug AST tree and disassembler text
+System.out.println(userRolesQuery.exportAst());
+System.out.println(userRolesQuery.disassemble(snapshot));
+```
+
+### `TypedQueryBuilder<E, R>` & `SchemaCodeGenerator`
+Strongly-typed base class and CodeGen tool (`org.impulsegraph.api.schema`). Generates compile-time type-checked Java query builders from a `GraphSchema` definition for full IDE auto-complete.
+
+```java
+// Define schema
+GraphSchema schema = new GraphSchema(List.of(userEntity, groupEntity), List.of(userToGroupRel));
+
+// Generate typed Java builder source code
+SchemaCodeGenerator generator = new SchemaCodeGenerator("com.example.generated");
+Map<String, String> classes = generator.generateClasses(schema);
+
+// Use generated strongly-typed query builder in production code
+ImpulseGraphQuery<BitSet> query = UserQueryBuilder.from(userKey)
+    .walkUserToGroup()        // Auto-completed by IDE
+    .walkGroupToRole()        // Auto-completed by IDE
+    .collectRoaringBitset();
+```
+
+### `ImpulseQueryCompiler` & `CompiledQuery`
+AST-to-Bytecode compiler located in `org.impulsegraph.vm`. Compiles AST steps into off-heap VM bytecode instructions (`impulse_instruction_t`) and JIT `MethodHandle` pipelines.
+
+* **Zero-Delay Atomic Swaps**: Uses `AtomicReference<QueryBindingState>` for non-blocking lock-free reads during blue/green snapshot swaps.
+* **Relation Verification & Re-binding**: `compiledQuery.rebind(newSnapshot)` verifies required logical relations exist on `newSnapshot`, updates physical instruction payloads, and atomically swaps binding state.
+
+```java
+ImpulseQueryCompiler.CompiledQuery compiled = ImpulseQueryCompiler.compile(query.getSteps(), snapshot, arena);
+
+// Zero-delay blue/green swap
+compiled.rebind(newSnapshot);
+
+// Safely await active queries to drain and unload old snapshot memory
+oldSnapshot.drainAndClose(5, TimeUnit.SECONDS);
 ```
 
 ### `SnapshotBuilder`
@@ -84,7 +123,7 @@ High-performance off-heap CSR container for a single edge relation (e.g., `userT
 Thread-safe live mutation overlay tracking added edges (`Map<Integer, int[]>`) and tombstones (`RoaringBitmap`) layered over an immutable `RelationSnapshot`.
 
 ### `GraphSnapshot`
-Multi-relation graph container mapping relation names (e.g., `"userToGroup"`, `"groupToRole"`) to their underlying `RelationSnapshot` instances and `DeltaLayer` overlays.
+Multi-relation graph container mapping relation names (e.g., `"userToGroup"`, `"groupToRole"`) to their underlying `RelationSnapshot` instances and `DeltaLayer` overlays. Tracks active in-flight queries via `LongAdder activeQueryCount` for safe epoch draining (`drainAndClose()`).
 
 ### `SnapshotSwapManager<T>`
 Generic epoch-tracked A/B pointer swap manager. Enables zero-downtime atomic snapshot rotation with active reader tracking so old off-heap `Arena` memory segments can be safely closed without race conditions.
@@ -110,3 +149,19 @@ Conforms 100% to **C-ABI Binary Snapshot Specification v2.4**:
 * Direct-to-memory-mapped binary loader.
 * Validates SHA-256 payload checksums.
 * Supports SIMDComp / PFOR-Delta (`0x04`), Delta-VByte (`0x01`), UINT16 (`0x02`), HYBRID (`0x03`), RAW_UINT64 (`0x07`), and RAW_UINT32 (`0x00`) encodings.
+
+---
+
+## 5. Auto-Generating Multi-Module Javadocs
+
+All public classes across `impulse-api`, `impulse-core`, `impulse-spec`, and `impulse-codegen` contain structured Javadoc comments.
+
+To build the aggregated HTML Javadoc site across all Java modules:
+
+```bash
+cd impulse-graph-java
+mvn javadoc:aggregate
+```
+
+The output Javadoc site will be generated at `impulse-graph-java/target/site/apidocs/index.html`.
+
