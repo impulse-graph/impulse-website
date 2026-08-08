@@ -10,11 +10,11 @@ The specification defines the zero-copy, memory-mapped binary snapshot layout (`
 
 | Version | Status | Highlights | Specification Document |
 | :--- | :--- | :--- | :--- |
-| **v0.9.0** | 🟢 **Current Baseline** | Section 2 Shared String Table, 128-Byte Hardware Alignment, Single-Pass S3 Cloud Streaming Write, SHA-256 & Ed25519 Cryptographic Signatures | [Read Specification v0.9.0](v0.9.0.md) |
+| **v0.9.0** | 🟢 **Current Baseline** | 4KB Page 0 Header Baseline, Shared String Table, 128-Byte Alignment, Single-Pass Cloud S3 Writer | [Read Specification v0.9.0](v0.9.0.md) |
 
 ---
 
 ## Version Compatibility Policy
 
-- **Patch Version Bumps (e.g. v0.9.0 -> v0.9.1)**: Fully backward-compatible. Additive feature bitmask flags or appended optional sections.
-- **Major Version Bumps (e.g. v0.9.0 -> v1.0.0)**: Stable protocol freeze. The C-ABI header and section directory layout will be 100% frozen for long-term backward compatibility.
+- **Minor Version Bumps (e.g. v0.9 -> v0.10)**: Fully backward-compatible. Additive feature bitmask flags or appended optional sections.
+- **Major Version Bumps (e.g. v0.9 -> v1.0)**: May change structural header layouts or binary alignment bounds.
