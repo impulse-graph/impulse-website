@@ -75,6 +75,9 @@ nav:
   - Reference:
     - C++ API Reference: reference/cpp-api.md
     - Java API Reference: reference/java-api.md
+    - Kotlin API Reference: reference/kotlin-api.md
+    - Scala 3 API Reference: reference/scala-api.md
+    - Gradle Plugin Reference: reference/gradle-plugin.md
     - Python API Reference: reference/python-api.md
     - CLI Reference: reference/cli.md
 

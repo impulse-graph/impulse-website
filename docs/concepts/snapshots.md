@@ -28,3 +28,12 @@ An `.imps` snapshot is meticulously organized into sequential page-aligned secti
 3. **Relation Topology Blocks (128-Byte Aligned)**: Compressed CSR row offsets, target column indices, and optional CSC transpose arrays.
 4. **Node & Edge Attribute Blocks (Optional, 128-Byte Aligned)**: Fixed-width SoA attribute arrays (floats, ints, timestamps) and variable-length offset blobs.
 5. **Footer & Checksum Block (EOF)**: Multi-map metadata stream, SHA-256 payload checksum, Ed25519 signature block, and 16-byte trailer (`"IMPS"`).
+
+## Multi-Snapshot Queries & Future Research
+
+Future research explores multi-snapshot query execution within `ImpulseVM`, allowing single queries to query across multiple `.imps` snapshots (e.g. Snapshot `A` with `rel0..10` and Snapshot `B` with `rel11..13`):
+
+- **Relation Namespacing (`A::userToGroup`)**: Enables disambiguated cross-snapshot traversals and composite relation handle mapping `(SnapshotID << 16) | RelID`.
+- **Zero-Copy & Remapped Node ID Spaces**: Verifies identity mappers at bind-time for $O(1)$ zero-copy pass-through across baseline/delta snapshots, with dense translation vectors (`OP_REMAP_ID_SPACE`) for heterogeneous node ordering.
+- **Off-Heap Memory & String Isolation**: Scopes string pool offsets (`VAR_STRING`) and primitive SoA attributes per snapshot base pointer, ensuring safe execution without heap allocations.
+
