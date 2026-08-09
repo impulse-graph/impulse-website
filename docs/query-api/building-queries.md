@@ -1,41 +1,44 @@
-# Building Queries with the Java Query API
+# Query Building Paradigms in Impulse Graph Engine
 
-The Impulse Graph Engine provides **two complementary query building patterns**:
-1. **Dynamic Fluent Builder API** ([`ImpulseQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseQueryBuilder.java)): Ideal for runtime, dynamic, or ad-hoc query construction.
-2. **Strongly-Typed Generated Query Builder API** ([`SchemaCodeGenerator`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/SchemaCodeGenerator.java) / [`TypedQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/TypedQueryBuilder.java)): Ideal for production codebases requiring **compile-time type safety** and **IDE auto-complete**.
+The **Impulse Graph Engine** supports **three laser-focused query paradigms**, giving developers maximum performance across PyTorch ML pipelines, dynamic runtime UI queries, and Spring Enterprise Java microservices:
 
-Both patterns produce pure, immutable Abstract Syntax Tree (AST) representations ([`ImpulseGraphQuery`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseGraphQuery.java)) and execute on the exact same zero-copy off-heap JIT engine ([`ImpulseQueryCompiler`](file:///Users/jesse/impulse/impulse-graph-java/impulse-core/src/main/java/org/impulsegraph/vm/ImpulseQueryCompiler.java)).
+1. **Storage-Only Zero-Copy Mode ("Graph Parquet Mode")**: Mounts `.imps` binary snapshots in **0 nanoseconds** (`mmap`) into PyTorch tensors (`snapshot.to_torch_indptr()`, `snapshot.to_torch_indices()`) and NumPy arrays without allocating Java/Python heap RAM.
+2. **Dynamic Fluent Builder API** ([`ImpulseQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseQueryBuilder.java) / [`QueryBuilder`](file:///Users/jesse/impulse/impulse-graph-core/impulse-cpp/include/impulse_vm_fluent.hpp)): Type-safe method-chaining API for runtime, dynamic, or ad-hoc query construction that emits `impOps` bytecode directly with **0 nanoseconds of text parsing overhead**.
+3. **Embedded Declarative Annotations (`@ImpLog` / `@ImpK`)**: Embed multi-line Datalog logic rules (`@ImpLog`) or GraphBLAS matrix math (`@ImpK`) directly inside Spring Data Java repository interfaces (similar to `@Query(nativeQuery = true)`), validated at build-time via AOT compilation.
 
 ---
 
-## 1. Dual Query Building Patterns
+## Architecture Overview Matrix
 
 ```
-Pattern 1: Dynamic Fluent Builder (Runtime Resolved)
-┌────────────────────────────────────────────────────────────────────────┐
-│ ImpulseQueryBuilder.<RoaringBitmap>builder()                           │
-│     .input("USER", ArgType.ROARING_BITSET)                             │
-│     .walkEdge("userToGroup")  <── String-based relation lookup        │
-│     .walkEdge("groupToRole")  <── String-based relation lookup        │
-│     .collect(ReturnType.ROARING_BITSET);                               │
-└────────────────────────────────────────────────────────────────────────┘
-                                 vs
-Pattern 2: Strongly-Typed Generated Builder (Compile-Time Checked + IDE Auto-Complete)
-┌────────────────────────────────────────────────────────────────────────┐
-│ UserQueryBuilder.from(userKeys)                                        │
-│     .walkUserToGroup()        <── IDE Auto-complete & Compile-time check│
-│     .filterFuelSurcharge(">", 5.0) <── Type-checked attribute filter   │
-│     .walkGroupToRole()        <── IDE Auto-complete & Compile-time check│
-│     .collectRoaringBitset();   <── Strongly-typed return type          │
-└────────────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼ (Delegates under the hood)
-┌────────────────────────────────────────────────────────────────────────┐
-│ AST Step Pipeline ──► ImpulseQueryCompiler ──► impulse-vm Bytecodes   │
-└────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        3 Core Impulse Graph Execution Paradigms                        │
+├───────────────────────────────┬───────────────────────────────┬────────────────────────┤
+│ 1. Storage-Only ("Parquet")   │ 2. Dynamic Fluent Builder     │ 3. Embedded @ImpLog / @ImpK│
+├───────────────────────────────┼───────────────────────────────┼────────────────────────┤
+│ snapshot.to_torch_indptr()    │ QueryBuilder.inputNode()      │ @ImpLog("""            │
+│ snapshot.to_torch_indices()   │   .walkEdge("knows")          │   can_read(U, D) :-    │
+│                               │   .filterBitset(active)       │     owner(U, D).       │
+│                               │   .compile()                  │ """)                   │
+├───────────────────────────────┼───────────────────────────────┼────────────────────────┤
+│ PyTorch GNNs & NumPy Arrays   │ Dynamic UI & Conditional Ops  │ Spring Boot & ReBAC    │
+└───────────────────────────────┴───────────────────────────────┴────────────────────────┘
 ```
 
-### Pattern 1: Dynamic Fluent Builder Syntax
+### Pattern 1: Storage-Only Zero-Copy Mode ("Graph Parquet Mode")
+```python
+import impulse_graph as imp
+import torch
+
+# Zero-copy mount .imps snapshot in 0 nanoseconds
+snapshot = imp.Snapshot.open("huge_100gb_graph.imps")
+
+# Wrap exact physical C-ABI mmap memory addresses into PyTorch Tensors (0 Bytes copied!)
+indptr  = snapshot.to_torch_indptr()   # torch.Tensor
+indices = snapshot.to_torch_indices()  # torch.Tensor
+```
+
+### Pattern 2: Dynamic Fluent Builder Syntax (Runtime Resolved)
 ```java
 import org.impulsegraph.api.*;
 

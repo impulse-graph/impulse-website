@@ -46,6 +46,12 @@ nav:
     - GraphView: concepts/graph-view.md
     - Schema: concepts/schema.md
 
+  - Languages & DSLs:
+    - Overview: dsl/index.md
+    - ImpScheme (.impscm): dsl/impscm.md
+    - ImpK (.impk): dsl/impk.md
+    - ImpLog (.implog): dsl/implog.md
+
   - Query API:
     - Overview: query-api/index.md
     - Building Queries: query-api/building-queries.md

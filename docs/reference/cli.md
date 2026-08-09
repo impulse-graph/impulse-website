@@ -1,189 +1,164 @@
 # CLI Reference (`impulse` / `impulse-graph`)
 
-Auto-generated CLI documentation for the Impulse Graph Engine developer tooling suite.
+Official CLI documentation for the Impulse Graph Engine developer utilities and compiler suite.
 
 !!! note "Canonical Executable"
     The primary executable name is `impulse-graph`, symlinked as `impulse`.
 
-## Global Usage
-```bash
-impulse <COMMAND> [OPTIONS]
+## Command Naming Directive
+
+* **`compile` ONLY applies to Code**: Compiling DSL scripts (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` bytecode (`impulse compiler compile` / `impulse compile`).
+* **`build` ONLY applies to Snapshots**: Building binary `.imps` snapshot files from dataset manifests (`impulse snapshot build` / `impulse build`).
+
+---
+
+## Global Command Structure
+
+```text
+impulse-graph CLI
+
+├── impulse run                           <-- Top-level execution entrypoint (runs bytecode or source against .imps)
+│
+├── impulse compiler                      <-- Compiler & Bytecode Toolchain Subcommands (Code Only)
+│   ├── compile                           <-- Compiles DSL scripts (.impscm / .impk / .implog) -> .impas or .impb
+│   ├── assemble                          <-- Assembles .impas text -> .impb bytecode
+│   ├── disassemble                       <-- Disassembles .impb bytecode -> .impas text
+│   └── inspect                           <-- Inspects .impb bytecode headers & opcode stats
+│
+├── impulse snapshot                      <-- Binary Snapshot (.imps) Data Tooling (Snapshots Only)
+│   ├── build                             <-- Builds .imps from Parquet/CSV/TSV manifests
+│   ├── merge                             <-- Builds a new snapshot by integrating WAL delta log files
+│   ├── inspect                           <-- Inspects .imps headers, catalogs & sections
+│   ├── validate                          <-- Validates spec compliance & 128B alignment
+│   ├── optimize                          <-- Applies RCM reordering & CSC generation
+│   ├── diff                              <-- Compares structural diffs between 2 snapshots
+│   ├── export                            <-- Exports .imps snapshot to CSV/TSV/JSONL
+│   └── convert-tensors                   <-- Ingests HuggingFace .safetensors weights
+│
+└── impulse crypto                        <-- Cryptographic Attestation & Signatures
+    ├── keygen                            <-- Generates Ed25519 keypairs
+    ├── sign                              <-- Signs binary snapshot with private key
+    └── verify                            <-- Verifies Ed25519 signature
 ```
 
-## Subcommands
+---
 
-### `impulse inspect`
-Inspect binary snapshot header, section directory, domain catalogs, and topology metadata
+## Primary Subcommands
 
-**Usage:**
+### Top-Level Commands
+
+#### `impulse run`
+Execute compiled bytecode query (`.impb`) or script against a binary snapshot (`.imps`).
+
 ```bash
-impulse inspect [OPTIONS]
+impulse run --snapshot production.imps --bytecode reachability.impb --input-val 1042
 ```
 
-**Arguments:**
+#### `impulse compile` (Code Only)
+Shorthand for `impulse compiler compile`. Compiles DSL scripts (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` binary bytecode.
 
-| Argument | Description |
+```bash
+impulse compile query.impscm -o query.impas
+```
+
+#### `impulse build` (Snapshots Only)
+Shorthand for `impulse snapshot build`. Builds zero-copy binary snapshot (`.imps`) from dataset manifest.
+
+```bash
+impulse build --manifest dataset.json -o graph.imps
+```
+
+---
+
+### `impulse compiler` Namespace
+
+#### `impulse compiler compile`
+Compile DSL source script (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` bytecode.
+
+```bash
+impulse compiler compile reachability.impscm -o reachability.impas
+```
+
+| Option | Description |
 | :--- | :--- |
-| `<file>` | Path to binary snapshot file (.imps) |
+| `<INPUT>` | Path to DSL script file (`.impscm`, `.impk`, `.implog`) |
+| `-o, --output` | Destination `.impas` or `.impb` file path |
+| `--emit-ir` | Emit Intermediate Representation (S-Expressions) to stdout |
 
-**Flags & Options:**
+#### `impulse compiler assemble`
+Assemble textual assembly (`.impas`) into binary bytecode program (`.impb`).
 
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-f`, `--format` | Output format (text, json) | text |
-| `-v`, `--verbose` | Verbose detail dumping (including offset tables and encoding feature bitmaps) |  |
-
----
-### `impulse validate`
-Validate binary snapshot file against Spec v0.9.0 normative requirements
-
-**Usage:**
 ```bash
-impulse validate [OPTIONS]
+impulse compiler assemble query.impas -o query.impb
 ```
 
-**Arguments:**
+#### `impulse compiler disassemble`
+Disassemble binary bytecode program (`.impb`) into annotated text assembly (`.impas`).
 
-| Argument | Description |
-| :--- | :--- |
-| `<file>` | Path to binary snapshot file (.imps) |
-
-**Flags & Options:**
-
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `--strict-alignment` | Verify 128-byte hardware alignment rules strictly | true |
-| `-p`, `--public-key` | Optional public key file to verify Ed25519 signature |  |
-
----
-### `impulse compile`
-Compile edge list CSV/TSV/JSON-L data into zero-copy binary snapshot (.imps)
-
-**Usage:**
 ```bash
-impulse compile [OPTIONS]
+impulse compiler disassemble query.impb
 ```
 
-**Flags & Options:**
-
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-m`, `--manifest` | Path to JSON compiler manifest file |  |
-| `-o`, `--output` | Output binary snapshot destination path (.imps) |  |
-
 ---
-### `impulse optimize`
-Heavy offline snapshot layout optimizer (RCM graph reordering, vector encodings, section stripping)
 
-**Usage:**
+### `impulse snapshot` Namespace
+
+#### `impulse snapshot build`
+Build zero-copy binary snapshot (`.imps`) from Parquet/CSV/TSV dataset manifest.
+
 ```bash
-impulse optimize [OPTIONS]
+impulse snapshot build --manifest dataset.json -o production.imps
 ```
 
-**Flags & Options:**
+#### `impulse snapshot merge`
+Build a new binary snapshot by integrating WAL delta log files (`.impdelta`).
 
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-i`, `--input` | Input binary snapshot (.imps) |  |
-| `-o`, `--output` | Output optimized snapshot destination (.imps) |  |
-| `--rcm` | Apply Reverse Cuthill-McKee (RCM) bandwidth reduction and cache-line reordering |  |
-| `--encoding` | Target CSR column encoding (raw_uint32, delta_vbyte, simdcomp, sliced_ellpack) |  |
-| `--strip-mappings` | Strip string ID mapping catalog for minimal runtime binary footprint |  |
-| `--strip-properties` | Strip DTO property payload blocks |  |
-
----
-### `impulse keygen`
-Generate Ed25519 keypairs for snapshot signature verification
-
-**Usage:**
 ```bash
-impulse keygen [OPTIONS]
+impulse snapshot merge --base production.imps --deltas wal1.impdelta wal2.impdelta -o updated.imps
 ```
 
-**Flags & Options:**
+#### `impulse snapshot inspect`
+Inspect binary snapshot header, section directory, domain catalogs, and topology metadata.
 
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-o`, `--out` | Destination directory or file path prefix for generated keypair | impulse_key |
-
----
-### `impulse sign`
-Sign a binary snapshot using Ed25519 private key
-
-**Usage:**
 ```bash
-impulse sign [OPTIONS]
+impulse snapshot inspect production.imps --format json
 ```
 
-**Arguments:**
+#### `impulse snapshot validate`
+Validate binary snapshot file against Spec v0.9.0 / v2.4 normative requirements and 128-byte hardware alignment.
 
-| Argument | Description |
-| :--- | :--- |
-| `<file>` | Target binary snapshot file (.imps) |
-
-**Flags & Options:**
-
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-k`, `--key` | Path to Ed25519 private key file (hex/pem) |  |
-
----
-### `impulse verify`
-Verify Ed25519 signature on a binary snapshot
-
-**Usage:**
 ```bash
-impulse verify [OPTIONS]
+impulse snapshot validate production.imps --strict-alignment
 ```
 
-**Arguments:**
+#### `impulse snapshot optimize`
+Apply offline layout optimizations (Reverse Cuthill-McKee graph reordering, degree sort, CSC generation).
 
-| Argument | Description |
-| :--- | :--- |
-| `<file>` | Target binary snapshot file (.imps) |
-
-**Flags & Options:**
-
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-k`, `--key` | Path to Ed25519 public key file (hex/pem) |  |
-
----
-### `impulse diff`
-Compare structural topology and schema differences between two binary snapshots
-
-**Usage:**
 ```bash
-impulse diff [OPTIONS]
+impulse snapshot optimize -i raw.imps -o opt.imps --rcm --csc
 ```
 
-**Arguments:**
-
-| Argument | Description |
-| :--- | :--- |
-| `<base>` | Base binary snapshot file (.imps) |
-| `<target>` | Target binary snapshot file (.imps) |
-
 ---
-### `impulse export`
-Export binary snapshot file (.imps) back to CSV/TSV edge lists
 
-**Usage:**
+### `impulse crypto` Namespace
+
+#### `impulse crypto keygen`
+Generate Ed25519 keypair for snapshot signatures.
+
 ```bash
-impulse export [OPTIONS]
+impulse crypto keygen -o impulse_key
 ```
 
-**Arguments:**
+#### `impulse crypto sign`
+Sign binary snapshot file using Ed25519 private key.
 
-| Argument | Description |
-| :--- | :--- |
-| `<file>` | Input binary snapshot file (.imps) |
+```bash
+impulse crypto sign production.imps -k impulse_key.priv
+```
 
-**Flags & Options:**
+#### `impulse crypto verify`
+Verify Ed25519 cryptographic signature on binary snapshot.
 
-| Flag / Option | Description | Default |
-| :--- | :--- | :--- |
-| `-o`, `--out-dir` | Output directory for exported edge files |  |
-| `-f`, `--format` | Export format (tsv, csv, jsonl) | tsv |
-
----
+```bash
+impulse crypto verify production.imps -k impulse_key.pub
+```
