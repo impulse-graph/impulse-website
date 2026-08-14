@@ -4,9 +4,11 @@ site_url: https://docs.impulsegraph.io
 
 theme:
   name: material
+  logo: assets/logo_icon.jpg
+  favicon: assets/favicon.jpg
   palette:
     - scheme: slate
-      primary: indigo
+      primary: black
       accent: cyan
   features:
     - navigation.tabs
@@ -40,6 +42,9 @@ nav:
     - Core Concepts: getting-started/core-concepts.md
 
   - Concepts:
+    - Academic Foundations: academic.md
+    - Category Theory & FP Foundations: fp-perspective.md
+    - Academic Critique (MLIR vs ImpScheme): academic-critique.md
     - Snapshots: concepts/snapshots.md
     - Graph Model: concepts/graph-model.md
     - Delta Overlay: concepts/delta-overlay.md
@@ -48,6 +53,7 @@ nav:
 
   - Languages & DSLs:
     - Overview: dsl/index.md
+    - Google CEL (Filters & Projections): dsl/cel.md
     - ImpScheme (.impscm): dsl/impscm.md
     - ImpK (.impk): dsl/impk.md
     - ImpLog (.implog): dsl/implog.md
