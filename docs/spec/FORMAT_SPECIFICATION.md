@@ -111,19 +111,57 @@ Begins immediately after Domain Catalog Array, aligned to a 128-byte boundary. C
 | `0x000C` – `0x000F` | `NameOffset` | `uint32_t` | 4 Bytes | 0-indexed byte offset into String Table (points to null-terminated string, e.g., `"FOLLOWS\0"`). |
 | `0x0010` – `0x0017` | `NodeCount` | `uint64_t` | 8 Bytes | Number of source nodes ($N$) in relation matrix. |
 | `0x0018` – `0x001F` | `EdgeCount` | `uint64_t` | 8 Bytes | Total number of directed edges ($E$) in relation matrix. |
-| `0x0020` – `0x0027` | `SectionFeatures` | `uint64_t` | 8 Bytes | Per-relation feature bitmask (bit 0 = CSC present, bit 1 = weighted edges). |
-| `0x0028` – `0x002F` | `CsrRowOffOffset` | `uint64_t` | 8 Bytes | Absolute file offset to `csrRowOffsets` array (128B aligned). |
-| `0x0030` – `0x0037` | `CsrRowOffBytes` | `uint64_t` | 8 Bytes | Byte size of `csrRowOffsets` array ($= (N + 1) \times \text{EdgeIndexWidth}$). |
-| `0x0038` – `0x003F` | `CsrColIdxOffset` | `uint64_t` | 8 Bytes | Absolute file offset to `csrColumnIndices` array (128B aligned). |
-| `0x0040` – `0x0047` | `CsrColIdxBytes` | `uint64_t` | 8 Bytes | Byte size of `csrColumnIndices` array ($= E \times \text{NodeIDWidth}$). |
-| `0x0048` – `0x004F` | `CscRowOffOffset` | `uint64_t` | 8 Bytes | Absolute file offset to optional `cscRowOffsets` array (`0` if omitted). |
-| `0x0050` – `0x0057` | `CscRowOffBytes` | `uint64_t` | 8 Bytes | Byte size of `cscRowOffsets` array (`0` if omitted). |
-| `0x0058` – `0x005F` | `CscColIdxOffset` | `uint64_t` | 8 Bytes | Absolute file offset to optional `cscColumnIndices` array (`0` if omitted). |
-| `0x0060` – `0x0067` | `CscColIdxBytes` | `uint64_t` | 8 Bytes | Byte size of `cscColumnIndices` array (`0` if omitted). |
-| `0x0068` – `0x0069` | `AttrCount` | `uint16_t` | 2 Bytes | Number of edge attributes defined for this relation. |
-| `0x006A` – `0x007F` | `Reserved2` | `uint8_t[22]` | 22 Bytes | `0x00` alignment padding (Pads struct to exactly 128 Bytes). |
+| `0x0020` – `0x0027` | `SectionFeatures` | `uint64_t` | 8 Bytes | Per-relation feature bitmask (bit 0 = CSC, bit 1 = weighted, bit 2 = virtual relation, bits 3..4 = multiplicity). |
+| `0x0028` – `0x002F` | `CsrRowOffOffset` | `uint64_t` | 8 Bytes | Absolute file offset to `csrRowOffsets` array (128B aligned; `0` if Virtual or `M:1`/`1:1`). |
+| `0x0030` – `0x0037` | `CsrRowOffBytes` | `uint64_t` | 8 Bytes | Byte size of `csrRowOffsets` array ($= (N + 1) \times \text{EdgeIndexWidth}$; `0` if Virtual or `M:1`/`1:1`). |
+| `0x0038` – `0x003F` | `CsrColIdxOffset` | `uint64_t` | 8 Bytes | Absolute file offset to `csrColumnIndices` array (128B aligned; `0` if Virtual). |
+| `0x0040` – `0x0047` | `CsrColIdxBytes` | `uint64_t` | 8 Bytes | Byte size of `csrColumnIndices` array ($= E \times \text{NodeIDWidth}$; `0` if Virtual). |
+| `0x0048` – `0x004F` | `CscRowOffOffset` | `uint64_t` | 8 Bytes | Absolute file offset to optional `cscRowOffsets` array (`0` if omitted, Virtual, or `1:M`/`1:1`). |
+| `0x0050` – `0x0057` | `CscRowOffBytes` | `uint64_t` | 8 Bytes | Byte size of `cscRowOffsets` array (`0` if omitted, Virtual, or `1:M`/`1:1`). |
+| `0x0058` – `0x005F` | `CscColIdxOffset` | `uint64_t` | 8 Bytes | Absolute file offset to optional `cscColumnIndices` array (`0` if omitted or Virtual). |
+| `0x0060` – `0x0067` | `CscColIdxBytes` | `uint64_t` | 8 Bytes | Byte size of `cscColumnIndices` array (`0` if omitted or Virtual). |
+| `0x0068` – `0x0069` | `AttrCount` | `uint16_t` | 2 Bytes | Number of edge attributes defined for this relation (`0` if Virtual). |
 
-Each relation directory entry is followed immediately by `AttrCount` sequential **Attribute Descriptors** (40 Bytes each, see §3.4).
+#### 3.3.2 Virtual Super-Relation C-ABI Payload (`Reserved2` Overload & Overflow Rules)
+
+When `IMP_REL_FEATURE_VIRTUAL` (`Bit 2`) is enabled in `SectionFeatures`:
+* **Inline Fast Path ($1 \le \text{component\_count} \le 10$)**:
+  Bytes `0x006A` – `0x007F` (22 bytes) in the `RelationDirectoryEntry` are overloaded to store the constituent relation payload directly inside the fixed 128-byte entry (zero extra file reads or memory allocations):
+
+```c
+struct ImpulseVirtualRelationPayload {
+    uint16_t component_count;    // Number of constituent physical relation IDs (1 <= C <= 10)
+    uint16_t component_ids[10];  // Inline array of constituent physical RelationIDs (padded with 0x0000)
+};
+```
+
+* **Overflow Extended Path ($\text{component\_count} > 10$, up to 65,536)**:
+  For large virtual relations composed of more than 10 physical relations:
+  1. `component_ids[0]` is set to `0xFFFF` (Overflow Sentinel Flag).
+  2. `CsrColIdxOffset` (8-byte `uint64_t`) stores a 128B-aligned absolute file offset to an off-heap array of `uint16_t component_ids[component_count]`.
+  3. `CsrColIdxBytes` stores the byte size ($= \text{component\_count} \times 2$).
+* **Maximum Theoretical Capacity**: Up to **65,536 physical relations** per virtual super-relation (matching the overall `.imps` relation limit).
+
+---
+
+#### 3.3.3 Per-Relation Feature Bitmask (`SectionFeatures` 64-bit Layout)
+
+The `SectionFeatures` field defines C-ABI flags and structural contracts for topology storage:
+
+```c
+#define IMP_REL_FEATURE_CSC          (1ULL << 0) // Bit 0: CSC Transpose Index Present
+#define IMP_REL_FEATURE_WEIGHTED     (1ULL << 1) // Bit 1: Edge Weights Present
+#define IMP_REL_FEATURE_VIRTUAL      (1ULL << 2) // Bit 2: Virtual Super-Relation (No physical arrays on disk)
+
+// Multiplicity Bitmask (Bits 3..4)
+#define IMP_REL_CARDINALITY_MASK     (3ULL << 3) // Bitmask for relation multiplicity (Bits 3..4)
+#define IMP_REL_CARDINALITY_M_N      (0ULL << 3) // Many-to-Many (Default full CSR/CSC layout)
+#define IMP_REL_CARDINALITY_M_1      (1ULL << 3) // Many-to-One  (Flat target array, CsrRowOffBytes = 0)
+#define IMP_REL_CARDINALITY_1_M      (2ULL << 3) // One-to-Many  (Forward CSR, reverse flat CSC array)
+#define IMP_REL_CARDINALITY_1_1      (3ULL << 3) // One-to-One   (Flat bi-directional direct arrays)
+```
+
+---
 
 ### 3.4 Attribute Descriptor Structure (Fixed 44 Bytes)
 
@@ -145,9 +183,13 @@ Every node attribute and edge attribute is defined by a fixed 44-byte POD struct
 
 ## 4. Topology & Attribute Specification
 
-### 4.1 Topology Mechanics (Always CSR, Optional CSC)
-* **Standard CSR**: Topology is **always standard CSR** (`csrRowOffsets` + `csrColumnIndices`).
-* **Direct Array Indexing**: Targets are indexed directly via uncompressed arrays (`ENCODING_RAW = 0x00`). `columnIndices` for node $i$'s $k$-th neighbor is read at `csrColumnIndices[csrRowOffsets[i] + k]`.
+### 4.1 Topology Mechanics & Multiplicity Optimizations
+
+* **Many-to-Many (`IMP_REL_CARDINALITY_M_N`)**: Topology is standard CSR (`csrRowOffsets` + `csrColumnIndices`). Target $k$ of node $i$ is read at `csrColumnIndices[csrRowOffsets[i] + k]`.
+* **Many-to-One (`IMP_REL_CARDINALITY_M_1`)**: Every source node has at most 1 target node. `csrRowOffsets` is omitted (`CsrRowOffBytes = 0`). `csrColumnIndices` becomes a flat direct array of length $N$. Target node ID for source node $i$ is read directly at `csrColumnIndices[i]` (where `MAX_UINT` indicates no edge).
+* **One-to-Many (`IMP_REL_CARDINALITY_1_M`)**: Forward CSR is standard (`csrRowOffsets` + `csrColumnIndices`). Reverse CSC transpose omits `cscRowOffsets` (`CscRowOffBytes = 0`), storing a flat direct source node ID array in `cscColumnIndices`.
+* **One-to-One (`IMP_REL_CARDINALITY_1_1`)**: Both `csrRowOffsets` and `cscRowOffsets` are omitted. Forward and reverse traversals use flat direct arrays in $O(1)$ single-hop dereferences.
+* **Virtual Super-Relations (`IMP_REL_FEATURE_VIRTUAL`)**: Contains no physical topology arrays. `ImpulseVM` resolves the relation by expanding traversals over `component_ids[0 .. component_count - 1]` and unioning intermediate bitsets via `OP_SET_UNION` or `OP_CSC_WALK_MULTI`.
 * **Optional CSC Transpose**: An incoming transpose index (`cscRowOffsets` + `cscColumnIndices`) may be included for bidirectional traversals.
 * **Explicit Reverse Relations**: Reverse relations (e.g. `MEMBER_OF_REVERSE`) are represented explicitly as first-class catalog relations.
 
@@ -185,6 +227,50 @@ bool    is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
 | `0x0A` | `FIXED_BYTES` | `0x0A` | `0x8A` | $\ge 1$ | $\text{dim}$ Bytes (dim=16 for UUID, dim=32 for SHA-256) |
 | `0x0B` | `VAR_STRING` | `0x0B` | `0x8B` | Ignored (`0`) | Variable UTF-8 (`uint32_t offsets[]` + Data Blob) |
 | `0x0C` | `VAR_BYTES` | `0x0C` | `0x8C` | Ignored (`0`) | Variable Binary (`uint32_t offsets[]` + Data Blob) |
+| `0x0D` | `INTERVAL_SEC_32` | `0x0D` | `0x8D` | $\ge 1$ | 8 Bytes packed struct (`uint32_t start_sec`, `uint32_t duration_sec`) |
+| `0x0E` | `INTERVAL_MS_64` | `0x0E` | `0x8E` | $\ge 1$ | 16 Bytes packed struct (`uint64_t start_ms`, `uint64_t duration_ms`) |
+
+---
+
+### 3.4 Section 2.6: Secondary Index Directory Table (Fixed 64 Bytes per Index)
+Begins immediately after Relation Directory Table, aligned to a 128-byte boundary. Contains `IndexCount` generic secondary index descriptors:
+
+| Byte Offset | Field Name | C-ABI Type | Size | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `0x0000` – `0x0003` | `IndexID` | `uint32_t` | 4 Bytes | Zero-indexed secondary index identifier (`0`..`IndexCount - 1`). |
+| `0x0004` – `0x0005` | `DomainID` | `uint16_t` | 2 Bytes | Target Node Domain ID. |
+| `0x0006` – `0x0007` | `RelationID` | `uint16_t` | 2 Bytes | Target Relation ID (`0xFFFF` for Node Domain attributes). |
+| `0x0008` – `0x0009` | `AttributeIndex` | `uint16_t` | 2 Bytes | 0-indexed Attribute index within target relation or node domain. |
+| `0x000A` | `IndexType` | `uint8_t` | 1 Byte | Generic Index Type enum (`0x01` = Permutation, `0x02` = ZoneMap, `0x03` = InvertedBitSet, `0x04` = MPHF, `0x05` = Trigram, `0x06` = DomainSplit, `0x07` = TemporalInterval). |
+| `0x000B` | `Reserved1` | `uint8_t` | 1 Byte | `0x00` alignment padding. |
+| `0x000C` – `0x000F` | `NameOffset` | `uint32_t` | 4 Bytes | 0-indexed byte offset into String Table (e.g., `"idx_user_email\0"`). |
+| `0x0010` – `0x0017` | `DataOffset` | `uint64_t` | 8 Bytes | Absolute 128B-aligned file offset to index data payload blob. |
+| `0x0018` – `0x001F` | `DataBytes` | `uint64_t` | 8 Bytes | Total byte size of index data payload blob. |
+| `0x0020` – `0x0027` | `PayloadFeatureMask` | `uint64_t` | 8 Bytes | Generic Index Feature Bitmask (e.g. hash seed, metric flags). |
+| `0x0028` – `0x003F` | `ReservedPadding` | `uint8_t[24]` | 24 Bytes | Reserved for future index engine parameters (`0x00`). |
+
+---
+
+### 4.4 Optional Snapshot Topology & Topology Inspection Opcodes (`0x19` .. `0x1C`)
+
+In accordance with the Impulse Graph Engine physical snapshot format specification, **all structural topology representations (CSR, CSC, COO) and Key Catalogs are fully optional**:
+* **CSR (Forward Out-Edges $u \to v$)**: Optional. Opcodes `OP_CSR_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
+* **CSC (Reverse In-Edges $v \leftarrow u$)**: Optional. Opcodes `OP_CSC_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
+* **COO (Coordinate Edge List $[E, 2]$)**: Optional. Opcodes `OP_COO_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
+* **Key Catalogs (Dense Node ID $\leftrightarrow$ String Key / UUID)**: Optional. Opcodes `OP_MAP_KEYS_TO_DENSE` fail-fast if absent.
+
+To enable dynamic adaptive query execution without runtime exception traps, `ImpulseVM` provides 4 dedicated **Topology Inspection Opcodes**:
+
+| Opcode ID | Instruction Signature | Description | Result & Flags |
+| :--- | :--- | :--- | :--- |
+| **`0x19`** | **`OP_HAS_CSR R_DST, REL_ID`** | Inspects if relation `REL_ID` has CSR forward offsets installed | `R_DST = 1` if present, `0` if absent.<br>Sets `ZF = 0` (present) or `ZF = 1` (absent). |
+| **`0x1A`** | **`OP_HAS_CSC R_DST, REL_ID`** | Inspects if relation `REL_ID` has CSC reverse offsets installed | `R_DST = 1` if present, `0` if absent.<br>Sets `ZF = 0` (present) or `ZF = 1` (absent). |
+| **`0x1B`** | **`OP_HAS_COO R_DST, REL_ID`** | Inspects if relation `REL_ID` has COO edge list installed | `R_DST = 1` if present, `0` if absent.<br>Sets `ZF = 0` (present) or `ZF = 1` (absent). |
+| **`0x1C`** | **`OP_HAS_KEY_CATALOG R_DST, DOMAIN_ID`** | Inspects if domain `DOMAIN_ID` has String/UUID key catalog installed | `R_DST = 1` if present, `0` if absent.<br>Sets `ZF = 0` (present) or `ZF = 1` (absent). |
+| **`0x1D`** | **`OP_DENSE_WALK R_DST, R_SRC, REL_ID`** | Dense bitmask grid matrix traversal | Traverses `ENCODING_DENSE` bitmask grid relation. |
+| **`0x1E`** | **`OP_CREATE_SCRATCH_INDEX DOMAIN, ATTR, TYPE`** | Idempotently creates secondary index in transient scratch memory | Builds scratch index in RAM / `.imps.idx` sidecar if absent. |
+| **`0x1F`** | **`OP_DROP_SCRATCH_INDEX DOMAIN, ATTR, TYPE`** | Idempotently drops secondary index from transient scratch memory | Frees transient scratch index. |
+| **`0x20`** | **`OP_HAS_DENSE R_DST, REL_ID`** | Inspects if relation `REL_ID` is encoded as a `ENCODING_DENSE` bitmask grid | `R_DST = 1` if present, `0` if absent.<br>Sets `ZF = 0` (present) or `ZF = 1` (absent). |
 
 ---
 
@@ -256,6 +342,20 @@ Future specification iterations explore allowing single queries (`ImpulseVM` exe
 3. **Off-Heap String Table & Attribute Memory Isolation**:
    - **String Pool Base Pointer Isolation**: Scope variable-length UTF-8 string offsets (`VAR_STRING`) to their originating snapshot's string pool pointer (`string_table_base_A` vs `string_table_base_B`) to avoid cross-snapshot memory corruption in attribute filter opcodes (`OP_FILTER_ATTR_STR`).
    - **Attribute Schema Unification**: Standardize bitwise primitive types across snapshots to ensure vector operations (`OP_MXV`) run without runtime alignment or type-coercion overhead.
+
+### 7.2 ImpulseVM Register Windowing & 64 KB Off-Heap Scratch Baseline
+
+`ImpulseVM` query execution contexts (`VmQueryContext` / `impulse_vm_context_t`) establish a **64 KB (`65,536` bytes)** default baseline off-heap scratch memory allocation.
+
+#### Specification Constraints & Directives:
+1. **64 KB Default Off-Heap Scratch Baseline**:
+   - Every `VmQueryContext` instance pre-allocates 64 KB of 64-byte aligned off-heap scratch memory upon initialization.
+   - 64 KB is guaranteed to fit 100% inside CPU **L2 Data Cache** (~512 KB to 1 MB per core on x86-64 and ARM64 processors), eliminating DRAM latency during query execution.
+2. **Register Windowing Stride**:
+   - Subroutine calls (`OP_CALL`) shift register windows forward (increasing memory offsets) by a stride of 12 registers (96 bytes per frame step).
+   - The 64 KB default scratch allocation supports up to **680 recursive call steps** out of the box with **zero off-heap dynamic memory allocations** during query execution.
+3. **Upfront Capacity Assertion (`.scratch_bytes`)**:
+   - Queries requiring deeper recursion (e.g. 10,000-step Depth-First Search or complex recursive graph traversals) declare their required capacity upfront in assembly headers via `.scratch_bytes 1048576` (1 MB) or using `OP_ALLOC_SCRATCH R_DST, BYTES` (`0x73`).
 
 4. **Multi-Snapshot Lifecycle & Execution Safety**:
    - **Atomic Ref-Counting & Thread Safety**: Extend `VmQueryContext` to maintain atomic read-locks and reference counts across all participant snapshot `mmap` handles to prevent OS page faults (`SIGBUS`) during dynamic snapshot unmapping or hot-swapping.

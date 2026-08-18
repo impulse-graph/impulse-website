@@ -1,5 +1,7 @@
 # Impulse Graph Engine
 
+![Impulse Graph Engine Banner](assets/banner_letterbox.jpg)
+
 **Ultra-high-performance, zero-copy, C-ABI binary snapshot graph engine.**
 
 Impulse Graph is the **"Apache Arrow / Parquet equivalent for Graph Analytics"**. It decouples static graph analytics from heavy database servers by pairing an **immutable binary snapshot format (`.imps` v0.9.0)** with a **register-based Virtual Machine (`ImpulseVM`)** that executes SIMD-vectorized traversals directly off-heap without physical data loading or GC pauses.

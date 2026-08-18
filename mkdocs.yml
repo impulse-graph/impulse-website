@@ -43,8 +43,6 @@ nav:
 
   - Concepts:
     - Academic Foundations: academic.md
-    - Category Theory & FP Foundations: fp-perspective.md
-    - Academic Critique (MLIR vs ImpScheme): academic-critique.md
     - Snapshots: concepts/snapshots.md
     - Graph Model: concepts/graph-model.md
     - Delta Overlay: concepts/delta-overlay.md
@@ -99,5 +97,15 @@ nav:
       - Specification v0.9.0 (Current): reference/spec/v0.9.0.md
     - Schema Evolution: reference/schema-evolution.md
     - Package Registry: reference/packages.md
+
+  - Design Notes:
+    - Category Theory & FP Foundations: design-notes/fp-perspective.md
+    - Academic Critique (MLIR vs ImpScheme): design-notes/academic-critique.md
+    - CEL AST Optimization: design-notes/cel-ast-optimize.md
+    - openCypher Query Support: design-notes/cypher-query-support.md
+    - Vector Attribute Specification: design-notes/vector-attribute-spec.md
+    - ImpulseVM Architecture Critique: design-notes/vm-critique.md
+    - Comparison vs. NornicDB: design-notes/nornic-db-comparison.md
+    - Comparison vs. TuringDB: design-notes/turing-db-comparison.md
 
   - Contributing: contributing/index.md
