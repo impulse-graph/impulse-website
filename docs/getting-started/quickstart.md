@@ -10,23 +10,23 @@ Impulse Graph uses memory-mapped files (`mmap`) to load snapshots in sub-millise
 
 === "Java"
     ```java
-    import io.impulse.graph.core.*;
+    import org.impulsegraph.api.ImpulseGraphSnapshot;
+    import org.impulsegraph.storage.csr.BinarySnapshotLoader;
+    import java.lang.foreign.Arena;
+    import java.nio.file.Path;
 
     public class Quickstart {
         public static void main(String[] args) throws Exception {
-            // 1. Define the Graph Schema
-            GraphSchema schema = GraphSchema.builder()
-                .addEntityType("User", 1000000)
-                .addRelation("User", "FOLLOWS", "User")
-                .build();
+            // 1. Manage off-heap lifecycle with a shared Arena
+            try (Arena arena = Arena.ofShared()) {
+                // 2. Map snapshot direct from disk (< 1 ms cold start)
+                var loaded = BinarySnapshotLoader.loadSnapshot(Path.of("graph_v1.imps"), arena);
+                ImpulseGraphSnapshot snap = loaded.getGraph();
 
-            // 2. Map the snapshot directly from disk (Zero-Copy)
-            ImpulseGraphSnapshot snapshot = ImpulseGraphSnapshot.load("graph_v1.imps", schema);
-            
-            // 3. Create a read-only GraphView
-            GraphView view = snapshot.createView();
-            
-            // ... (proceed to query)
+                // 3. Execute domain-anchored traversals
+                var friends = snap.domain("User").from(42).out("FOLLOWS").toList();
+                System.out.println("User 42 follows: " + friends);
+            }
         }
     }
     ```
@@ -82,20 +82,14 @@ Queries are executed against a `GraphView` within a `QueryContext`. The engine g
 
 === "Java"
     ```java
-    // ... setup code from above
+    // Multi-seed batch frontier with CEL attribute filtering
+    List<Long> targets = snap.domain("User")
+        .from(10, 20, 30)
+        .filter("node.age >= 21")
+        .out("FOLLOWS")
+        .toList();
 
-    // Build the query to find all users that user ID 42 follows
-    try (QueryContext ctx = view.createQueryContext()) {
-        long userId = 42L;
-        
-        // Zero-copy SIMD traversal
-        NodeIterator targets = ctx.traverse(userId, "FOLLOWS");
-        
-        System.out.println("User " + userId + " follows:");
-        while (targets.hasNext()) {
-            System.out.println("- Node ID: " + targets.next());
-        }
-    }
+    System.out.println("Surviving target users: " + targets);
     ```
 
 === "C++"
