@@ -6,22 +6,43 @@ Choose your language ecosystem below to install Impulse Graph:
 
 === "Java"
 
-    For JVM projects (Java 25+, Kotlin, Scala), Impulse Graph is available via Maven Central. We utilize Java's Foreign Function & Memory API (FFM) for zero-copy native interoperability.
+    For JVM projects (Java 21 LTS, Java 22+, and Java 25 LTS), Impulse Graph is available directly via Maven Central under groupId `org.impulsegraph`. We utilize Java's Foreign Function & Memory API (FFM) for zero-copy native interoperability.
     
     Add the following to your `pom.xml`:
     
     ```xml
-    <dependency>
-        <groupId>io.impulse.graph</groupId>
-        <artifactId>impulse-core</artifactId>
-        <version>2.3.0</version>
-    </dependency>
+    <dependencies>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-api</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-storage</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-vm</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+        <!-- Optional: Add impulse-compiler for openCypher parsing and query optimizations -->
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-compiler</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+    </dependencies>
     ```
     
     For Gradle users (`build.gradle.kts`):
     
     ```kotlin
-    implementation("io.impulse.graph:impulse-core:2.3.0")
+    implementation("org.impulsegraph:impulse-api:0.9.0")
+    implementation("org.impulsegraph:impulse-storage:0.9.0")
+    implementation("org.impulsegraph:impulse-vm:0.9.0")
+    implementation("org.impulsegraph:impulse-compiler:0.9.0") // Optional
     ```
 
 === "C++"
@@ -49,7 +70,7 @@ Choose your language ecosystem below to install Impulse Graph:
     
     ```toml
     [dependencies]
-    impulse-graph = "2.3.0"
+    impulse-graph = "0.9.0"
     ```
     
     Or run:

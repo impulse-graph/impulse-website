@@ -1,6 +1,6 @@
 # Impulse Graph Java Engine Integration Walkthrough
 
-This walkthrough guides you through integrating the **Impulse Graph Java** (`impulse-graph-java`) library into an existing Java application. It covers cloning and building the native FFM engine, publishing it to your local Maven cache, configuring your project dependencies and JVM runtime flags, and querying a binary snapshot (`.imps`) file containing Role-Based Access Control (RBAC) data using the fluent query builder API.
+This walkthrough guides you through integrating the **Impulse Graph Java** (`impulse-graph-java`) library into an existing Java application. It covers adding the Maven Central dependencies, configuring your project and JVM runtime flags, and querying an immutable binary snapshot (`.imps`) file containing Role-Based Access Control (RBAC) data using the fluent DomainView traversal API.
 
 ---
 
@@ -8,70 +8,81 @@ This walkthrough guides you through integrating the **Impulse Graph Java** (`imp
 
 Before beginning, ensure your environment meets the following requirements:
 
-* **JDK 25** or higher with support for Foreign Function & Memory (FFM) API and Vector API (`jdk.incubator.vector`).
+* **Java 21 LTS** or **Java 22+** (including **Java 25 LTS** and **Java 26+**) with support for Foreign Function & Memory (FFM) and the Vector API (`jdk.incubator.vector`).
 * **Apache Maven 3.9+** (or **Gradle 8.5+**).
-* **Git** CLI.
-* An existing Java project configured for Java 25.
+* An existing Java project.
 
 ---
 
-## Step 1: Clone the Repository
+## Step 1: Configure Project Dependencies
 
-Clone the `impulse-graph-java` repository from GitHub into your local workspace:
-
-```bash
-git clone https://github.com/impulse-graph/impulse-graph-java.git
-cd impulse-graph-java
-```
-
-> [!NOTE]
-> If you are working locally within the `~/impulse` multi-repository ecosystem, the code is available at `~/impulse/impulse-graph-java`.
-
----
-
-## Step 2: Build and Install to Local Maven Cache (`~/.m2/repository`)
-
-`impulse-graph-java` is structured as a multi-module Maven project:
-* `impulse-spec`: Binary Snapshot v2.4 layout and schema specifications.
-* `impulse-api`: Fluent query builder, `IdMapper`, and query AST definitions.
-* `impulse-core`: Pure Java 25 off-heap Foreign Function & Memory (FFM) CSR execution kernel.
-
-Execute `mvn clean install` to compile the modules and install artifacts to your local Maven cache (`~/.m2/repository`):
-
-```bash
-mvn clean install -DskipTests
-```
-
-Upon completion, the following artifacts will be available in your local repository:
-* `io.impulse.graph:impulse-spec:2.3.0-SNAPSHOT`
-* `io.impulse.graph:impulse-api:2.3.0-SNAPSHOT`
-* `io.impulse.graph:impulse-core:2.3.0-SNAPSHOT`
-
----
-
-## Step 3: Configure Project Dependencies & JVM Runtime Flags
+Impulse Graph is published to **Maven Central** under the `org.impulsegraph` namespace.
 
 ### Maven Configuration (`pom.xml`)
 
-Add `impulse-core` to your project's `pom.xml`. `impulse-core` transitively pulls in `impulse-api` and `impulse-spec`:
+Add the core engine modules to your `pom.xml`:
 
 ```xml
 <dependencies>
+    <!-- Public API & Domain Abstractions -->
     <dependency>
-        <groupId>io.impulse.graph</groupId>
-        <artifactId>impulse-core</artifactId>
-        <version>2.3.0-SNAPSHOT</version>
+        <groupId>org.impulsegraph</groupId>
+        <artifactId>impulse-api</artifactId>
+        <version>0.9.0</version>
+    </dependency>
+
+    <!-- Off-Heap Storage Layer & Binary Snapshot Loader -->
+    <dependency>
+        <groupId>org.impulsegraph</groupId>
+        <artifactId>impulse-storage</artifactId>
+        <version>0.9.0</version>
+    </dependency>
+
+    <!-- Compute Virtual Machine & SIMD Traversal Execution -->
+    <dependency>
+        <groupId>org.impulsegraph</groupId>
+        <artifactId>impulse-vm</artifactId>
+        <version>0.9.0</version>
+    </dependency>
+
+    <!-- Optional: Query Compiler for openCypher parsing & multi-stage passes -->
+    <dependency>
+        <groupId>org.impulsegraph</groupId>
+        <artifactId>impulse-compiler</artifactId>
+        <version>0.9.0</version>
     </dependency>
 </dependencies>
 ```
 
-> [!IMPORTANT]
-> Impulse Graph Java relies on Java 25 FFM off-heap memory segments and SIMD vector operations. You **must** configure compiler and surefire execution args in your `pom.xml`:
+### Alternative: Gradle Configuration (`build.gradle.kts`)
+
+If your project uses Gradle with Kotlin DSL:
+
+```kotlin
+dependencies {
+    implementation("org.impulsegraph:impulse-api:0.9.0")
+    implementation("org.impulsegraph:impulse-storage:0.9.0")
+    implementation("org.impulsegraph:impulse-vm:0.9.0")
+    implementation("org.impulsegraph:impulse-compiler:0.9.0") // Optional
+}
+```
+
+---
+
+## Step 2: Configure JVM Runtime & Compiler Flags
+
+Impulse Graph utilizes off-heap memory mapping via Foreign Function & Memory (FFM) and SIMD vector operations via `jdk.incubator.vector`. Configure your build tool and runtime flags based on your target JDK:
+
+| Java Runtime | Required JVM Flags | Description |
+| :--- | :--- | :--- |
+| **Java 22+ / Java 25 LTS** | `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` | **Standard FFM** in `java.base`. No preview flag required. |
+| **Java 21 LTS** | `--enable-preview --add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` | Enables JEP 442 FFM Preview 3 on Java 21 LTS. |
+
+### Maven Build Plugins (`pom.xml`)
 
 ```xml
 <build>
     <plugins>
-        <!-- Java 25 Compiler Plugin -->
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
@@ -86,7 +97,6 @@ Add `impulse-core` to your project's `pom.xml`. `impulse-core` transitively pull
             </configuration>
         </plugin>
 
-        <!-- Test execution flags for off-heap native access -->
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
@@ -105,123 +115,89 @@ Add `impulse-core` to your project's `pom.xml`. `impulse-core` transitively pull
 
 ---
 
-### Alternative: Gradle Configuration (`build.gradle`)
+## Step 3: Load an Immutable Binary Snapshot (`.imps`) File
 
-If your project uses Gradle, update `build.gradle` as follows:
-
-```groovy
-repositories {
-    mavenLocal()
-    mavenCentral()
-}
-
-dependencies {
-    implementation 'io.impulse.graph:impulse-core:2.3.0-SNAPSHOT'
-}
-
-tasks.withType(JavaCompile) {
-    options.compilerArgs += [
-        '--enable-preview',
-        '--add-modules', 'jdk.incubator.vector'
-    ]
-}
-
-tasks.withType(JavaExec) {
-    jvmArgs += [
-        '--enable-preview',
-        '--add-modules', 'jdk.incubator.vector',
-        '--enable-native-access=ALL-UNNAMED'
-    ]
-}
-```
-
----
-
-## Step 4: Load a Downloaded Binary Snapshot (`.imps`) File
-
-Impulse Graph loads binary snapshot files (`.imps`) direct-to-disk using zero-copy memory-mapped regions. Off-heap memory is safely scoped using Java 25's `java.lang.foreign.Arena`.
-
-To load a snapshot file downloaded separately (e.g., `rbac_snapshot.imps` containing sample RBAC data):
+Impulse Graph loads `.imps` snapshot files directly from disk into off-heap memory using zero-copy memory mapping (`mmap`). Off-heap memory is safely scoped to a Java `java.lang.foreign.Arena`:
 
 ```java
-import org.impulsegraph.core.csr.BinarySnapshotLoader;
-import org.impulsegraph.core.csr.GraphSnapshot;
+import org.impulsegraph.api.ImpulseGraphSnapshot;
+import org.impulsegraph.storage.csr.BinarySnapshotLoader;
+
 import java.lang.foreign.Arena;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
-Path snapshotPath = Paths.get("datasets/rbac_snapshot.imps");
+Path snapshotPath = Path.of("datasets/rbac_snapshot.imps");
 
-// Arena.ofShared() ensures thread-safe off-heap memory allocation and predictable cleanup
+// Arena.ofShared() manages thread-safe off-heap memory lifecycle
 try (Arena arena = Arena.ofShared()) {
-    BinarySnapshotLoader.LoadedSnapshot loadedSnapshot = BinarySnapshotLoader.loadSnapshot(snapshotPath, arena);
-    
-    System.out.printf("Loaded snapshot version %d with %d domains and %d relations.%n",
-            loadedSnapshot.version(),
-            loadedSnapshot.domainCount(),
-            loadedSnapshot.relationCount());
-            
-    GraphSnapshot graph = loadedSnapshot.graph();
-    // Snapshot is ready for querying...
+    var loaded = BinarySnapshotLoader.loadSnapshot(snapshotPath, arena);
+    ImpulseGraphSnapshot snap = loaded.getGraph();
+
+    System.out.printf("Loaded snapshot with %d relations across %d MB memory.%n",
+            snap.getRelationCount(),
+            snap.getOffHeapMemorySizeBytes() / (1024 * 1024));
 }
 ```
 
 ---
 
-## Step 5: Build and Execute Queries Using the Fluent Query Builder
+## Step 4: Querying Connections (Universal Traversal Model)
 
-Impulse Graph provides a fluent AST query builder (`ImpulseGraphQuery.builder()`) to define declarative, vector-accelerated graph traversals.
+All graph queries follow the **Kleisli Frontier Propagation Model** anchored to an explicit domain context:
+
+$$\text{Pipeline} = \text{Anchor}(D_0, F_0, S_0) \gg= T_1 \gg= T_2 \dots \gg= \text{Collect}()$$
 
 ### 3-Tier RBAC Graph Traversal Example
 
-In a standard 3-tier ReBAC/RBAC model:
-1. `USER` nodes are linked to `GROUP` nodes via `userToGroup` edges.
-2. `GROUP` nodes are linked to `ROLE` nodes via `groupToRole` edges.
+In a standard Role-Based Access Control model:
+- `USER` nodes link to `GROUP` nodes via relation `userToGroup`.
+- `GROUP` nodes link to `ROLE` nodes via relation `groupToRole`.
 
-The query pipeline traverses from an input set of User IDs to collect all associated Role IDs:
+We anchor to the `USER` domain, seed with User ID `0` (or resolve an external key), traverse two hops, and collect reached roles into a zero-allocation off-heap bitset:
 
 ```java
-import org.impulsegraph.api.ArgType;
-import org.impulsegraph.api.ImpulseGraphQuery;
-import org.impulsegraph.api.ReturnType;
+import org.impulsegraph.api.traversal.DomainView;
+import org.impulsegraph.api.bitset.ImpulseBitSet;
 
-// 1. Construct immutable query AST using the fluent builder
-ImpulseGraphQuery<Object> rbacQuery = ImpulseGraphQuery.builder()
-        .input("USER", ArgType.ROARING_BITSET)
-        .walkEdge("userToGroup")
-        .walkEdge("groupToRole")
-        .collect(ReturnType.ROARING_BITSET);
+// 1. Anchor query to the USER domain
+DomainView userDomain = snap.domain("USER");
 
-// 2. Execute query against the loaded snapshot
-Object result = rbacQuery.execute(loadedSnapshot, inputBitset);
+// 2. Execute 2-hop traversal: User(0) -> Group -> Role
+ImpulseBitSet rolesReached = userDomain.from(0)
+        .out("userToGroup")
+        .out("groupToRole")
+        .toBitSet();
+
+System.out.println("Roles reached: " + rolesReached.cardinality());
 ```
 
 ---
 
-## Step 6: Complete End-to-End Executable Example
+## Step 5: Complete End-to-End Executable Example
 
-Below is a self-contained, end-to-end example demonstrating file loading, query construction, execution, and off-heap memory management.
+Below is a self-contained, end-to-end example demonstrating snapshot loading, relation inspection, and fluent vector-accelerated traversal.
 
 ```java
 package com.example.rbac;
 
-import org.impulsegraph.api.ArgType;
-import org.impulsegraph.api.ImpulseGraphQuery;
-import org.impulsegraph.api.ReturnType;
-import org.impulsegraph.core.csr.BinarySnapshotLoader;
-import org.impulsegraph.core.csr.GraphSnapshot;
-import org.impulsegraph.core.csr.RelationSnapshot;
+import org.impulsegraph.api.ImpulseGraphSnapshot;
+import org.impulsegraph.api.bitset.ImpulseBitSet;
+import org.impulsegraph.api.traversal.DomainView;
+import org.impulsegraph.storage.csr.BinarySnapshotLoader;
+import org.impulsegraph.storage.csr.GraphSnapshot;
+import org.impulsegraph.storage.csr.RelationSnapshot;
 
 import java.lang.foreign.Arena;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.BitSet;
+import java.util.HashSet;
+import java.util.Set;
 
 public class RbacSnapshotQueryExample {
 
     public static void main(String[] args) throws Exception {
-        Path snapshotPath = Paths.get("datasets/rbac_snapshot.imps");
+        Path snapshotPath = Paths.get(args.length > 0 ? args[0] : "datasets/rbac_snapshot.imps");
 
         if (!Files.exists(snapshotPath)) {
             System.err.println("Error: Snapshot file not found at " + snapshotPath.toAbsolutePath());
@@ -230,40 +206,51 @@ public class RbacSnapshotQueryExample {
 
         System.out.println("[+] Loading binary snapshot: " + snapshotPath);
 
-        // 1. Allocate shared memory arena for off-heap C-ABI graph buffers
+        // 1. Allocate shared memory arena for off-heap graph buffers
         try (Arena arena = Arena.ofShared()) {
             BinarySnapshotLoader.LoadedSnapshot loadedSnapshot = 
                     BinarySnapshotLoader.loadSnapshot(snapshotPath, arena);
 
-            System.out.printf("[+] Snapshot Magic: 0x%X | Version: %d | SHA256: %s%n",
+            System.out.printf("[+] Snapshot Magic: 0x%X | Version: %d%n",
                     loadedSnapshot.magic(),
-                    loadedSnapshot.version(),
-                    loadedSnapshot.getSha256Checksum());
+                    loadedSnapshot.version());
 
-            // 2. Inspect underlying CSR topology
-            GraphSnapshot graph = loadedSnapshot.graph();
+            // 2. Obtain high-level graph view
+            ImpulseGraphSnapshot graph = loadedSnapshot.getGraph();
             System.out.println("[+] Available relations: " + loadedSnapshot.getRelationNames());
 
-            // 3. Define 3-tier User -> Group -> Role RBAC query via fluent AST builder
-            ImpulseGraphQuery<Object> userToRolesQuery = ImpulseGraphQuery.builder()
-                    .input("USER", ArgType.ROARING_BITSET)
-                    .walkEdge("userToGroup")
-                    .walkEdge("groupToRole")
-                    .collect(ReturnType.ROARING_BITSET);
+            // 3. Execute 3-tier User -> Group -> Role traversal via fluent DomainView
+            System.out.println("\n[+] Executing fluent vector traversal: User(0) -[:userToGroup]-> Group -[:groupToRole]-> Role");
+            DomainView userDomain = graph.domain("USER");
+            ImpulseBitSet roles = userDomain.from(0)
+                    .out("userToGroup")
+                    .out("groupToRole")
+                    .toBitSet();
 
-            System.out.println("[+] Built AST Query Operation: " + userToRolesQuery.getOperationName());
+            System.out.printf("[+] Traversal reached %d roles (bitset cardinality).%n", roles.cardinality());
 
-            // 4. Prepare input seed parameter (e.g. User Index 0)
-            BitSet inputUsers = new BitSet();
-            inputUsers.set(0);
+            // 4. Low-level CSR inspection (optional)
+            GraphSnapshot rawGraph = loadedSnapshot.graph();
+            RelationSnapshot userToGroup = rawGraph.getRelationSnapshot("userToGroup");
+            RelationSnapshot groupToRole = rawGraph.getRelationSnapshot("groupToRole");
 
-            // 5. Execute query pipeline against snapshot
-            Object result = userToRolesQuery.execute(loadedSnapshot, inputUsers);
+            if (userToGroup != null && groupToRole != null) {
+                int startUser = 0;
+                int[] groups = userToGroup.getTargets(startUser);
+                System.out.printf("    User %d -> Groups %s (count=%d)%n", startUser, java.util.Arrays.toString(groups), groups.length);
 
-            System.out.println("[+] Query execution finished successfully.");
-            System.out.println("[+] Query Result: " + result);
+                Set<Integer> rolesReached = new HashSet<>();
+                for (int group : groups) {
+                    int[] rList = groupToRole.getTargets(group);
+                    System.out.printf("    Group %d -> Roles %s%n", group, java.util.Arrays.toString(rList));
+                    for (int r : rList) {
+                        rolesReached.add(r);
+                    }
+                }
+                System.out.println("[+] Reached Role IDs for User 0: " + rolesReached);
+            }
         }
-        // 6. Shared Arena closes automatically here, releasing off-heap memory
+        // 5. Shared Arena closes automatically, cleanly releasing off-heap memory
         System.out.println("[+] Off-heap graph snapshot memory closed successfully.");
     }
 }
@@ -271,28 +258,32 @@ public class RbacSnapshotQueryExample {
 
 ---
 
-## Running the Example Application
+## Running the Application
 
-When executing your Java project from the command line, pass the required JVM flags for native memory access and vector acceleration:
+Execute your compiled Java application directly using `java` with the required native access flags:
 
 ```bash
-java --enable-preview \
-     --add-modules jdk.incubator.vector \
+java --add-modules jdk.incubator.vector \
      --enable-native-access=ALL-UNNAMED \
      -cp "target/my-app-1.0.0.jar:target/dependency/*" \
      com.example.rbac.RbacSnapshotQueryExample
+```
+
+Or execute via Maven:
+
+```bash
+mvn exec:exec
 ```
 
 ---
 
 ## Summary Checklist
 
-| Step | Action | Command / Code |
+| Step | Action | Description |
 | :--- | :--- | :--- |
-| **1. Clone** | Clone engine source | `git clone https://github.com/impulse-graph/impulse-graph-java.git` |
-| **2. Build** | Install to local Maven cache | `mvn clean install -DskipTests` |
-| **3. Depend** | Add dependency in `pom.xml` | `<artifactId>impulse-core</artifactId>` |
-| **4. Configure**| Add compiler & surefire args | `--enable-preview --add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` |
-| **5. Load** | Open `.imps` file in shared Arena | `BinarySnapshotLoader.loadSnapshot(path, arena)` |
-| **6. Query** | Construct fluent AST query | `ImpulseGraphQuery.builder().input(...).walkEdge(...).collect(...)` |
+| **1. Depend** | Add Maven Central dependencies | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm` (`0.9.0`) |
+| **2. Configure** | JVM flags | `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` |
+| **3. Load** | Zero-copy `mmap` off-heap | `BinarySnapshotLoader.loadSnapshot(path, arena)` |
+| **4. Anchor** | Domain context | `DomainView userDomain = graph.domain("USER");` |
+| **5. Traverse** | Kleisli pipeline propagation | `userDomain.from(0).out("userToGroup").out("groupToRole").toBitSet()` |
 
