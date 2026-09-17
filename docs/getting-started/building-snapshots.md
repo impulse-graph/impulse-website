@@ -110,6 +110,12 @@ In your source database (e.g. PostgreSQL), users have natural primary keys like 
 
 Instead, Impulse provides **`IdMapper<K>`** (`org.impulsegraph.api.IdMapper`) to bridge external database keys to internal dense coordinates. As you read your users from the database, the mapper assigns them internal dense IDs:
 
+> [!IMPORTANT]
+> **The `ORDER BY` is Crucial!**
+> Notice the `ORDER BY user_id` clause in the query below. This deterministic ordering is **crucial because edges will later be loaded in that exact same order**:
+> 
+> Dense IDs ($0, 1, 2, \dots, N-1$) are assigned sequentially as domain rows are scanned. When building the CSR graph topology in Step 5, the relation edge stream (e.g., from `user_accounts`) **must be ordered by the exact same source key (`ORDER BY user_id`)** so that source dense IDs arrive monotonically without requiring random disk seeks or in-memory shuffling!
+
 ```java
 import org.impulsegraph.api.IdMapper;
 import org.impulsegraph.api.LongIdMapper;
@@ -121,6 +127,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 
 // 1. Scan user primary keys from PostgreSQL and map them to dense coordinates (0 .. N-1)
+// CRITICAL: The "ORDER BY user_id" is essential! Edges must later be loaded in this exact same order.
 IdMapper<Long> userMapper = new LongIdMapper("User");
 long denseId = 0;
 
@@ -161,6 +168,7 @@ Now let's add our second domain: `Account`. In our database, accounts also have 
 IdMapper<Long> accountMapper = new LongIdMapper("Account");
 long accDenseId = 0;
 
+// CRITICAL: "ORDER BY account_id" ensures Account dense IDs match the transfer edge order in Step 5!
 try (Statement stmt = conn.createStatement();
      ResultSet rs = stmt.executeQuery("SELECT account_id FROM accounts ORDER BY account_id")) {
     while (rs.next()) {
