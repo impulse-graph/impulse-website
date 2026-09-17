@@ -3,7 +3,7 @@
 This document presents the formal mathematical foundation of the **Impulse Graph Engine** fluent query architecture, contrasting its set-theoretic semantics with traditional multi-set (bag-based) graph query engines (e.g., SQL, Neo4j Cypher, PGQL), and illustrating its equivalence to **GraphBLAS linear algebraic semirings**.
 
 > [!TIP]
-> For a category-theoretic and functional programming exploration—including monad hierarchies, fiber folds, predicate pushdown pullbacks, functional optics, and chaotic lockless concurrency—see the companion treatise: [Category Theory & FP Foundations](fp-perspective.md).
+> For a category-theoretic and functional programming exploration—including monad hierarchies, fiber folds, predicate pushdown pullbacks, functional optics, and chaotic lockless concurrency—see the companion treatise: [Category Theory & FP Foundations](design-notes/fp-perspective.md).
 
 ---
 

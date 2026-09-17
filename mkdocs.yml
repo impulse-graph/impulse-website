@@ -37,9 +37,10 @@ nav:
 
   - Getting Started:
     - Overview: getting-started/index.md
-    - Installation: getting-started/installation.md
+    - Core Concepts & Glossary: getting-started/core-concepts.md
+    - Building Snapshots (Java): getting-started/building-snapshots.md
     - Quickstart: getting-started/quickstart.md
-    - Core Concepts: getting-started/core-concepts.md
+    - Installation: getting-started/installation.md
 
   - Concepts:
     - Academic Foundations: academic.md
@@ -58,6 +59,7 @@ nav:
 
   - Query API:
     - Overview: query-api/index.md
+    - Fluent API Specification: query-api/fluent-api.md
     - Building Queries: query-api/building-queries.md
     - Bytecode Virtual Machine (ImpOps): query-api/bytecode-vm.md
     - Operations:

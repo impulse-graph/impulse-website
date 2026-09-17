@@ -27,4 +27,8 @@ Our engine achieves:
 * **Throughput**: Millions of deep multi-hop graph traversals per second per core.
 * **Memory**: $O(\text{chunk})$ physical memory footprint during snapshot building, enabling hardware-constrained systems to generate TB+ graphs.
 
-Ready to dive in? Check out the [Installation](installation.md) guide and the [Quickstart](quickstart.md) tutorial!
+Ready to dive in?
+- Review the [Core Concepts & Architecture Primer](core-concepts.md) to understand CSR/CSC sparse matrix representations and domains.
+- Follow the [Building Snapshots Walkthrough (Java)](building-snapshots.md) to create your first `.imps` snapshot and stream from JDBC.
+- Check out the [Quickstart](quickstart.md) to load snapshots and execute vector traversals.
+- See the [Installation](installation.md) guide to add Impulse to your build tool.

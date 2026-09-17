@@ -86,12 +86,32 @@ oldSnapshot.drainAndClose(5, TimeUnit.SECONDS);
 ```
 
 ### `SnapshotBuilder`
-Streaming snapshot compactor interface. Compacts live graph states and writes page-aligned C-ABI Spec v0.9.0 binary files direct-to-disk in $O(\text{chunk})$ physical memory footprint.
+Streaming snapshot builder interface (`org.impulsegraph:impulse-builder`). Writes page-aligned C-ABI Spec v0.9.0 binary snapshots direct-to-disk or S3 in $O(\text{chunk})$ physical memory footprint.
 
 ```java
-SnapshotBuilder builder = new DefaultSnapshotBuilder();
-ImpulseGraphSnapshot newSnapshot = builder.buildSnapshot(liveGraph, Path.of("compacted_v09.imps"));
+import org.impulsegraph.builder.api.*;
+
+DomainDefinition userDomain = DomainDefinition.builder(100_000L)
+    .idWidth(PrimitiveWidth.UINT32)
+    .withPrimaryKeyIndex(true)
+    .build();
+
+RelationDefinition knowsRel = RelationDefinition.builder("User", "User")
+    .addTopology(Topology.CSR, CompressionScheme.RAW)
+    .addTopology(Topology.CSC, CompressionScheme.RAW)
+    .dataSource(edgeDataSource)
+    .build();
+
+SnapshotBuilder.create()
+    .withStagingDirectory(Path.of("/tmp/staging"))
+    .addDomain("User", userDomain)
+    .addRelation("KNOWS", knowsRel)
+    .addFooterMetadata("environment", "production")
+    .writeTo(Path.of("graph.imps"));
 ```
+
+> [!TIP]
+> For a complete soup-to-nuts walkthrough including JDBC data source integration and sparse matrix definitions, see the [Building Snapshots Guide](../getting-started/building-snapshots.md).
 
 ---
 
