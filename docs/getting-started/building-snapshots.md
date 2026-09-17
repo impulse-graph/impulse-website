@@ -258,9 +258,16 @@ Notice our SQL tables use **natural, standard database column names**:
 There are **no dense ID columns in the database**. The JDBC streaming adapter uses our `IdMapper` instances to translate database keys into Impulse dense IDs on the fly!
 
 ### 1. The SQL Requirements for CSR
-To stream edges into a CSR matrix:
-1. **Source ID Ordering**: The SQL query **MUST be sorted by source ID** (`ORDER BY user_id`). This allows the builder to lay down CSR row offsets in a single sequential pass.
-2. **Fetch Size**: Set `statement.setFetchSize(10_000)`. This tells the JDBC driver to stream rows from the database in batches rather than loading millions of rows into JVM memory at once.
+
+To stream edges into a CSR matrix in a single pass without buffering everything in memory:
+
+1. **Source Ordering Must Match Domain Ingestion Order**:
+   CSR (Compressed Sparse Row) requires edges to arrive grouped and strictly ordered by the source entity's **internal dense ID** ($0, 0, 1, 1, 2, \dots$).
+
+   Because internal dense IDs were assigned sequentially in the order the source domain was scanned (e.g. `ORDER BY user_id` when populating `userMapper` in Step 1), **your edge query's source column MUST be sorted in that exact same order** (`ORDER BY user_id`). If the source ordering differs from the domain ingestion ordering, the generated dense IDs will arrive out of order, violating CSR sequential stream invariants.
+
+2. **Fetch Size for Bounded Memory**:
+   Always configure `statement.setFetchSize(10_000)`. By default, many JDBC drivers (like PostgreSQL) attempt to buffer all rows into JVM heap memory at once. Setting a streaming fetch size forces the driver to fetch rows from the database cursor in bounded batches.
 
 ### 2. The Reusable `JdbcRelationDataSource` Implementation
 
@@ -405,7 +412,8 @@ Connecting your database to `SnapshotBuilder` is now as simple as querying your 
 Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/bank_db", "user", "pass");
 
 // OWNS Relation: User -> Account
-// Uses natural database foreign keys: user_id and account_id
+// Uses natural database foreign keys: user_id and account_id.
+// CRITICAL: "ORDER BY user_id" matches the exact order we scanned the User domain in Step 1!
 RelationDataSource ownsDataSource = new JdbcRelationDataSource(
         conn,
         "SELECT COUNT(*) FROM user_accounts",
@@ -415,7 +423,8 @@ RelationDataSource ownsDataSource = new JdbcRelationDataSource(
 );
 
 // TRANSFERRED_TO Relation: Account -> Account
-// Uses natural database foreign keys: from_account_id and to_account_id
+// Uses natural database foreign keys: from_account_id and to_account_id.
+// CRITICAL: "ORDER BY from_account_id" matches the exact order we scanned the Account domain in Step 2!
 RelationDataSource transferDataSource = new JdbcRelationDataSource(
         conn,
         "SELECT COUNT(*) FROM account_transfers",
