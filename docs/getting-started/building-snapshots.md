@@ -8,27 +8,27 @@ This guide will walk you through building your very first snapshot from scratch 
 
 We will assume **zero starting knowledge** of snapshot internals. We'll start simple, explain every concept as we encounter it, and build up an `.imps` snapshot step-by-step for a real-world **FinTech & Banking Graph**.
 
-Along the way, you'll also learn how to stream millions of edges and attributes directly out of a **relational database (PostgreSQL, MySQL, SQLite) using JDBC** with bounded $O(\text{chunk})$ heap memory, so your JVM never runs out of RAM.
+Along the way, you'll also learn how to stream millions of edges and attributes directly out of a **relational database (PostgreSQL, MySQL, SQLite) using standard JDBC** with bounded $O(\text{chunk})$ heap memory, so your JVM never runs out of RAM.
 
 ---
 
 ## 1. What Are We Building?
 
-In our banking scenario, we have:
+In our banking scenario, our relational database has standard tables:
 
-1. **`User` Domain**: The customers of our bank. Each user has an `age` attribute and an external string business key (like an email or customer ID).
-2. **`Account` Domain**: Checking, savings, or investment accounts. Each account has a `balance` attribute.
-3. **`OWNS` Relation**: Connects a `User` to the `Account`(s) they own.
-4. **`TRANSFERRED_TO` Relation**: Connects an `Account` to other `Account`s where money was sent.
+1. **`users` Table**: Contains customers (`user_id BIGINT`, `name VARCHAR`, `age INT`).
+2. **`accounts` Table**: Contains accounts (`account_id BIGINT`, `balance DOUBLE`).
+3. **`user_accounts` Table**: Join table connecting users to accounts (`user_id BIGINT`, `account_id BIGINT`).
+4. **`account_transfers` Table**: Ledger of money transfers (`from_account_id BIGINT`, `to_account_id BIGINT`).
 
-Here is the graph topology we want to build:
+Here is the graph topology we want to construct:
 
 ```
- (User: 42) ──[:OWNS]──> (Account: 101) ──[:TRANSFERRED_TO]──> (Account: 205)
-                           (balance: $1500)                       (balance: $850)
+ (User: 101) ──[:OWNS]──> (Account: 5001) ──[:TRANSFERRED_TO]──> (Account: 7008)
+                            (balance: $1500)                        (balance: $850)
 ```
 
-Once built, we will be able to map this file into memory in **sub-milliseconds** and answer questions like: *"Which accounts received money from accounts owned by User 42?"* in **sub-microseconds**.
+Once built, we will be able to map this snapshot into memory in **sub-milliseconds** and answer questions like: *"Which accounts received money from accounts owned by User 101?"* in **sub-microseconds**.
 
 ---
 
@@ -45,7 +45,7 @@ First, add the Impulse Graph Java dependencies to your `pom.xml`. The snapshot b
         <version>0.9.0</version>
     </dependency>
 
-    <!-- Public API (DomainView, traversals, bitsets) -->
+    <!-- Public API (DomainView, IdMapper, traversals, bitsets) -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-api</artifactId>
@@ -70,7 +70,7 @@ First, add the Impulse Graph Java dependencies to your `pom.xml`. The snapshot b
 
 ### Required JVM Runtime & Compiler Flags
 
-Impulse Graph uses Java Foreign Function & Memory (FFM) and vector acceleration. Configure the Maven compiler and surefire plugins:
+Impulse Graph uses Java Foreign Function & Memory (FFM) and vector acceleration. Configure the Maven compiler plugin:
 
 ```xml
 <build>
@@ -98,24 +98,50 @@ Impulse Graph uses Java Foreign Function & Memory (FFM) and vector acceleration.
 
 ## Step 1: Let's start with adding a Domain for Users.....
 
-In Impulse Graph, entities do not live in one giant, messy heap. Instead, they are partitioned into **Domains** (e.g., `User`, `Account`, `Transaction`).
+In Impulse Graph, entities do not live in one giant, unstructured heap. Instead, they are partitioned into **Domains** (e.g., `User`, `Account`, `Transaction`).
 
-Each domain owns its own **independent, zero-indexed dense integer space** from $0$ to $\text{cardinality} - 1$.
+### Bridging Database Keys to Internal Dense IDs
+
+In your source database (e.g. PostgreSQL), users have natural primary keys like `user_id BIGINT` (e.g., `101, 502, 9891`), UUIDs, or emails.
+
+**Dense IDs ($0 \dots N-1$) are strictly an internal Impulse Graph concept.** In order to achieve sub-microsecond traversals, Impulse maps each domain's nodes to contiguous indices $0 \dots N-1$ so the CPU can index CSR row offsets directly as a flat hardware array without hash lookups.
+
+**Your source database does NOT have dense IDs, and you do not need to modify your database tables.**
+
+Instead, Impulse provides **`IdMapper<K>`** (`org.impulsegraph.api.IdMapper`) to bridge external database keys to internal dense coordinates. As you read your users from the database, the mapper assigns them internal dense IDs:
 
 ```java
+import org.impulsegraph.api.IdMapper;
+import org.impulsegraph.api.LongIdMapper;
 import org.impulsegraph.builder.api.DomainDefinition;
 import org.impulsegraph.builder.api.PrimitiveWidth;
 
-// 1. Define our User domain with 10,000 users (dense IDs: 0 .. 9,999)
-DomainDefinition userDomain = DomainDefinition.builder(10_000L)
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+// 1. Scan user primary keys from PostgreSQL and map them to dense coordinates (0 .. N-1)
+IdMapper<Long> userMapper = new LongIdMapper("User");
+long denseId = 0;
+
+try (Statement stmt = conn.createStatement();
+     ResultSet rs = stmt.executeQuery("SELECT user_id FROM users ORDER BY user_id")) {
+    while (rs.next()) {
+        long dbUserId = rs.getLong("user_id");
+        userMapper.registerMapping(dbUserId, denseId++);
+    }
+}
+
+// 2. Define the User domain with the exact cardinality from userMapper
+DomainDefinition userDomain = DomainDefinition.builder(userMapper.size())
         .idWidth(PrimitiveWidth.UINT32)       // 32-bit integers (up to 4.29 billion nodes)
-        .withPrimaryKeyIndex(true)            // Enable external String/UUID -> Dense ID lookup
+        .withPrimaryKeyIndex(true)            // Embeds reverse index for querying by database key
         .build();
 ```
 
 ### What did we just configure?
 
-1. **`cardinality(10_000L)`**:
+1. **`userMapper.size()`**:
    The exact count of nodes in this domain. Why exact? Because Impulse pre-allocates vector-aligned offset memory so it never has to resize, re-hash, or fragment buffers.
 2. **`idWidth(PrimitiveWidth.UINT32)`**:
    How many bytes are used to store node IDs for this domain in edge target lists.
@@ -123,16 +149,27 @@ DomainDefinition userDomain = DomainDefinition.builder(10_000L)
    * `UINT32` (4 bytes): The standard default; handles up to 4,294,967,296 nodes.
    * `UINT64` (8 bytes): For multi-billion/trillion node hyperscale domains.
 3. **`withPrimaryKeyIndex(true)`**:
-   In production, your users have UUIDs or emails like `"alice@acme.com"`. Enabling the primary key index tells the builder to embed a compact reverse index in the file so you can query by your external business keys!
+   Tells the builder to embed a compact reverse index in the `.imps` file so you can resolve your original database primary keys (`user_id`, UUIDs, emails) to dense IDs at query time!
 
 ---
 
 ## Step 2: Let's add Accounts next.....
 
-Now let's add our second domain: `Account`. In our bank, we have 50,000 accounts.
+Now let's add our second domain: `Account`. In our database, accounts also have their own primary keys (`account_id BIGINT`):
 
 ```java
-DomainDefinition accountDomain = DomainDefinition.builder(50_000L)
+IdMapper<Long> accountMapper = new LongIdMapper("Account");
+long accDenseId = 0;
+
+try (Statement stmt = conn.createStatement();
+     ResultSet rs = stmt.executeQuery("SELECT account_id FROM accounts ORDER BY account_id")) {
+    while (rs.next()) {
+        long dbAccountId = rs.getLong("account_id");
+        accountMapper.registerMapping(dbAccountId, accDenseId++);
+    }
+}
+
+DomainDefinition accountDomain = DomainDefinition.builder(accountMapper.size())
         .idWidth(PrimitiveWidth.UINT32)
         .withPrimaryKeyIndex(true)
         .build();
@@ -140,7 +177,7 @@ DomainDefinition accountDomain = DomainDefinition.builder(50_000L)
 
 > [!IMPORTANT]
 > **Remember the Golden Rule of Impulse Graph Domains**:
-> Dense ID `0` in `User` is **completely distinct and unrelated** to Dense ID `0` in `Account`. They have independent coordinate spaces. This design allows direct array lookups ($O(1)$) without a massive sparse hash table.
+> Internal Dense ID `0` in `User` is **completely distinct and unrelated** to Internal Dense ID `0` in `Account`. Each domain has its own independent coordinate space ($0 \dots N_d-1$). This allows direct array lookups ($O(1)$) without a massive sparse hash table.
 
 ---
 
@@ -208,64 +245,17 @@ Instead of creating Java objects, the builder allocates a small, fixed-size off-
 
 Once written to disk, the builder reuses the same buffer for the next chunk. **Heap memory usage remains bounded to a few kilobytes, even when processing billions of edges.**
 
-### In-Memory Example for Quick Unit Tests
-
-For tests or small datasets, you can wrap an in-memory list with a simple adapter:
-
-```java
-import org.impulsegraph.builder.spi.EdgeChunkIterator;
-import org.impulsegraph.builder.spi.RelationDataSource;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
-import java.util.List;
-
-public record SimpleEdge(long src, long tgt) {}
-
-public class SimpleEdgeSource implements RelationDataSource {
-    private final List<SimpleEdge> edges;
-
-    public SimpleEdgeSource(List<SimpleEdge> edges) {
-        this.edges = List.copyOf(edges);
-    }
-
-    @Override
-    public long getEdgeCount() {
-        return edges.size();
-    }
-
-    @Override
-    public EdgeChunkIterator getEdges() {
-        return new EdgeChunkIterator() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < edges.size();
-            }
-
-            @Override
-            public int nextChunk(MemorySegment srcIds, MemorySegment tgtIds, int limit) {
-                int count = 0;
-                while (index < edges.size() && count < limit) {
-                    SimpleEdge e = edges.get(index++);
-                    srcIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) e.src());
-                    tgtIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) e.tgt());
-                    count++;
-                }
-                return count;
-            }
-        };
-    }
-}
-```
-
 ---
 
 ## Step 5: The Real World: Reading from a JDBC Data Source
 
-In real enterprise systems, your graph data lives in a relational database—like **PostgreSQL, MySQL, Oracle, Snowflake, or SQLite**.
+In real enterprise systems, your graph data lives in a relational database.
 
-Let's write a production-ready, reusable **`JdbcRelationDataSource`** that streams edges directly from an SQL query via standard `java.sql`.
+Notice our SQL tables use **natural, standard database column names**:
+* Table `user_accounts`: Foreign keys `(user_id, account_id)`
+* Table `account_transfers`: Foreign keys `(from_account_id, to_account_id)`
+
+There are **no dense ID columns in the database**. The JDBC streaming adapter uses our `IdMapper` instances to translate database keys into Impulse dense IDs on the fly!
 
 ### 1. The SQL Requirements for CSR
 To stream edges into a CSR matrix:
@@ -277,6 +267,7 @@ To stream edges into a CSR matrix:
 ```java
 package com.example.builder;
 
+import org.impulsegraph.api.IdMapper;
 import org.impulsegraph.builder.spi.EdgeChunkIterator;
 import org.impulsegraph.builder.spi.RelationDataSource;
 
@@ -290,8 +281,8 @@ import java.sql.Statement;
 
 /**
  * High-performance JDBC streaming edge source.
- * Streams edges directly from a relational database into off-heap MemorySegments
- * with bounded O(chunk) heap footprint.
+ * Reads standard relational database tables and maps primary/foreign keys
+ * to Impulse dense IDs on the fly into off-heap MemorySegments with O(chunk) heap footprint.
  */
 public class JdbcRelationDataSource implements RelationDataSource {
 
@@ -299,11 +290,19 @@ public class JdbcRelationDataSource implements RelationDataSource {
     private final String countQuery;
     private final String edgeQuery;
     private final long edgeCount;
+    private final IdMapper<Long> sourceMapper;
+    private final IdMapper<Long> targetMapper;
 
-    public JdbcRelationDataSource(Connection connection, String countQuery, String edgeQuery) throws SQLException {
+    public JdbcRelationDataSource(Connection connection,
+                                  String countQuery,
+                                  String edgeQuery,
+                                  IdMapper<Long> sourceMapper,
+                                  IdMapper<Long> targetMapper) throws SQLException {
         this.connection = connection;
         this.countQuery = countQuery;
         this.edgeQuery = edgeQuery;
+        this.sourceMapper = sourceMapper;
+        this.targetMapper = targetMapper;
 
         // 1. Fast exact edge count for header pre-allocation
         try (Statement stmt = connection.createStatement();
@@ -311,13 +310,9 @@ public class JdbcRelationDataSource implements RelationDataSource {
             if (rs.next()) {
                 this.edgeCount = rs.getLong(1);
             } else {
-                throw harvestEmptyException();
+                throw new IllegalStateException("Count query returned 0 rows");
             }
         }
-    }
-
-    private static IllegalStateException harvestEmptyException() {
-        return new IllegalStateException("Count query returned 0 rows");
     }
 
     @Override
@@ -354,25 +349,30 @@ public class JdbcRelationDataSource implements RelationDataSource {
                         int tWidth = limit > 0 ? (int) (tgtIds.byteSize() / limit) : 4;
 
                         while (hasNextRow && count < limit) {
-                            long src = rs.getLong(1);
-                            long tgt = rs.getLong(2);
+                            // Read natural database primary/foreign keys from SQL result set
+                            long dbSourceKey = rs.getLong(1);
+                            long dbTargetKey = rs.getLong(2);
 
-                            // Write source node ID formatted to domain integer width
+                            // Translate database keys to internal Impulse dense IDs (0 .. N-1)
+                            long srcDenseId = sourceMapper.getId(dbSourceKey);
+                            long tgtDenseId = targetMapper.getId(dbTargetKey);
+
+                            // Write source dense ID formatted to domain integer width
                             if (sWidth == 2) {
-                                srcIds.setAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, count, (short) src);
+                                srcIds.setAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, count, (short) srcDenseId);
                             } else if (sWidth == 8) {
-                                srcIds.setAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, count, src);
+                                srcIds.setAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, count, srcDenseId);
                             } else {
-                                srcIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) src);
+                                srcIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) srcDenseId);
                             }
 
-                            // Write target node ID formatted to domain integer width
+                            // Write target dense ID formatted to domain integer width
                             if (tWidth == 2) {
-                                tgtIds.setAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, count, (short) tgt);
+                                tgtIds.setAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, count, (short) tgtDenseId);
                             } else if (tWidth == 8) {
-                                tgtIds.setAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, count, tgt);
+                                tgtIds.setAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, count, tgtDenseId);
                             } else {
-                                tgtIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) tgt);
+                                tgtIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) tgtDenseId);
                             }
 
                             count++;
@@ -399,23 +399,29 @@ public class JdbcRelationDataSource implements RelationDataSource {
 
 ### 3. Using it in Your Application
 
-Connecting your database to `SnapshotBuilder` is now as simple as providing the SQL query:
+Connecting your database to `SnapshotBuilder` is now as simple as querying your standard database tables:
 
 ```java
 Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/bank_db", "user", "pass");
 
 // OWNS Relation: User -> Account
+// Uses natural database foreign keys: user_id and account_id
 RelationDataSource ownsDataSource = new JdbcRelationDataSource(
         conn,
         "SELECT COUNT(*) FROM user_accounts",
-        "SELECT user_dense_id, account_dense_id FROM user_accounts ORDER BY user_dense_id"
+        "SELECT user_id, account_id FROM user_accounts ORDER BY user_id",
+        userMapper,
+        accountMapper
 );
 
 // TRANSFERRED_TO Relation: Account -> Account
+// Uses natural database foreign keys: from_account_id and to_account_id
 RelationDataSource transferDataSource = new JdbcRelationDataSource(
         conn,
         "SELECT COUNT(*) FROM account_transfers",
-        "SELECT from_account_id, to_account_id FROM account_transfers ORDER BY from_account_id"
+        "SELECT from_account_id, to_account_id FROM account_transfers ORDER BY from_account_id",
+        accountMapper,
+        accountMapper
 );
 ```
 
@@ -495,11 +501,11 @@ try (Arena arena = Arena.ofShared()) {
     ImpulseGraphSnapshot graph = loaded.getGraph();
 
     // 2. Execute a 2-hop vector traversal:
-    // User(42) -[:OWNS]-> Account -[:TRANSFERRED_TO]-> Destination Accounts
+    // User(0) -[:OWNS]-> Account -[:TRANSFERRED_TO]-> Destination Accounts
     DomainView userDomain = graph.domain("User");
 
     long q0 = System.nanoTime();
-    List<Long> destinationAccounts = userDomain.from(42)
+    List<Long> destinationAccounts = userDomain.from(0)
             .out("OWNS")
             .out("TRANSFERRED_TO")
             .toList();
@@ -515,13 +521,10 @@ try (Arena arena = Arena.ofShared()) {
 
 ## 8. Frequently Asked Questions & Best Practices
 
-### Q: What if my database IDs are not 0-indexed?
-Impulse Graph domains require dense integer IDs $0 \dots N-1$. If your SQL table has sparse IDs (e.g. `102, 584, 99938`), you can either:
-1. Generate dense IDs in SQL using the standard window function:
-   ```sql
-   SELECT id, DENSE_RANK() OVER (ORDER BY id) - 1 AS dense_id FROM users;
-   ```
-2. Or use Impulse's built-in `StringIdMapper` / `UuidIdMapper` in `impulse-api` during ingestion.
+### Q: My database uses UUIDs, strings, or sparse auto-increment IDs—do I need to modify my database schema?
+**No!** Dense IDs are strictly an **Impulse Graph internal storage mechanism** designed for off-heap direct array indexing ($0 \dots N-1$). Your source database schema remains 100% standard and untouched. You never need to add artificial `dense_id` columns to your database tables.
+
+During ingestion, Impulse's `IdMapper` (`LongIdMapper`, `UuidIdMapper`, `StringIdMapper`) maps your database keys to dense IDs on the fly in memory. At query time, enabling `withPrimaryKeyIndex(true)` allows you to query directly using your database keys.
 
 ### Q: Can I stream directly to Amazon S3 or Google Cloud Storage?
 **Yes!** `SnapshotBuilder` features single-pass S3 streaming semantics:
