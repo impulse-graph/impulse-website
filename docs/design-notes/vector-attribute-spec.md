@@ -2,9 +2,9 @@
 
 ## Executive Summary
 
-This specification analyzes the architectural implications of introducing **First-Class Vector Datatypes** (`VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, `VECTOR_INT8[D]`) into the [Impulse Graph Engine](file:///Users/jesse/impulse)'s [`.imps` v0.9.0 Binary Snapshot Specification](file:///Users/jesse/impulse/impulse-graph-spec/docs/FORMAT_SPECIFICATION.md) and [`ImpulseVM`](file:///Users/jesse/impulse/AGENTS.md) instruction set.
+This specification analyzes the architectural implications of introducing **First-Class Vector Datatypes** (`VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, `VECTOR_INT8[D]`) into the Impulse Graph Engine's `.imps` v0.9.0 Binary Snapshot Specification and `ImpulseVM` instruction set.
 
-While graph databases like [NornicDB](file:///Users/jesse/impulse/third-party/NornicDB) treat vector embeddings as separate HNSW index structures managed out-of-band, Impulse Graph Engine models vector attributes as **dense, 128-byte hardware-aligned Structure-of-Arrays (SoA) attribute matrices** stored directly inside the immutable `.imps` binary file.
+While graph databases like NornicDB treat vector embeddings as separate HNSW index structures managed out-of-band, Impulse Graph Engine models vector attributes as **dense, 128-byte hardware-aligned Structure-of-Arrays (SoA) attribute matrices** stored directly inside the immutable `.imps` binary file.
 
 ---
 

@@ -6,14 +6,14 @@ This root directory index tracks known issues, architectural bugs, and regressio
 
 ## Repository Bug Trackers
 
-1. **`impulse-graph-java`**: [impulse-graph-java/bugs.md](file:///Users/jesse/impulse/impulse-graph-java/bugs.md)
+1. **`impulse-graph-java`**: impulse-graph-java/bugs.md
    * **BUG-JAVA-001**: `LoadedSnapshot` incomplete interface implementation (`getMetadata` / `getMetadataMap`).
    * **BUG-JAVA-002**: Missing `junit-jupiter-params` dependency breaking `mvn clean install -DskipTests`.
    * **BUG-JAVA-003**: `ImpulseGraphQuery.execute()` returns un-evaluated input stub (`(R) input`).
    * **BUG-JAVA-004**: Relation name key prefixing mismatch (`rel_<idx>_userToGroup` vs `userToGroup`).
    * **BUG-JAVA-005**: Hardcoded `<release>25</release>` with `--enable-preview` breaking non-JDK 25 builds.
 
-2. **`impulse-graph-tooling`**: [impulse-graph-tooling/bugs.md](file:///Users/jesse/impulse/impulse-graph-tooling/bugs.md)
+2. **`impulse-graph-tooling`**: impulse-graph-tooling/bugs.md
    * **BUG-TOOL-001**: `impulse compile` duplicate domain catalog writing ($N_{relations} \times N_{domains}$).
    * **BUG-TOOL-002**: `impulse inspect` CLI missing `--snapshot` / `-s` flag option.
 

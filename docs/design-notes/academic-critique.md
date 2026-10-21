@@ -2,7 +2,7 @@
 
 **To:** Graduate Student
 **From:** PhD Advisor
-**Subject:** Fresh critique of revised [academic.md](file:///Users/jesse/impulse/impulse-website/docs/academic.md) — conceptual gaps, strategic positioning, industry value, novelty, and unexplored research directions.
+**Subject:** Fresh critique of revised academic.md — conceptual gaps, strategic positioning, industry value, novelty, and unexplored research directions.
 
 Good progress on Sections 29–35. The MLIR justification (§29), expressiveness boundary table (§30), IEEE 754 treatment (§31), topology-aware cost refinement (§32), adaptive re-stitching (§33), RUM Conjecture acknowledgment (§34), and Related Work citations (§35) show you listened. Those concerns are retired.
 

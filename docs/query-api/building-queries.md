@@ -3,7 +3,7 @@
 The **Impulse Graph Engine** supports **three laser-focused query paradigms**, giving developers maximum performance across PyTorch ML pipelines, dynamic runtime UI queries, and Spring Enterprise Java microservices:
 
 1. **Storage-Only Zero-Copy Mode ("Graph Parquet Mode")**: Mounts `.imps` binary snapshots in **0 nanoseconds** (`mmap`) into PyTorch tensors (`snapshot.to_torch_indptr()`, `snapshot.to_torch_indices()`) and NumPy arrays without allocating Java/Python heap RAM.
-2. **Dynamic Fluent Builder API** ([`ImpulseQueryBuilder`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/ImpulseQueryBuilder.java) / [`QueryBuilder`](file:///Users/jesse/impulse/impulse-graph-core/impulse-cpp/include/impulse_vm_fluent.hpp)): Type-safe method-chaining API for runtime, dynamic, or ad-hoc query construction that emits `impOps` bytecode directly with **0 nanoseconds of text parsing overhead**.
+2. **Dynamic Fluent Builder API** (`ImpulseQueryBuilder` / `QueryBuilder`): Type-safe method-chaining API for runtime, dynamic, or ad-hoc query construction that emits `impOps` bytecode directly with **0 nanoseconds of text parsing overhead**.
 3. **Embedded Declarative Annotations (`@ImpLog` / `@ImpK`)**: Embed multi-line Datalog logic rules (`@ImpLog`) or GraphBLAS matrix math (`@ImpK`) directly inside Spring Data Java repository interfaces (similar to `@Query(nativeQuery = true)`), validated at build-time via AOT compilation.
 
 ---
@@ -51,7 +51,7 @@ ImpulseGraphQuery<BitSet> userRolesQuery = ImpulseGraphQuery.<BitSet>builder()
 ```
 
 ### Pattern 2: Generated Strongly-Typed Builder Syntax
-Generate entity query builders from a [`GraphSchema`](file:///Users/jesse/impulse/impulse-graph-java/impulse-api/src/main/java/org/impulsegraph/api/schema/GraphSchema.java) using `SchemaCodeGenerator`:
+Generate entity query builders from a `GraphSchema` using `SchemaCodeGenerator`:
 
 ```java
 GraphSchema.EntityDef user = new GraphSchema.EntityDef("User", Map.of("fuelSurcharge", "DOUBLE"));

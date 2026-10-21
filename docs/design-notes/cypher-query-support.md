@@ -2,21 +2,21 @@
 
 ## Executive Summary
 
-This specification outlines the architecture for supporting a high-performance, read-only subset of the **Cypher query language** within the [Impulse Graph Engine](file:///Users/jesse/impulse).
+This specification outlines the architecture for supporting a high-performance, read-only subset of the **Cypher query language** within the Impulse Graph Engine.
 
-Drawing key architectural insights from [TuringDB](file:///Users/jesse/impulse/third-party/turingdb)'s MLIR query dialect ([`query/ir/dialect/db/DBOps.td`](file:///Users/jesse/impulse/third-party/turingdb/query/ir/dialect/db/DBOps.td)) and [NornicDB](file:///Users/jesse/impulse/third-party/NornicDB)'s Cypher fast-path matcher ([`pkg/cypher/compound_query_shape_matcher.go`](file:///Users/jesse/impulse/third-party/NornicDB/pkg/cypher/compound_query_shape_matcher.go)), this document specifies how read-only Cypher queries compile down to [`ImpScheme`](file:///Users/jesse/impulse/AGENTS.md) S-Expressions (`.impscm`), [`ImpAsm`](file:///Users/jesse/impulse/AGENTS.md) register assembly (`.impas`), and execute directly on [`ImpulseVM`](file:///Users/jesse/impulse/AGENTS.md) over zero-copy `.imps` binary snapshot files.
+Drawing key architectural insights from TuringDB's MLIR query dialect (`query/ir/dialect/db/DBOps.td`) and NornicDB's Cypher fast-path matcher (`pkg/cypher/compound_query_shape_matcher.go`), this document specifies how read-only Cypher queries compile down to `ImpScheme` S-Expressions (`.impscm`), `ImpAsm` register assembly (`.impas`), and execute directly on `ImpulseVM` over zero-copy `.imps` binary snapshot files.
 
 ### Critical Structural & Physical Layout Rules
-1. **Domains, Multi-Label Nodes & Relations Mapping**: In Impulse Graph Engine's [`.imps` v0.9.0 Binary Snapshot Specification](file:///Users/jesse/impulse/impulse-graph-spec/docs/FORMAT_SPECIFICATION.md#L88-L120):
+1. **Domains, Multi-Label Nodes & Relations Mapping**: In Impulse Graph Engine's `.imps` v0.9.0 Binary Snapshot Specification:
    * Cypher **Primary Node Labels** (e.g. `:User`, `:Group`) map to Impulse **Domain Catalog Entries** (`DomainID`, `NameOffset`).
    * Cypher **Multi-Label Node Specifications** (e.g. `(u:Admin:User:Manager)`) are **unordered/commutative** in user queries. The compiler automatically matches `"User"` to the primary `DomainID`, compiling secondary labels (`:Admin`, `:Manager`) into bitwise label mask filters.
    * **Conflicting Primary Domains (e.g. `(u:User:Group:Manager)`) Are Invalid**: Because primary domains (`User`, `Group`) define mutually exclusive physical node ID spaces and SoA memory regions, a node cannot belong to two primary domains simultaneously. Specifying multiple primary domains is rejected at compile time as an empty domain intersection ($\emptyset$).
    * Cypher **Relationship Types** (e.g. `:USER_TO_GROUP`, `:KNOWS`) map directly to Impulse **Relation Directory Entries** (`RelationID`, `SrcDomainID`, `TgtDomainID`, `NameOffset`).
-2. **Mandatory Explicit Relationship Specification**: Cypher patterns **MUST explicitly specify relationship types** (e.g. `(u:User)-[:USER_TO_GROUP]->(g:Group)`). Untyped relationship traversals (e.g. `(u:User)--(g:Group)`) are disallowed because each relation in `.imps` is physically stored as an isolated CSR/CSC matrix. Mandating explicit relationship types enables compile-time resolution of `RelationID`, executing via a single $O(1)$ [`OP_CSR_WALK`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L38) without multi-matrix dynamic union overhead.
+2. **Mandatory Explicit Relationship Specification**: Cypher patterns **MUST explicitly specify relationship types** (e.g. `(u:User)-[:USER_TO_GROUP]->(g:Group)`). Untyped relationship traversals (e.g. `(u:User)--(g:Group)`) are disallowed because each relation in `.imps` is physically stored as an isolated CSR/CSC matrix. Mandating explicit relationship types enables compile-time resolution of `RelationID`, executing via a single $O(1)$ `OP_CSR_WALK` without multi-matrix dynamic union overhead.
 3. **Cartesian Products Prohibited**: Disconnected pattern matches without join keys or connecting relationships (e.g. `MATCH (a:User), (b:Group)`) are **strictly prohibited** and rejected at compile time. Disconnected cross-joins ($O(M \times N)$) destroy sub-microsecond latency and cache locality. All patterns MUST be connected via relationships or shared join keys.
-4. **Native APOC Mapping to Impulse Macro Opcodes**: Cypher `CALL apoc.algo...` procedure calls map directly to Impulse's pre-existing native macro opcodes ([`OP_CC_AFFOREST`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L63), [`OP_BRANDES_FORWARD`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L71), [`OP_LOUVAIN_MODULARITY`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L96), [`OP_KCORE_DECOMPOSITION`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L97)), executing graph algorithms directly on off-heap snapshot vectors.
-5. **100% Zero-Allocation Compliance**: All proposed opcodes strictly preserve `ImpulseVM`'s [Allocation-Free Hot Path Mandate](file:///Users/jesse/impulse/impulse-graph-spec/docs/VM_SPECIFICATION.md#L370-L378). Intermediate bitsets, hash join maps, path frontiers, and sorting heaps are pooled and allocated strictly out-of-band via VM Scratch Arenas (`acquire_bitset`, `acquire_scratch_slice`). Zero heap `malloc`/`new` calls occur during query execution.
-6. **Domain-Agnostic VM ISA**: [`impOps`](file:///Users/jesse/impulse/AGENTS.md) is the generic Virtual Machine ISA for `ImpulseVM` serving multiple frontends ([`ImpK`](file:///Users/jesse/impulse/AGENTS.md), [`ImpLog`](file:///Users/jesse/impulse/AGENTS.md), [`ImpScheme`](file:///Users/jesse/impulse/AGENTS.md), Cypher). Opcodes **MUST NOT** include frontend-specific prefixes (e.g. `CYPHER`).
+4. **Native APOC Mapping to Impulse Macro Opcodes**: Cypher `CALL apoc.algo...` procedure calls map directly to Impulse's pre-existing native macro opcodes (`OP_CC_AFFOREST`, `OP_BRANDES_FORWARD`, `OP_LOUVAIN_MODULARITY`, `OP_KCORE_DECOMPOSITION`), executing graph algorithms directly on off-heap snapshot vectors.
+5. **100% Zero-Allocation Compliance**: All proposed opcodes strictly preserve `ImpulseVM`'s Allocation-Free Hot Path Mandate. Intermediate bitsets, hash join maps, path frontiers, and sorting heaps are pooled and allocated strictly out-of-band via VM Scratch Arenas (`acquire_bitset`, `acquire_scratch_slice`). Zero heap `malloc`/`new` calls occur during query execution.
+6. **Domain-Agnostic VM ISA**: `impOps` is the generic Virtual Machine ISA for `ImpulseVM` serving multiple frontends (`ImpK`, `ImpLog`, `ImpScheme`, Cypher). Opcodes **MUST NOT** include frontend-specific prefixes (e.g. `CYPHER`).
 
 ---
 
@@ -49,10 +49,10 @@ Cypher Pattern & APOC Mapping
 | **`UNWIND`** | `UNWIND $ids AS targetId` | Expanding list attributes or parameters into individual row execution frames. |
 | **Variable Paths** | `(u:User)-[:REPORTS_TO*1..5]->(m:User)` | Multi-hop variable-length path traversal bounded by minimum and maximum hops. |
 | **`shortestPath()`** | `shortestPath((u:User)-[:LINK*]->(g:Group))` | Bi-directional BFS shortest path computation between node sets. |
-| **`CALL apoc.algo.components`** | `CALL apoc.algo.connectedComponents()` | Maps directly to native opcode [`OP_CC_AFFOREST`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L63) (`0x40`). |
-| **`CALL apoc.algo.betweenness`**| `CALL apoc.algo.betweenness()` | Maps directly to native opcode [`OP_BRANDES_FORWARD`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L71) (`0x48`). |
-| **`CALL apoc.algo.louvain`**    | `CALL apoc.algo.louvain()` | Maps directly to native opcode [`OP_LOUVAIN_MODULARITY`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L96) (`0x67`). |
-| **`CALL apoc.algo.kcore`**      | `CALL apoc.algo.kCore()` | Maps directly to native opcode [`OP_KCORE_DECOMPOSITION`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L97) (`0x68`). |
+| **`CALL apoc.algo.components`** | `CALL apoc.algo.connectedComponents()` | Maps directly to native opcode `OP_CC_AFFOREST` (`0x40`). |
+| **`CALL apoc.algo.betweenness`**| `CALL apoc.algo.betweenness()` | Maps directly to native opcode `OP_BRANDES_FORWARD` (`0x48`). |
+| **`CALL apoc.algo.louvain`**    | `CALL apoc.algo.louvain()` | Maps directly to native opcode `OP_LOUVAIN_MODULARITY` (`0x67`). |
+| **`CALL apoc.algo.kcore`**      | `CALL apoc.algo.kCore()` | Maps directly to native opcode `OP_KCORE_DECOMPOSITION` (`0x68`). |
 
 ### 1.3 Explicitly Excluded Features (Out of Scope)
 * **Cartesian Products**: `MATCH (a), (b)` (Disconnected cross-joins are rejected at compile time).
@@ -66,24 +66,24 @@ Cypher Pattern & APOC Mapping
 
 ## 2. TuringDB / NornicDB Processor Analysis & `impOps` Reuse Matrix
 
-The table below maps query operators from TuringDB ([`query/pipeline/processors/`](file:///Users/jesse/impulse/third-party/turingdb/query/pipeline/processors)) and NornicDB ([`pkg/cypher/`](file:///Users/jesse/impulse/third-party/NornicDB/pkg/cypher)) to ImpulseVM's opcode infrastructure, explicitly distinguishing **existing `impOps`** from **truly new proposed ISA opcodes**.
+The table below maps query operators from TuringDB (`query/pipeline/processors/`) and NornicDB (`pkg/cypher/`) to ImpulseVM's opcode infrastructure, explicitly distinguishing **existing `impOps`** from **truly new proposed ISA opcodes**.
 
 | Reference Database Processor | Operator / Query Shape | Impulse Engine Execution Strategy | Opcode Status & Name |
 | :--- | :--- | :--- | :--- |
 | TuringDB / NornicDB Label Scan | `MATCH (n:Label)` | Map Domain name string to DomainID and scan primary domain vectors. | **NEW**: `OP_LABEL_SCAN` (`0x80`) |
-| TuringDB / NornicDB CSR Walk | `MATCH (a)-[:TYPE]->(b)` | Zero-copy CSR offset walk for source nodes, filtered by `RelationID`. | **REUSED**: [`OP_CSR_WALK`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L38) (`0x10`) |
-| TuringDB / NornicDB CSC Walk | `MATCH (a)<-[:TYPE]-(b)` | Zero-copy CSC offset walk for target nodes, filtered by `RelationID`. | **REUSED**: [`OP_CSC_WALK`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L46) (`0x18`) |
-| TuringDB / NornicDB Filter | `WHERE a.attr > X` | SIMD vector predicate evaluation over SoA attribute & label bitmask matrices. | **REUSED**: [`OP_NODE_FILTER`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L42) (`0x14`), [`OP_NODE_FILTER_STR_PREFIX`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L43) (`0x15`) |
+| TuringDB / NornicDB CSR Walk | `MATCH (a)-[:TYPE]->(b)` | Zero-copy CSR offset walk for source nodes, filtered by `RelationID`. | **REUSED**: `OP_CSR_WALK` (`0x10`) |
+| TuringDB / NornicDB CSC Walk | `MATCH (a)<-[:TYPE]-(b)` | Zero-copy CSC offset walk for target nodes, filtered by `RelationID`. | **REUSED**: `OP_CSC_WALK` (`0x18`) |
+| TuringDB / NornicDB Filter | `WHERE a.attr > X` | SIMD vector predicate evaluation over SoA attribute & label bitmask matrices. | **REUSED**: `OP_NODE_FILTER` (`0x14`), `OP_NODE_FILTER_STR_PREFIX` (`0x15`) |
 | TuringDB / NornicDB Hash Join | Multi-branch Join | Hash join over intermediate VM register binding frames in scratch memory. | **NEW**: `OP_HASH_JOIN` (`0x82`) |
 | TuringDB / NornicDB Unwind | `UNWIND $list AS x` | Step through list element vectors in scratch space, creating iterative sub-frames. | **NEW**: `OP_UNWIND` (`0x83`) |
 | TuringDB / NornicDB Top-K | `ORDER BY ... LIMIT K` | Maintain bounded Top-K min/max binary heap in VM scratch memory without global sorting. | **NEW**: `OP_SORT_TOPK` (`0x84`) |
 | TuringDB Path Explorer | `(a)-[*1..N]->(b)` | Multi-hop frontier CSR expansion using Roaring Bitsets for visited tracking. | **NEW**: `OP_PATH_EXPLORE` (`0x85`) |
 | TuringDB Shortest Path | `shortestPath(...)` | Bi-directional BFS search between source and target node sets over CSR/CSC. | **NEW**: `OP_SHORTEST_PATH_BFS` (`0x86`) |
 | TuringDB / NornicDB Aggregation | `COUNT(...)`, `AVG(...)` | Hash grouping & SIMD vector reduction across register columns. | **NEW**: `OP_GROUP_AGG` (`0x87`) |
-| NornicDB APOC Connected Components | `CALL apoc.algo.components` | Afforest parallel connected components over CSR snapshot topology. | **REUSED**: [`OP_CC_AFFOREST`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L63) (`0x40`) |
-| NornicDB APOC Betweenness | `CALL apoc.algo.betweenness` | Brandes forward/backward betweenness centrality over CSR snapshot topology. | **REUSED**: [`OP_BRANDES_FORWARD`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L71) (`0x48`) |
-| NornicDB APOC Louvain | `CALL apoc.algo.louvain` | Parallel Louvain modularity community detection over CSR snapshot. | **REUSED**: [`OP_LOUVAIN_MODULARITY`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L96) (`0x67`) |
-| NornicDB APOC K-Core | `CALL apoc.algo.kCore` | K-Core decomposition pruning over CSR snapshot. | **REUSED**: [`OP_KCORE_DECOMPOSITION`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L97) (`0x68`) |
+| NornicDB APOC Connected Components | `CALL apoc.algo.components` | Afforest parallel connected components over CSR snapshot topology. | **REUSED**: `OP_CC_AFFOREST` (`0x40`) |
+| NornicDB APOC Betweenness | `CALL apoc.algo.betweenness` | Brandes forward/backward betweenness centrality over CSR snapshot topology. | **REUSED**: `OP_BRANDES_FORWARD` (`0x48`) |
+| NornicDB APOC Louvain | `CALL apoc.algo.louvain` | Parallel Louvain modularity community detection over CSR snapshot. | **REUSED**: `OP_LOUVAIN_MODULARITY` (`0x67`) |
+| NornicDB APOC K-Core | `CALL apoc.algo.kCore` | K-Core decomposition pruning over CSR snapshot. | **REUSED**: `OP_KCORE_DECOMPOSITION` (`0x68`) |
 
 ---
 
@@ -140,7 +140,7 @@ To support complete Cypher execution while maintaining a clean, domain-agnostic 
 
 ## 5. Zero-Allocation Hot Path Strategy & Allocation Audit
 
-Every single proposed opcode maintains **100% compliance** with ImpulseVM's [Allocation-Free Hot Path Mandate](file:///Users/jesse/impulse/impulse-graph-spec/docs/VM_SPECIFICATION.md#L370-L378) (`VM_SPECIFICATION.md` §6.5 & §6.6). Zero dynamic heap allocations (`malloc`, `new`, `std::vector::push_back`, or JVM heap objects) occur inside the instruction interpreter loop.
+Every single proposed opcode maintains **100% compliance** with ImpulseVM's Allocation-Free Hot Path Mandate (`VM_SPECIFICATION.md` §6.5 & §6.6). Zero dynamic heap allocations (`malloc`, `new`, `std::vector::push_back`, or JVM heap objects) occur inside the instruction interpreter loop.
 
 | Opcode | Memory Mechanism | Allocation Status |
 | :--- | :--- | :--- |
@@ -181,7 +181,7 @@ ImpulseVM Bytecode (.impb)
 
 ## 7. Summary & Mandatory Rule Enforcement
 
-1. **Native APOC Procedure Mapping**: Cypher `CALL apoc.algo...` procedure calls map directly down to Impulse's pre-existing native macro opcodes ([`OP_CC_AFFOREST`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L63), [`OP_BRANDES_FORWARD`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L71), [`OP_LOUVAIN_MODULARITY`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L96), [`OP_KCORE_DECOMPOSITION`](file:///Users/jesse/impulse/impulse-graph-spec/tools/run_vm_asm_suite.py#L97)).
+1. **Native APOC Procedure Mapping**: Cypher `CALL apoc.algo...` procedure calls map directly down to Impulse's pre-existing native macro opcodes (`OP_CC_AFFOREST`, `OP_BRANDES_FORWARD`, `OP_LOUVAIN_MODULARITY`, `OP_KCORE_DECOMPOSITION`).
 2. **Cartesian Products Strictly Prohibited**: Disconnected pattern matches (e.g. `MATCH (a:User), (b:Group)`) are rejected at compile time to preserve sub-microsecond latency.
 3. **100% Zero-Allocation Compliance**: Every opcode strictly observes Section 6.5 of `VM_SPECIFICATION.md`. Intermediate structures operate strictly on pre-allocated Scratch Arenas and BitSet handle pools.
 4. **Order-Invariant Multi-Label Support**: Cypher label ordering is commutative (`(u:Admin:User:Manager)` $\equiv$ `(u:User:Admin:Manager)`).
