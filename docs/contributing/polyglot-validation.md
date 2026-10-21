@@ -10,7 +10,7 @@ Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanni
 
 ```
                     ┌──────────────────────────────────────────┐
-                    │ Level 4: Empirical Benchmarks & CI/CD    │  Macro Level
+                    │ Level 4: Empirical Benchmarks & CI/CD    │ Macro Level
                     │ (JMH, Google Bench, SLSA L3 Attestations)│
                     ├──────────────────────────────────────────┤
                     │ Level 3: Platform Cloud & Showcases      │
@@ -22,7 +22,7 @@ Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanni
                     │ Level 1: Language Engine Kernels & FFI   │
                     │ (C++20, Rust, Java 25 FFM, Python, Go)   │
                     ├──────────────────────────────────────────┤
-                    │ Level 0: Agnostic Spec & VM ISA Vectors  │  Micro Level
+                    │ Level 0: Agnostic Spec & VM ISA Vectors  │ Micro Level
                     │ (tc01..tc36, vm-impas, 100% Coverage)    │
                     └──────────────────────────────────────────┘
 ```
@@ -56,9 +56,9 @@ Assembly scripts in `test-vectors/vm-impas/` are self-contained `.impas` files t
 ; {EXPECT: FLAG = !ZF}
 
 .text
-0x00: OP_LOAD_CONST_INT   R0, 42
-0x01: OP_LOAD_CONST_INT   R1, 100
-0x04: OP_MOV              R7, R0
+0x00: OP_LOAD_CONST_INT R0, 42
+0x01: OP_LOAD_CONST_INT R1, 100
+0x04: OP_MOV R7, R0
 0x09: OP_HALT
 ```
 
@@ -84,7 +84,7 @@ Running 100% of all 80+ VM test vectors through every binding wrapper on *every 
 ## 4. CI/CD Pipeline Gates & Execution Schedule
 
 ```
-  PR Created / Updated               Merge to main / Nightly Build
+  PR Created / Updated Merge to main / Nightly Build
  ┌─────────────────────────┐        ┌─────────────────────────┐
  │ Stage 1: Engine Spec    │        │ Stage 1: Engine Spec    │
  │ (100% run_vm_asm_suite) │        │ (100% run_vm_asm_suite) │

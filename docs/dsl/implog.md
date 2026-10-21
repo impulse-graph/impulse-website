@@ -11,7 +11,7 @@
 While traditional query languages (such as Cypher or SQL) struggle with recursive traversals, unbounded path reachability, and combinatorial path explosions, **ImpLog provides pure set-theoretic declarative logic rules with guaranteed polynomial-time least fixed-point convergence (Minimal Herbrand Model)**.
 
 ```
- Traditional Graph Traversal (Cypher / SQL)        ImpLog Declarative Logic (.implog)
+ Traditional Graph Traversal (Cypher / SQL) ImpLog Declarative Logic (.implog)
  ──────────────────────────────────────────        ───────────────────────────────────
  • Path iteration with combinatorial explosion    • Pure Set-Theoretic Deduplication (NodeSet<T>)
  • Manual loop limits (e.g. [*1..5])              • Unbounded Transitive Closure (Kleene Star τ*)
@@ -131,18 +131,18 @@ $$\mathcal{S}_{\text{visited}} = \mathcal{S}_{\text{visited}} \cup \Delta \mathc
 
 ```
                 ┌──────────────────────────────────────────────┐
-                │          Seed Input: ΔS₀ = { User_ID }       │
+                │ Seed Input: ΔS₀ = { User_ID }       │
                 └──────────────────────┬───────────────────────┘
                                        │
                                        ▼
     ┌───────────────────────────> Loop Step t ───────────────────────────┐
     │                                  │                                 │
     │                                  ▼                                 │
-    │                   OP_CSR_WALK / OP_CSC_WALK                        │
-    │                   Expand outbound group neighbors                  │
+    │ OP_CSR_WALK / OP_CSC_WALK                        │
+    │ Expand outbound group neighbors                  │
     │                                  │                                 │
     │                                  ▼                                 │
-    │                   OP_ROARING_BITMAP_AND_NOT                        │
+    │ OP_ROARING_BITMAP_AND_NOT                        │
     │                   ΔS_{t+1} = Expanded ∖ Visited                    │
     │                                  │                                 │
     │                     ┌────────────┴────────────┐                    │
@@ -150,8 +150,8 @@ $$\mathcal{S}_{\text{visited}} = \mathcal{S}_{\text{visited}} \cup \Delta \mathc
     │            ΔS_{t+1} is Empty?         ΔS_{t+1} has Elements?       │
     │                     │                         │                    │
     │                     ▼                         ▼                    │
-    │             [ EXIT LOOP ]             OP_ROARING_BITMAP_OR         │
-    │          Return Visited Set           Visited = Visited ∪ ΔS_{t+1} │
+    │             [ EXIT LOOP ] OP_ROARING_BITMAP_OR         │
+    │ Return Visited Set Visited = Visited ∪ ΔS_{t+1} │
     │                                               │                    │
     └───────────────────────────────────────────────┴────────────────────┘
 ```
@@ -162,7 +162,7 @@ $$\mathcal{S}_{\text{visited}} = \mathcal{S}_{\text{visited}} \cup \Delta \mathc
 
 | Dimension | Classical Soufflé | Differential Datalog (DDlog) | Impulse ImpLog |
 | :--- | :--- | :--- | :--- |
-| **Storage Architecture** | In-memory RAM B-Trees | In-memory DD Collections | **Zero-Copy Memory-Mapped (`.imps` v0.9.0)** |
+| **Storage Architecture** | In-memory RAM B-Trees | In-memory DD Collections | **Zero-Copy Memory-Mapped (`.imps` )** |
 | **Cold-Start Latency** | $O(\text{data})$ Physical CSV Loading | $O(\text{data})$ State Replay | **$O(1)$ Instant Mount ($< 1\,\mu\text{s}$)** |
 | **Bitset Traversal** | Scalar / 64-bit word | Differential Multi-sets | **AVX-512 SIMD Vector Bitsets (512 bits/inst)** |
 | **Hardware Alignment** | General Heap pointers | Rust Heap structs | **Strict 128-byte hardware cache alignment** |

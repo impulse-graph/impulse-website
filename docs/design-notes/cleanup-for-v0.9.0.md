@@ -1,6 +1,6 @@
-# Impulse Graph Engine — v0.9.0 C++ Core Kernel & Ecosystem Cleanup Plan
+# Impulse Graph Engine — C++ Core Kernel & Ecosystem Cleanup Plan
 
-> **Target Version**: `v0.9.0`  
+> **Target Version**: ``
 > **Primary Goal**: Achieve a functionally complete, stable, rock-solid, zero-warning C++ core kernel (`impulse-cpp`) and polyglot C-ABI foundation for real-world user testing and feedback prior to v1.0.0.
 
 ---
@@ -8,7 +8,7 @@
 ## 1. Executive Assessment: Where the C++ Engine Stands
 
 ### 🟢 Strengths & Ready Components
-1. **C-ABI & Binary Snapshot v0.9.0**: The binary snapshot layout (`.imps` 128-byte aligned, Section 2 string table, single-pass S3 streaming writer, CRC16/SHA256 verification) is mature and hasn't required breaking format changes.
+1. **C-ABI & Binary Snapshot **: The binary snapshot layout (`.imps` 128-byte aligned, Section 2 string table, single-pass S3 streaming writer, CRC16/SHA256 verification) is mature and hasn't required breaking format changes.
 2. **Core C++ Virtual Machine (`ImpulseVM`)**: Computed-goto direct threading, 64-register state frame (`R0`..`R63`), multi-layout traversal (`CSR`, `CSC`, `COO`, `DENSE`), and Highway SIMD vector operations build and pass all 18 test targets (100% test pass rate in `ctest`).
 3. **Polyglot FFI Bindings**:
    - **Rust (`impulse-rust`)**: Compiles native objects and passes 100% of unit tests.
@@ -26,7 +26,7 @@
 * [x] **Fix Incomplete Header Installation in `CMakeLists.txt`**:
   * **Status**: Completed. Updated `CMakeLists.txt` to install all 15 public C-ABI, SIMD, and DSL compiler headers.
 * [x] **Purge Legacy Spec Terminology in Public Headers**:
-  * **Status**: Completed. Normalized docstrings and comments in `impulse_graph.h` and `impulse-rust/src/ffi.rs` to **Specification v0.9.0** (`IMPS` version `9`).
+  * **Status**: Completed. Normalized docstrings and comments in `impulse_graph.h` and `impulse-rust/src/ffi.rs` to **Specification ** (`IMPS` version `9`).
 
 ---
 
@@ -52,9 +52,9 @@
 
 ---
 
-### 🔵 Phase 4: Frontend Scope & Documentation Boundary for v0.9.0
+### 🔵 Phase 4: Frontend Scope & Documentation Boundary for 
 
-* [ ] **Clarify Frontend Status in v0.9.0**:
+* [ ] **Clarify Frontend Status in **:
   * **ImpLog / Datalog (`impulse_implog.hpp`)**: Mark as **Primary 1.0 DSL** for declarative graph reachability, ReBAC/ABAC rules, and transitive closure.
   * **Fluent C++ API (`impulse_vm_fluent.hpp`)**: Mark as **Primary Native Developer API** for direct programmatic query construction.
   * **ImpK (`impulse_impk.hpp`)**: Mark as **Vector/GraphBLAS DSL** for matrix-vector traversals and PageRank.
@@ -70,7 +70,7 @@
   * Ensure Cargo crate version is locked at `0.9.0`.
 
 * [ ] **Python Engine (`impulse-python`)**:
-  * Verify `setup.py` / `pyproject.toml` package metadata for v0.9.0.
+  * Verify `setup.py` / `pyproject.toml` package metadata for .
   * Verify PyTorch zero-copy tensor import (`torch.sparse_csr_tensor`).
 
 * [ ] **Node.js Engine (`impulse-node`)**:
@@ -87,13 +87,13 @@
 graph TD
     A[Phase 1: CMake Install & Header Packaging] --> B[Phase 2: VM Bitset Pool & Register Safety]
     B --> C[Phase 3: Compiler Warnings & Repo Hygiene]
-    C --> D[Phase 4: Frontend Scoping & v0.9.0 Disclaimers]
+    C --> D[Phase 4: Frontend Scoping & Disclaimers]
     D --> E[Phase 5: Polyglot FFI & Cross-Language Verification]
-    E --> F[Tag & Release v0.9.0 Beta / Release Candidate]
+    E --> F[Tag & Release Beta / Release Candidate]
 ```
 
 1. **Step 1**: Update `CMakeLists.txt` to install all required public headers and clean up legacy `v2.4` docstrings in `impulse_graph.h`.
 2. **Step 2**: Fix bitset/vector pool overflow in `impulse_vm.cpp` and register bounds clamping in `impulse_vm_fluent.cpp`.
 3. **Step 3**: Fix all compiler warnings in `tests/` and benchmarks, clean up temporary files in `impulse-python/`.
 4. **Step 4**: Run full test suites across C++, Rust, Python, and Node to confirm zero regressions.
-5. **Step 5**: Draft the v0.9.0 release notes with clear disclaimers regarding documentation status and frontend scoping.
+5. **Step 5**: Draft the release notes with clear disclaimers regarding documentation status and frontend scoping.

@@ -17,8 +17,8 @@ The **Impulse Graph Engine** supports **three laser-focused query paradigms**, g
 │ 1. Storage-Only ("Parquet")   │ 2. Dynamic Fluent Builder     │ 3. Embedded @ImpLog / @ImpK│
 ├───────────────────────────────┼───────────────────────────────┼────────────────────────┤
 │ snapshot.to_torch_indptr()    │ QueryBuilder.inputNode()      │ @ImpLog("""            │
-│ snapshot.to_torch_indices()   │   .walkEdge("knows")          │   can_read(U, D) :-    │
-│                               │   .filterBitset(active)       │     owner(U, D).       │
+│ snapshot.to_torch_indices()   │   .walkEdge("knows")          │ can_read(U, D) :-    │
+│                               │   .filterBitset(active)       │ owner(U, D).       │
 │                               │   .compile()                  │ """)                   │
 ├───────────────────────────────┼───────────────────────────────┼────────────────────────┤
 │ PyTorch GNNs & NumPy Arrays   │ Dynamic UI & Conditional Ops  │ Spring Boot & ReBAC    │
@@ -189,7 +189,7 @@ System.out.println(disassembly);
 **Console Output:**
 ```text
 =========================================================================
-                  IMPULSE VM BYTECODE DISASSEMBLY                       
+                  IMPULSE VM BYTECODE DISASSEMBLY
 =========================================================================
 Instruction Count: 5
 Program Memory Segment Size: 40 bytes
@@ -223,12 +223,12 @@ Graph snapshots are frequently swapped at runtime (e.g. blue/green snapshot depl
                                          │
                                          ▼
                          ┌────────────────────────────────┐
-                         │      Active Query Tracking     │
-                         │  snapshot.enterQuery()         │
-                         │     try {                      │
-                         │         methodHandle.invoke()  │
+                         │ Active Query Tracking     │
+                         │ snapshot.enterQuery()         │
+                         │ try {                      │
+                         │ methodHandle.invoke()  │
                          │     } finally {                │
-                         │         snapshot.exitQuery()   │
+                         │ snapshot.exitQuery()   │
                          │     }                          │
                          └────────────────────────────────┘
 

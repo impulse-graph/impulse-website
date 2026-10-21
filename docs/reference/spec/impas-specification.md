@@ -1,6 +1,5 @@
 # Normative Specification: ImpAs (Impulse Assembly) Text Format
 
-* **Specification Version**: 0.9.0
 * **Document Status**: Standard Reference Specification
 * **Target Audience**: Compiler engineers, VM implementers, and QA engineers writing graph compliance vectors.
 
@@ -53,8 +52,8 @@ Instructions are formatted as:
 
 **Example Instruction:**
 ```nasm
-0x00: OP_LOAD_INLINE_NODE_ARRAY  R1, MOCK_FRONTIER
-0x01: OP_NODE_FILTER             R4, R1, R0, 0
+0x00: OP_LOAD_INLINE_NODE_ARRAY R1, MOCK_FRONTIER
+0x01: OP_NODE_FILTER R4, R1, R0, 0
 0x02: OP_HALT
 ```
 
@@ -118,10 +117,10 @@ Validates the dynamic execution context of the virtual machine.
 .set_roaring FRONTIER = [0, 2]
 
 .text
-0x00: OP_LOAD_INLINE_ARRAY         R0, MOCK_PRICES
+0x00: OP_LOAD_INLINE_ARRAY R0, MOCK_PRICES
 0x01: OP_INIT_MOCK_NODE_ATTR       0, R0, R255
-0x02: OP_LOAD_INLINE_SET_ROARING   R3, FRONTIER
-0x03: OP_NODE_FILTER               R4, R3, R0, 0
-0x04: OP_SET_CARDINALITY           R0, R4
+0x02: OP_LOAD_INLINE_SET_ROARING R3, FRONTIER
+0x03: OP_NODE_FILTER R4, R3, R0, 0
+0x04: OP_SET_CARDINALITY R0, R4
 0x05: OP_HALT
 ```

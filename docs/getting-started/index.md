@@ -1,34 +1,29 @@
 # Getting Started with Impulse Graph Engine
 
-Welcome to the official documentation for the **Impulse Graph Engine**!
+Welcome to the official documentation for the **Impulse Graph Engine**.
 
-Impulse Graph Engine is an ultra-high-performance, zero-copy, C-ABI binary snapshot graph engine designed for sub-millisecond cold start, sub-microsecond vector traversals, and multi-terabyte (TB+) scale graph analytics.
+Impulse Graph decouples static and streaming-updated graph analytics from heavy database servers through the **Impulse Binary Snapshot Format (`.imps`)** and **two equivalent, first-class execution engines**:
 
-## Core Value Proposition
+1. **Pure Java 25 Engine (`impulse-graph-java`)**: A 100% pure Java 25 implementation using the Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`), Vector API, and `MethodHandle` JIT combinators. Ready for enterprise production with **zero third-party runtime dependencies**, **zero JNI native libraries**, and **zero GC pauses**.
+2. **Native C++20 / C-ABI Engine (`impulse-graph-core`)**: A zero-dependency C++20 kernel exposing a canonical C-ABI (`impulse_graph.h`, `impulse_vm.h`) that powers C/C++ applications and polyglot SDKs for Rust, Python, Go, .NET/C#, and Node.js/TypeScript.
 
-In traditional graph databases, loading terabytes of data into memory can take hours, and traversing millions of edges can suffer from garbage collection pauses or pointer-chasing overhead. Impulse Graph Engine flips this paradigm by relying on memory-mapped (`mmap`) binary snapshots directly from NVMe disks. 
+Both engines execute the same register-based **`ImpulseVM`** (`impOps` bytecode) directly over memory-mapped `.imps` files with 100% bitwise-identical results.
 
-Our engine achieves:
-- **Sub-millisecond Cold Starts**: Map multi-terabyte graphs into memory instantly without loading times.
-- **Zero-Copy Reads**: Execute lock-free graph queries directly over off-heap memory.
-- **Hardware Alignment**: AVX-512 vector units and GPU warp coalescing out of the box via 128-byte aligned sections.
-- **Polyglot Portability**: Identical core concepts and zero-copy performance across Java 25, C++20, Rust, Python, and .NET.
+---
 
-## Key Features
+## Core Architectural Principles
 
-1. **Static Immutable Snapshots**: Fast, highly optimized binary snapshots (`.imps` files) acting as the ultimate source of truth.
-2. **Live Delta Overlay**: A dynamic `CsrDeltaLayer` overlaid on the immutable snapshot, supporting live real-time graph mutations via atomic reference swaps.
-3. **Trillion-Node Scale**: 64-bit dense node identifiers with advanced topology compression (SIMD-PFOR, Roaring Bitmaps).
-4. **Zero Dependencies**: The core engine libraries maintain strictly zero third-party dependencies.
+* **The Binary Snapshot Format (`.imps`)**: Page-aligned (4KB header) and 128-byte section-aligned binary files containing Compressed Sparse Row (CSR) forward matrices, Compressed Sparse Column (CSC) reverse matrices, Structure-of-Arrays (SoA) columnar attributes, and secondary indices.
+* **Instant Cold Start via `mmap`**: Snapshots map directly from NVMe disk into process virtual address space in sub-milliseconds without parsing or object deserialization.
+* **Off-Heap, Lock-Free Execution**: Queries execute over immutable off-heap memory segments and pre-allocated 640-byte VM register frames without heap allocations or GC pauses.
+* **Direct-to-Disk Streaming Generation**: `SnapshotBuilder` (Java) and `impulse_writer_t` (C-ABI) stream `.imps` files direct to disk or cloud object storage (S3/GCS) in $O(\text{chunk})$ physical RAM.
+* **Live Delta Overlays**: `DeltaLayer` overlays and `SnapshotSwapManager` enable concurrent edge additions, tombstones, and zero-downtime atomic snapshot rotation.
 
-## Performance Guarantees
+---
 
-* **Latency**: p99 traversals under a microsecond for localized neighborhood hops.
-* **Throughput**: Millions of deep multi-hop graph traversals per second per core.
-* **Memory**: $O(\text{chunk})$ physical memory footprint during snapshot building, enabling hardware-constrained systems to generate TB+ graphs.
+## Where to Start
 
-Ready to dive in?
-- Review the [Core Concepts & Architecture Primer](core-concepts.md) to understand CSR/CSC sparse matrix representations and domains.
-- Follow the [Building Snapshots Walkthrough (Java)](building-snapshots.md) to create your first `.imps` snapshot and stream from JDBC.
-- Check out the [Quickstart](quickstart.md) to load snapshots and execute vector traversals.
-- See the [Installation](installation.md) guide to add Impulse to your build tool.
+- **[Core Concepts & Glossary](core-concepts.md)**: Understand the `.imps` binary snapshot layout, CSR/CSC sparse matrices, per-domain dense IDs, and SoA columnar attributes.
+- **[Installation](installation.md)**: Add the pure Java 25 engine (`org.impulsegraph`), C/C++ C-ABI kernel, or polyglot SDKs to your project.
+- **[Quickstart](quickstart.md)**: Mount an `.imps` snapshot and execute domain-bound traversals and prepared statements in Java 25, C++20, and Rust.
+- **[Building Snapshots Walkthrough (Java)](building-snapshots.md)**: End-to-end tutorial constructing `.imps` binary snapshots with `SnapshotBuilder` and JDBC streaming.

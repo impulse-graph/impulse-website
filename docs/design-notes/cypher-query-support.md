@@ -7,7 +7,7 @@ This specification outlines the architecture for supporting a high-performance, 
 Drawing key architectural insights from TuringDB's MLIR query dialect (`query/ir/dialect/db/DBOps.td`) and NornicDB's Cypher fast-path matcher (`pkg/cypher/compound_query_shape_matcher.go`), this document specifies how read-only Cypher queries compile down to `ImpScheme` S-Expressions (`.impscm`), `ImpAsm` register assembly (`.impas`), and execute directly on `ImpulseVM` over zero-copy `.imps` binary snapshot files.
 
 ### Critical Structural & Physical Layout Rules
-1. **Domains, Multi-Label Nodes & Relations Mapping**: In Impulse Graph Engine's `.imps` v0.9.0 Binary Snapshot Specification:
+1. **Domains, Multi-Label Nodes & Relations Mapping**: In Impulse Graph Engine's `.imps` Binary Snapshot Specification:
    * Cypher **Primary Node Labels** (e.g. `:User`, `:Group`) map to Impulse **Domain Catalog Entries** (`DomainID`, `NameOffset`).
    * Cypher **Multi-Label Node Specifications** (e.g. `(u:Admin:User:Manager)`) are **unordered/commutative** in user queries. The compiler automatically matches `"User"` to the primary `DomainID`, compiling secondary labels (`:Admin`, `:Manager`) into bitwise label mask filters.
    * **Conflicting Primary Domains (e.g. `(u:User:Group:Manager)`) Are Invalid**: Because primary domains (`User`, `Group`) define mutually exclusive physical node ID spaces and SoA memory regions, a node cannot belong to two primary domains simultaneously. Specifying multiple primary domains is rejected at compile time as an empty domain intersection ($\emptyset$).
@@ -22,7 +22,7 @@ Drawing key architectural insights from TuringDB's MLIR query dialect (`query/ir
 
 ## 1. Domain/Relation Mapping & Supported Cypher Subset
 
-### 1.1 Physical Schema Mapping (.imps v0.9.0 $\leftrightarrow$ Cypher)
+### 1.1 Physical Schema Mapping (.imps  $\leftrightarrow$ Cypher)
 
 ```
 Cypher Pattern & APOC Mapping
@@ -93,7 +93,7 @@ To support complete Cypher execution while maintaining a clean, domain-agnostic 
 
 ```
 +-----------------------------------------------------------------------------------+
-|                  New Generic impOps Opcode Additions (0x80 .. 0x88)               |
+| New Generic impOps Opcode Additions (0x80 .. 0x88)               |
 +------+--------------------------+--------------------------------------------------+
 | Hex  | Opcode Name              | Operational Summary                              |
 +------+--------------------------+--------------------------------------------------+
@@ -162,16 +162,16 @@ Cypher APOC & Pattern Query
   │  "MATCH (u:User)-[:USER_TO_GROUP]->(g:Group) CALL apoc.algo.betweenness() YIELD node, score RETURN node.name, score"
   ▼
 ImpScheme IR (.impscm S-Expression AST)
-  │  (cypher-query
-  │    (match (node u :User) (rel :USER_TO_GROUP) (node g :Group))
-  │    (call apoc.algo.betweenness :out score-table)
-  │    (project :out result-set :in score-table :cols (node.name score)))
+  │ (cypher-query
+  │ (match (node u :User) (rel :USER_TO_GROUP) (node g :Group))
+  │ (call apoc.algo.betweenness :out score-table)
+  │ (project :out result-set :in score-table :cols (node.name score)))
   ▼
 ImpAsm Register Assembly (.impas) -- Direct Mapping to Native Macro Opcodes
-  │  OP_LABEL_SCAN R0, 0x0000               ; Scan Domain "User" -> R0
-  │  OP_CSR_WALK R1, R0, 0x0004             ; Walk Relation "USER_TO_GROUP" -> R1
-  │  OP_BRANDES_FORWARD R2, R1              ; Native Opcode 0x48: Brandes Betweenness Centrality
-  │  OP_COLLECT_ARRAY R3, R2                ; Materialize results
+  │ OP_LABEL_SCAN R0, 0x0000               ; Scan Domain "User" -> R0
+  │ OP_CSR_WALK R1, R0, 0x0004             ; Walk Relation "USER_TO_GROUP" -> R1
+  │ OP_BRANDES_FORWARD R2, R1              ; Native Opcode 0x48: Brandes Betweenness Centrality
+  │ OP_COLLECT_ARRAY R3, R2                ; Materialize results
   ▼
 ImpulseVM Bytecode (.impb)
      [0x80, 0x00, 0x00, 0x10, 0x01, 0x00, 0x04, 0x48, 0x02, 0x91, 0x03, 0x00]

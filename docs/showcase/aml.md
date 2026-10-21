@@ -18,10 +18,10 @@ Impulse Graph solves this using the `repeatUntilStable` fixed-point iteration op
         // Keep following 'transferredTo' edges until the set stops growing
         .repeatUntilStable(step -> step.walkEdge("transferredTo"))
         .collect(ReturnType.ROARING_BITSET);
-        
+
     // Execute to get all downstream accounts
     RoaringBitmap downstream = ringDetector.execute(ctx, view, suspectAccountId);
-    
+
     // If the suspect account is in its own downstream set, we have a cycle!
     boolean isFraudRing = downstream.contains(suspectAccountId);
     ```
@@ -40,10 +40,10 @@ Investigators can also run hypothetical queries. "If we freeze Account B, does i
     ImpulseGraphDelta freezeDelta = ImpulseGraphDelta.builder()
         .removeEdgesFromNode(accountB_Id, "transferredTo")
         .build();
-        
+
     GraphView hypotheticalView = GraphView.of(baseSnapshot, freezeDelta);
     RoaringBitmap newDownstream = ringDetector.execute(ctx, hypotheticalView, suspectAccountId);
-    
+
     if (!newDownstream.contains(suspectAccountId)) {
         System.out.println("Freezing Account B breaks the cycle.");
     }

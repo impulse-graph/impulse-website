@@ -18,24 +18,24 @@ The **Impulse Graph Engine** (`impulse-graph`) is an ultra-high-performance, zer
 ```
                               ┌───────────────────────────────────────────────┐
                               │  1. Zero-Copy Memory-Mapped (mmap) Storage    │
-                              │  Direct C-ABI binary layout (.imps v0.9.0)    │
+                              │ Direct C-ABI binary layout (.imps )    │
                               └──────────────────────┬────────────────────────┘
                                                      │
                                                      ▼
                               ┌───────────────────────────────────────────────┐
                               │  2. O(1) Zero-Parsing Cold Start              │
-                              │  Zero deserialization / Zero size-of-data scan│
+                              │ Zero deserialization / Zero size-of-data scan│
                               └──────────────────────┬────────────────────────┘
                                                      │
                                                      ▼
                               ┌───────────────────────────────────────────────┐
                               │  3. Allocation-Free & Lock-Free Hot Path      │
-                              │  Zero mutexes / Zero R/W lock contention / GC │
+                              │ Zero mutexes / Zero R/W lock contention / GC │
                               └───────────────────────────────────────────────┘
 ```
 
 1. **Zero-Copy Memory-Mapped (`mmap`) Direct C-ABI Binary Snapshot Layout**:
-   Physical snapshot files (`.imps` v0.9.0) are formatted as page-aligned, zero-copy C-ABI binary memory structures. Mounting a snapshot uses the OS `mmap()` system call, binding physical NVMe storage directly into process virtual memory space without memory copying or buffer translations.
+   Physical snapshot files (`.imps` ) are formatted as page-aligned, zero-copy C-ABI binary memory structures. Mounting a snapshot uses the OS `mmap()` system call, binding physical NVMe storage directly into process virtual memory space without memory copying or buffer translations.
 2. **$O(1)$ Cold Start with Zero Size-of-Data Parsing or Deserialization**:
    Unlike conventional graph databases that require physical data loading, index building, or JSON/Protobuf deserialization on startup, Impulse mounts multi-terabyte graph snapshots in **$O(1)$ time ($< 1 \ \mu\text{s}$)**. The engine never performs size-of-data physical parsing or scanning during engine startup or snapshot instantiation.
 3. **High-Concurrency Read-Only Queries via Allocation-Free & Reader/Writer Lock-Free Hot Paths**:
@@ -51,7 +51,7 @@ Impulse Graph Engine replaces multi-set path iteration with **pure set-based sta
 
 | Architectural Property | Traditional Engines (Cypher / SQL / Neo4j) | Impulse Graph Engine |
 | :--- | :--- | :--- |
-| **Physical Storage Format** | Proprietary Database Files / Dynamic Record Pages | **Zero-Copy C-ABI Binary Snapshot (`.imps` v0.9.0)** |
+| **Physical Storage Format** | Proprietary Database Files / Dynamic Record Pages | **Zero-Copy C-ABI Binary Snapshot (`.imps` )** |
 | **Snapshot Mounting Cost** | $O(\text{data})$ Physical Parsing & Index Loading | **$O(1)$ Zero-Parsing `mmap()` Syscall ($< 1 \ \mu\text{s}$)** |
 | **Concurrency Lock Model** | Reader/Writer Mutexes & Page Locks | **100% Lock-Free & Reader/Writer Mutex-Free Hot Path** |
 | **Memory Allocation** | Dynamic Heap Allocations per Query / Record | **Allocation-Free Hot Path (Off-Heap / SIMD Registers)** |
@@ -359,7 +359,7 @@ Let:
                              Active Source Density (s / n_src)
 0%                       5% - 15%                        70%+                     100%
 |---------------------------|-----------------------------|-------------------------|
-  Sparse CSR Push (vMxM)       CSC Pull (Direction-Opt)     COO Stream / Dense BitSet
+  Sparse CSR Push (vMxM) CSC Pull (Direction-Opt) COO Stream / Dense BitSet
   - Work: O(s * d_out)         - Work: O(n_dst / p_active)  - Work: O(m) or O(N^2/512)
   - Scatter Writes to Dst      - Sequential Target Writes   - SIMD Vector Streaming
 ```
@@ -571,7 +571,7 @@ Level 2 Summary (lv_2):  [ min(lv_1[0..511]) ]  -------------------> [ min(lv_1[
                                 |                                              |
 Level 1 Summary (lv_1):  [ lv_1[0] ] [ lv_1[1] ] ... [ lv_1[511] ]      [ lv_1[512] ] ...
                                 |        |
-4KB Data Pages:           Page 0   Page 1  (512 entries each)
+4KB Data Pages: Page 0 Page 1 (512 entries each)
 ```
 
 ---
@@ -826,9 +826,9 @@ In the **ImpScheme S-Expression Compiler IR**, query expressions for filter pred
 ```lisp
 ;; ImpScheme S-Expression AST Representation of an Edge Walk
 (walk relation
-  :filter  (lambda (state s e d) (and (> (attr e :miles) 100) (= (attr d :status) "ACTIVE")))
+  :filter (lambda (state s e d) (and (> (attr e :miles) 100) (= (attr d :status) "ACTIVE")))
   :project (lambda (state s e d) (+ state (* (attr s :rate) (attr e :miles))))
-  :monoid  monoid-min)
+  :monoid monoid-min)
 ```
 
 ---
@@ -1073,8 +1073,8 @@ When node cardinality $N \le 64$ or active edge count $M \le 512$:
 
 ```
 Query Execution Overhead Tradeoff:
-Cost Model Planning Latency:  ~1,000 ns - 10,000 ns  (Overkill for small graphs!)
-Direct 10-Node Scan Latency: ~1 ns - 5 ns             (Executes in L1 CPU Cache!)
+Cost Model Planning Latency:  ~1,000 ns - 10,000 ns (Overkill for small graphs!)
+Direct 10-Node Scan Latency: ~1 ns - 5 ns (Executes in L1 CPU Cache!)
 ```
 
 ---
@@ -1170,9 +1170,9 @@ If relation $E_1$ has a high expansion factor ($\hat{d}_{\text{out}, E_1} = 100$
 For $k$-hop path reachability or shortest path queries between source set $\mathcal{S} \subseteq \mathcal{V}_A$ and target set $\mathcal{T} \subseteq \mathcal{V}_C$:
 
 ```
-Forward Search (Frontier F_fwd):    (S) ──> [F1] ──> [F2] ──\
+Forward Search (Frontier F_fwd): (S) ──> [F1] ──> [F2] ──\
                                                              (Intersection F_fwd ∩ F_bwd != ∅)
-Backward Search (Frontier F_bwd):   (T) <── [B1] <── [B2] ──/
+Backward Search (Frontier F_bwd): (T) <── [B1] <── [B2] ──/
 ```
 
 #### 1. Theoretical Complexity Collapse ($O(2 \cdot b^{k/2})$ vs. $O(b^k)$)
@@ -1493,20 +1493,20 @@ In Impulse Graph Engine, this algebraic distinction maps directly to the relatio
 ```
 Graph Execution Pipeline with HAVING Equivalent:
 ┌────────────────────────┐
-│  Source NodeSet <A>    │
+│ Source NodeSet <A>    │
 └───────────┬────────────┘
             │
-            ▼  WHERE Filter (ψ_src / ψ_edge): Filters input nodes & edges before walk
+            ▼ WHERE Filter (ψ_src / ψ_edge): Filters input nodes & edges before walk
 ┌────────────────────────┐
-│   CSR / CSC Edge Walk  │
+│ CSR / CSC Edge Walk  │
 └───────────┬────────────┘
             │
-            ▼  Monoidal Reduction (⊕): Aggregates incoming state vectors into dst nodes
+            ▼ Monoidal Reduction (⊕): Aggregates incoming state vectors into dst nodes
 ┌────────────────────────┐
 │ Target State Vector u  │  <-- Accumulated σ_d per destination node
 └───────────┬────────────┘
             │
-            ▼  HAVING Filter (ψ_having): Filters accumulated state AFTER reduction!
+            ▼ HAVING Filter (ψ_having): Filters accumulated state AFTER reduction!
 ┌────────────────────────┐
 │ Filtered NodeSet <Dst> │
 └────────────────────────┘
@@ -1536,7 +1536,7 @@ In Impulse's Java 25 and C++ fluent APIs, the `HAVING` clause equivalent is expr
 QueryResult<Tuple2<Customer, Double>> results = query
     .from(Warehouse.class, w -> w.isActive())
     .attachState(w -> 0.0)
-    
+
     // 1. Monoidal Edge Walk with MIN Reduction
     .walk(
         ShipmentEdge.class, 
@@ -1544,10 +1544,10 @@ QueryResult<Tuple2<Customer, Double>> results = query
         (state, warehouse, edge, customer) -> state + edge.freightRate(), 
         Monoids.MIN
     )
-    
+
     // 2. HAVING Equivalent: Filters accumulated destination state AFTER monoidal reduction!
     .having(totalCost -> totalCost < 500.0)
-    
+
     .select((customer, finalCost) -> Tuple.of(customer, finalCost))
     .collect();
 ```
@@ -1577,8 +1577,8 @@ When `.having(predicate)` executes over the accumulated target state vector $\ma
 1. **AVX-512 Vector Comparison**:
    The engine scans the contiguous target state array using 512-bit vector comparison instructions:
    ```cpp
-   __m512  v_threshold = _mm512_set1_ps(500.0f);
-   __m512  v_states    = _mm512_loadu_ps(&u_dst[i]);
+   __m512 v_threshold = _mm512_set1_ps(500.0f);
+   __m512 v_states    = _mm512_loadu_ps(&u_dst[i]);
    __mmask16 mask      = _mm512_cmp_ps_mask(v_states, v_threshold, _CMP_LT_OQ);
    ```
 2. **BitSet Synthesis**:
@@ -1719,10 +1719,10 @@ public class ShippingQuery {
         QueryResult<Tuple2<Customer, Double>> results = engine.query()
             .from(Warehouse.class, w -> w.isActive())
             .attachState(w -> 0.0)
-            
+
             // Passes method reference: ImpScheme extracts @ImpExpression text annotation!
             .walk(ShipmentEdge.class, Customer.class, ShippingQuery::computeShippingState, Monoids.MIN)
-            
+
             .having(ImpScheme.expr("state < 500.0")) // Inline text expression macro
             .collect();
     }
@@ -1791,11 +1791,11 @@ public class EvolvingStateQueryTemplate {
 
     // --- 1. Evolving State Records ---
     public record InitialState(double baseFee) {}
-    
+
     public record CarrierState(double accumCost, int carrierId) implements PriorityKeyed {
         @Override public double priorityKey() { return accumCost; }
     }
-    
+
     public record DeliveryState(double finalCost, int carrierId, int transitDays) implements PriorityKeyed {
         @Override public double priorityKey() { return finalCost; }
     }
@@ -1872,7 +1872,7 @@ Array-of-Structures (AoS Layout - IMPAIRS SIMD):
 
 Structure-of-Arrays (SoA Layout - IMPULSE ENGINE NATIVE):
 cost_array[]:    [ cost_0, cost_1, cost_2, cost_3, cost_4, cost_5 ... ]  <-- AVX-512 8x float64 SIMD Vector!
-carrier_id[]:    [   id_0,   id_1,   id_2,   id_3,   id_4,   id_5 ... ]  <-- Dense 32-bit Column
+carrier_id[]:    [ id_0, id_1, id_2, id_3, id_4, id_5 ... ]  <-- Dense 32-bit Column
 transit_days[]:  [ days_0, days_1, days_2, days_3, days_4, days_5 ... ]  <-- Dense 32-bit Column
 ```
 
@@ -1891,13 +1891,13 @@ Through the **Type-Erased SoA State Buffer Pattern**:
 Java API (Compile-Time Type Safety):
 TraversalBuilder<Customer, DeliveryState>
        │
-       ▼  Type Erasure at Execution Time (Zero JVM Objects)
+       ▼ Type Erasure at Execution Time (Zero JVM Objects)
 Impulse Native Runtime Kernel:
 Class SoAStateBuffer Matrix {
-    long   baseMemoryAddress;     // Direct off-heap FFM / C-ABI memory
-    long   colOffset_finalCost;   // Offset to double[] column
-    long   colOffset_carrierId;   // Offset to int32[] column
-    long   colOffset_transitDays; // Offset to int32[] column
+    long baseMemoryAddress;     // Direct off-heap FFM / C-ABI memory
+    long colOffset_finalCost;   // Offset to double[] column
+    long colOffset_carrierId;   // Offset to int32[] column
+    long colOffset_transitDays; // Offset to int32[] column
 }
 ```
 
@@ -1926,10 +1926,10 @@ public interface EdgeSchema<S, E, D> {
     Class<S> sourceType();
     Class<E> edgeType();
     Class<D> targetType();
-    
+
     // Relational Multiplicity: ONE_TO_MANY, MANY_TO_ONE, BIJECTIVE_ONE_TO_ONE, MANY_TO_MANY
     Multiplicity multiplicity();
-    
+
     // Direction & Attributes
     Direction direction();
     AttributeCatalog attributes();
@@ -1944,13 +1944,13 @@ When an `EdgeSchema<S, E, D>` is passed to `.walk(edgeSchema, ...)`, the query c
 
 ```
                                ┌─────────────────────────────────────────┐
-                               │       EdgeSchema<S, E, D> Passed        │
+                               │ EdgeSchema<S, E, D> Passed        │
                                └────────────────────┬────────────────────┘
                                                     │
              ┌──────────────────────────────────────┼──────────────────────────────────────┐
              │                                      │                                      │
              ▼                                      ▼                                      ▼
-Multiplicity.ONE_TO_MANY               Multiplicity.MANY_TO_ONE               Multiplicity.BIJECTIVE_1_TO_1
+Multiplicity.ONE_TO_MANY Multiplicity.MANY_TO_ONE Multiplicity.BIJECTIVE_1_TO_1
   - Bypasses Atomic Locks                - Uses Flat 1D Target Map              - Permutation Matrix P
   - Zero Lock Contention                 - target_map[src_id]                   - Lossless Inverse Traversal
 ```
@@ -2072,8 +2072,8 @@ $$\text{Optimized AST: } \tau\left( \text{USER\_TO\_GROUP\#ADMIN} \right)$$
 
 ```
 Execution Comparison:
-Base CSR Scan (100M Edges + Attribute Check): ~50,000,000 ns  (50 ms)
-Virtual COO Stream Scan (USER_TO_GROUP#ADMIN):            ~50 ns  (0.00005 ms)
+Base CSR Scan (100M Edges + Attribute Check): ~50,000,000 ns (50 ms)
+Virtual COO Stream Scan (USER_TO_GROUP#ADMIN):            ~50 ns (0.00005 ms)
 Speedup Factor:                              1,000,000x Faster!
 ```
 
@@ -2187,10 +2187,10 @@ $$\text{Query: } \text{walk}(\text{USER\_TO\_GROUP}, \; \text{edge.label} == \te
       (lt $weight 59))))
 
 ; --- Pass 11 (AVX-512 CodeGen Emitter): Emits Zero-Copy impOps Bytecode ---
-  OP_LOAD_COO_STREAM  R_SRC, R_DST, R_PRIMARY_EDGE_ID, "USER_TO_GROUP#ADMIN"
-  OP_VEC_CMP_LT_F32   V_WEIGHT, 59.0f, MASK0
-  OP_BITSET_STORE     MASK0, B_QUALIFIED_DST
-  OP_TERMINAL_FETCH   R_OUT_NAME, A_NAME_POOL, R_PRIMARY_EDGE_ID
+  OP_LOAD_COO_STREAM R_SRC, R_DST, R_PRIMARY_EDGE_ID, "USER_TO_GROUP#ADMIN"
+  OP_VEC_CMP_LT_F32 V_WEIGHT, 59.0f, MASK0
+  OP_BITSET_STORE MASK0, B_QUALIFIED_DST
+  OP_TERMINAL_FETCH R_OUT_NAME, A_NAME_POOL, R_PRIMARY_EDGE_ID
 ```
 
 ---
@@ -2217,7 +2217,7 @@ Addressing the academic comparison between bespoke IRs and standard compiler inf
                ┌──────────────────────────────┴──────────────────────────────┐
                │                                                             │
                ▼ (Interactive Query Path)                                    ▼ (Batch AOT / GPU Compiler Path)
-       ImpAsm / impOps Bytecode                                      MLIR Graph Dialect (`impulse_mlir`)
+       ImpAsm / impOps Bytecode MLIR Graph Dialect (`impulse_mlir`)
   - Sub-microsecond Cold Start (< 5 µs)                         - Lowered to MLIR `linalg` & `gpu` dialects
   - Zero Runtime Dependencies (< 2 MB)                          - Auto-vectorized via LLVM for GPUs/TPUs
 ```
@@ -2312,7 +2312,7 @@ Hop 1 Execution ──> Measure Actual Frontier Size |F_1| ──> Compare with 
                     ┌────────────────────────────────────────┴────────────────────────────────────────┐
                     │ (If Error |^s_1 - |F_1|| / |F_1| > 30%)                                         │ (If Within Bounds)
                     ▼                                                                                 ▼
-Re-evaluate Physical Cost Model for Hop 2                        Continue Existing ImpAsm Plan
+Re-evaluate Physical Cost Model for Hop 2 Continue Existing ImpAsm Plan
 (Hot-swap Hop 2 from CSR Push to CSC Pull in 10 ns!)
 ```
 
@@ -2333,11 +2333,11 @@ As formalized by the **RUM Conjecture (Athanassoulis et al., EDBT '16)**, storag
                                            /    \
                                           /      \
                                          /   *    \
-                                        /  Impulse \
-                                       /   Snapshot \
+                                        / Impulse \
+                                       / Snapshot \
                                       /              \
                                      /________________\
-              Update Overhead (U)                          Memory Overhead (M)
+              Update Overhead (U) Memory Overhead (M)
 ```
 
 ### 34.2 Quantifying Write Amplification vs. Read Amplification
@@ -2362,14 +2362,14 @@ Impulse Graph Engine builds upon a rich lineage of database systems and graph pr
 * **Direction-Optimized Graph Traversal**:
   Beamer, S., Asanović, K., & Patterson, D. (2012). *Direction-optimizing breadth-first search*. In Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis (SC '12).
 * **Linear Algebraic Graph Semirings (GraphBLAS & CombBLAS)**:
-  Kepner, J., et al. (2016). *Mathematical foundations of the GraphBLAS*. IEEE High Performance Extreme Computing Conference (HPEC).  
+  Kepner, J., et al. (2016). *Mathematical foundations of the GraphBLAS*. IEEE High Performance Extreme Computing Conference (HPEC).
   Buluç, A., & Gilbert, J. R. (2011). *The Combinatorial BLAS: Design and applications*. The International Journal of High Performance Computing Applications.
 * **Late Attribute Materialization**:
   Abadi, D. J., Myers, D. S., DeWitt, D. J., & Madden, S. (2006). *Materialization strategies in a column-oriented DBMS*. In Proceedings of the 32nd International Conference on Very Large Data Bases (VLDB '06).
 * **Small Materialized Aggregates (SMA) & Zone Maps**:
   Moerkotte, G. (1998). *Small Materialized Aggregates: A generalized medley for data warehousing query processing*. In Proceedings of the 24th International Conference on Very Large Data Bases (VLDB '98).
 * **Lightweight Graph Traversal Frameworks (Ligra & GraphIt)**:
-  Shun, J., & Blelloch, G. E. (2013). *Ligra: a lightweight graph processing framework for shared memory*. In ACM SIGPLAN Notices (PPoPP '13).  
+  Shun, J., & Blelloch, G. E. (2013). *Ligra: a lightweight graph processing framework for shared memory*. In ACM SIGPLAN Notices (PPoPP '13).
   Zhang, Y., et al. (2018). *GraphIt: A high-performance DSL for graph analytics*. Proceedings of the ACM on Programming Languages (OOPSLA '18).
 * **RUM Conjecture (Storage Engine Tradeoffs)**:
   Athanassoulis, M., et al. (2016). *Designing access methods: The RUM Conjecture*. In International Conference on Extending Database Technology (EDBT '16).
@@ -2387,7 +2387,7 @@ Impulse Graph Engine fills a critical structural void in the open-source softwar
 | **Monolithic OLTP Graph DBs** | Neo4j, Memgraph, TigerGraph | Decouples analytics from heavy database servers via immutable `.imps` zero-copy binary snapshots ($O(1)$ `mmap` vs. $O(\text{data})$ startup). |
 | **Embedded Graph Analytics** | KùzuDB, DuckDB+PGQ | Zero-parsing `mmap` binary layout, allocation-free SIMD vector kernel, and lock-free reader/writer hot path. |
 | **In-Memory Graph Frameworks**| Ligra, GraphIt, GraphBLAS | Bridges developer-friendly fluent APIs (Java 25, C++20) to hardware-level execution with 100% type-safe state records. |
-| **Columnar Data Formats** | Apache Arrow, Parquet | Provides the first **graph-native, zero-copy, C-ABI binary snapshot format (`.imps` v0.9.0)** specifically designed for graph topologies and semirings. |
+| **Columnar Data Formats** | Apache Arrow, Parquet | Provides the first **graph-native, zero-copy, C-ABI binary snapshot format (`.imps` )** specifically designed for graph topologies and semirings. |
 
 ---
 
@@ -2399,7 +2399,7 @@ The paper's core contributions are categorized by their academic novelty level:
 | :--- | :--- | :--- |
 | **1. ISA-Level Multiplicity-Driven Compilation** (§8.4 & §25.2) | **HIGH NOVELTY** | First graph query compiler to exploit relational multiplicity ($1:N, N:1, 1:1$) at the machine ISA/SIMD bytecode emitter level, eliminating 100% of atomic CAS lock contention for $1:N$ walks and collapsing CSR to 1D flat dense arrays for $N:1$ walks. |
 | **2. Virtual Relation Synthesis & Hybrid Storage** (§26 & §27) | **HIGH NOVELTY** | Automatically synthesizes zero-copy virtual sub-relations (`RELATION#label`) from low-cardinality edge attributes, routing micro-relations ($M \le 1,000$) to 8KB **L1-Cache SIMD Unrolled COO Streams**, bypassing 40MB of empty CSR pointer arrays. |
-| **3. The `.imps` Binary Snapshot Format (v0.9.0)** (§1 & §36) | **HIGH NOVELTY** | First graph-native, zero-copy, C-ABI binary snapshot format ("Apache Arrow for Graphs"). Achieves $O(1)$ zero-parsing cold start ($< 1 \ \mu\text{s}$) over multi-terabyte graphs via `mmap()`, with 128-byte hardware alignment for CUDA warp coalescing. |
+| **3. The `.imps` Binary Snapshot Format** (§1 & §36) | **HIGH NOVELTY** | First graph-native, zero-copy, C-ABI binary snapshot format ("Apache Arrow for Graphs"). Achieves $O(1)$ zero-parsing cold start ($< 1 \ \mu\text{s}$) over multi-terabyte graphs via `mmap()`, with 128-byte hardware alignment for CUDA warp coalescing. |
 | **4. Deferred Cross-Hop Attribute Materialization** (§18 & §18.6) | **MODERATE/HIGH** | Extends relational late materialization to multi-hop graph walks. Defers fetching heavy node attributes past topology walks & downstream filters using 32-bit/64-bit origin back-pointers (`origin_a`), saving $10\times - 20\times$ DRAM bandwidth. |
 | **5. Dynamic 10-Nanosecond Runtime Plan Re-Stitching** (§33.2) | **MODERATE/HIGH** | Solves Ioannidis & Christodoulakis exponential error propagation over multi-hop joins by measuring actual active frontier population count $|\mathcal{F}_i| = \text{popcount}(\mathbf{B}_{\text{active}})$ at each hop and hot-swapping downstream physical operators mid-query. |
 
@@ -2515,7 +2515,7 @@ import impulse_gnn
 
 # Zero-copy memory-mapped neighborhood sampling direct from .imps binary snapshot:
 subgraph_nodes, sampled_csr = torch.ops.impulse.sample_neighbors(
-    snapshot_handle="snap_v0.9.0.imps",
+    snapshot_handle="snap.imps",
     seed_nodes=batch_indices,
     fanout=[15, 10], # 2-layer GNN sampling
     replace=False
@@ -2528,7 +2528,7 @@ subgraph_nodes, sampled_csr = torch.ops.impulse.sample_neighbors(
 
 ### 40.1 CUDA Memory Alignment & GPUDirect Storage (`cuFile`)
 
-The `.imps` v0.9.0 specification enforces **128-byte hardware section alignment**. This design aligns directly with NVIDIA GPU warp coalescing bounds (128 bytes per 32-thread warp memory transaction).
+The `.imps` specification enforces **128-byte hardware section alignment**. This design aligns directly with NVIDIA GPU warp coalescing bounds (128 bytes per 32-thread warp memory transaction).
 
 ```
 NVIDIA GPU Warp Coalesced Memory Access (128-Byte Alignment):
@@ -2751,7 +2751,7 @@ For bitwise reachability queries ($\Sigma = \mathbb{B}$, $\lor$ Monoid), atomic 
 ```
 Thread 0 Push ──> Write to Private Bitset B_T0 (L2 Cache) ──┐
 Thread 1 Push ──> Write to Private Bitset B_T1 (L2 Cache) ──┼─> AVX-512 _mm512_or_si512 Merge ──> Final Bitset
-Thread 2 Push ──> Write to Private Bitset B_T2 (L2 Cache) ──┘   (Merges 64 nodes per cycle!)
+Thread 2 Push ──> Write to Private Bitset B_T2 (L2 Cache) ──┘ (Merges 64 nodes per cycle!)
 ```
 
 1. **Privatization Phase**: Each thread $T_k$ maintains a private off-heap bitset $\mathbf{B}_{T_k}$ of size $N/64$ words. Thread $T_k$ writes out-neighbors directly to $\mathbf{B}_{T_k}$ using non-atomic bitwise OR (`B_Tk[d / 64] |= (1ULL << (d % 64))`) — **100% LOCK-FREE!**
@@ -2798,10 +2798,10 @@ When $P$ worker threads concurrently read the same active source CSR topology ar
         ┌──────────────────────────────┼──────────────────────────────┐
         │                              │                              │
         ▼                              ▼                              ▼
-Core 0 Private L1/L2 Cache   Core 1 Private L1/L2 Cache   Core 2 Private L1/L2 Cache
-Target Range 0: [0, N/4)     Target Range 1: [N/4, N/2)   Target Range 2: [N/2, 3N/4)
-Exclusive 'E' State Writes   Exclusive 'E' State Writes   Exclusive 'E' State Writes
-(ZERO Cache Invalidation!)   (ZERO Cache Invalidation!)   (ZERO Cache Invalidation!)
+Core 0 Private L1/L2 Cache Core 1 Private L1/L2 Cache Core 2 Private L1/L2 Cache
+Target Range 0: [0, N/4) Target Range 1: [N/4, N/2) Target Range 2: [N/2, 3N/4)
+Exclusive 'E' State Writes Exclusive 'E' State Writes Exclusive 'E' State Writes
+(ZERO Cache Invalidation!) (ZERO Cache Invalidation!) (ZERO Cache Invalidation!)
 ```
 
 1. **Read Topology: 100% Shared L3 Cache Read Hit Rate (`Shared` State)**:

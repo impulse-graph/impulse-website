@@ -2,18 +2,18 @@
 
 ## Executive Summary
 
-This specification analyzes the architectural implications of introducing **First-Class Vector Datatypes** (`VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, `VECTOR_INT8[D]`) into the Impulse Graph Engine's `.imps` v0.9.0 Binary Snapshot Specification and `ImpulseVM` instruction set.
+This specification analyzes the architectural implications of introducing **First-Class Vector Datatypes** (`VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, `VECTOR_INT8[D]`) into the Impulse Graph Engine's `.imps` Binary Snapshot Specification and `ImpulseVM` instruction set.
 
 While graph databases like NornicDB treat vector embeddings as separate HNSW index structures managed out-of-band, Impulse Graph Engine models vector attributes as **dense, 128-byte hardware-aligned Structure-of-Arrays (SoA) attribute matrices** stored directly inside the immutable `.imps` binary file.
 
 ---
 
-## 1. Physical Binary Layout (.imps v0.9.0 Specification)
+## 1. Physical Binary Layout (.imps Specification)
 
-In `.imps` v0.9.0, node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes establishes the following physical layout:
+In `.imps` , node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes establishes the following physical layout:
 
 ```
-Impulse Snapshot (.imps v0.9.0) - Contiguous SoA Vector Attribute Layout
+Impulse Snapshot (.imps ) - Contiguous SoA Vector Attribute Layout
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ Page 0 Header & Metadata (4KB, 128-byte aligned)                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -50,7 +50,7 @@ To execute vector similarity operations without dynamic heap allocations, three 
 
 ```
 +-----------------------------------------------------------------------------------+
-|               Proposed Generic impOps Vector Additions (0x3A .. 0x3C)             |
+| Proposed Generic impOps Vector Additions (0x3A .. 0x3C)             |
 +------+--------------------------+--------------------------------------------------+
 | Hex  | Opcode Name              | Operational Summary                              |
 +------+--------------------------+--------------------------------------------------+
@@ -75,7 +75,7 @@ To execute vector similarity operations without dynamic heap allocations, three 
 
 ## 3. Comparison: Impulse First-Class Vectors vs. NornicDB / Neo4j / Qdrant
 
-| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` v0.9.0) |
+| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` ) |
 | :--- | :--- | :--- |
 | **Vector Storage Model** | Out-of-band HNSW index files or external vector DB engines (Qdrant). | **First-Class SoA Attribute Column**: Contiguous $N \times D$ matrix in `.imps`. |
 | **Graph-Vector Coupling** | Two separate lookups: Vector search $\to$ pointer lookup to graph node KV store. | **Unified Memory Layout**: Graph CSR topology and vector attributes reside in the same `.imps` file. |

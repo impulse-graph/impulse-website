@@ -1,6 +1,6 @@
 # C-ABI Kernel & VM Reference
 
-This document provides the complete reference for the **Impulse Graph Engine C-ABI Kernel (v0.9.0)** defined across the C headers in `impulse-graph-core/impulse-cpp/include/`.
+This document provides the complete reference for the **Impulse Graph Engine C-ABI Kernel** defined across the C headers in `impulse-graph-core/impulse-cpp/include/`.
 
 All language bindings (Java FFM, Rust FFI, Python `pybind11`, Go `CGo`, .NET `P/Invoke`, Node.js `N-API`) bind directly to these C-ABI structures and entrypoints.
 
@@ -13,7 +13,7 @@ All language bindings (Java FFM, Rust FFI, Python `pybind11`, Go `CGo`, .NET `P/
 
 | Header File | Scope |
 | :--- | :--- |
-| **`impulse_format_v0_9.h`** | Packed 1-byte-aligned C-ABI POD structures (`#pragma pack(push, 1)`), feature flags, and enumeration constants for Binary Snapshot Format v0.9.0. |
+| **`impulse_format_v0_9.h`** | Packed 1-byte-aligned C-ABI POD structures (`#pragma pack(push, 1)`), feature flags, and enumeration constants for Binary Snapshot Format . |
 | **`impulse_graph.h`** | Snapshot `mmap` loader, domain/relation catalog inspection, direct CSR/CSC/attribute buffer pointers, key catalog resolution, streaming snapshot writer, delta layers, and SIMD neighbor sampling. |
 | **`impulse_vm.h`** | 64-bit bytecode instruction layout (`impulse_instruction_t`), 640-byte execution state frame (`impulse_vm_state_t`), off-heap context handle pool (`impulse_vm_context_t`), AOT validator, in-kernel multi-language compiler, and SQLite-style prepared statement & Arrow column projection API (`impulse_stmt_t`). |
 | **`impulse_index.h`** | Secondary non-vector index construction and lookup functions (Permutation, 2-Tier Zone Map, Inverted Bitset, Minimal Perfect Hash, Trigram, Domain-Split Bitset, Temporal Interval). |
@@ -116,17 +116,17 @@ typedef struct impulse_snapshot_header_v0_9_t {
     uint64_t required_features;       /* Global feature bitmask */
     uint64_t footer_directory_offset; /* File offset to Footer Directory Table */
     uint64_t footer_directory_bytes;  /* Byte length of Footer Directory Table */
-    uint8_t  snapshot_uuid[16];       /* 128-bit binary UUID */
+    uint8_t snapshot_uuid[16];       /* 128-bit binary UUID */
     uint16_t header_checksum;         /* CRC-16-CCITT over bytes 0x00..0x3D */
     uint16_t index_count;             /* Total secondary indices */
-    uint8_t  header_padding[4030];    /* Reserved padding to 4096 bytes */
+    uint8_t header_padding[4030];    /* Reserved padding to 4096 bytes */
 } impulse_snapshot_header_v0_9_t;
 
 /* Section 2: Domain Catalog Entry (16 Bytes) */
 typedef struct impulse_domain_catalog_entry_v0_9_t {
     uint16_t domain_id;               /* 0-indexed domain ID */
-    uint8_t  key_type;                /* impulse_key_type_t_v0_9 */
-    uint8_t  reserved;
+    uint8_t key_type;                /* impulse_key_type_t_v0_9 */
+    uint8_t reserved;
     uint32_t name_offset;             /* Offset into Shared String Table */
     uint64_t node_count;              /* Cardinality N_d (dense IDs 0..N_d-1) */
 } impulse_domain_catalog_entry_v0_9_t;
@@ -136,10 +136,10 @@ typedef struct impulse_relation_directory_entry_v0_9_t {
     uint16_t relation_id;             /* 0-indexed relation ID */
     uint16_t src_domain_id;           /* Source domain ID */
     uint16_t tgt_domain_id;           /* Target domain ID */
-    uint8_t  encoding_id;             /* impulse_encoding_type_t_v0_9 */
-    uint8_t  node_id_width;           /* Node ID width in bits (16, 32, 64) */
-    uint8_t  edge_index_width;        /* Edge index width in bits (32, 64) */
-    uint8_t  reserved1[3];
+    uint8_t encoding_id;             /* impulse_encoding_type_t_v0_9 */
+    uint8_t node_id_width;           /* Node ID width in bits (16, 32, 64) */
+    uint8_t edge_index_width;        /* Edge index width in bits (32, 64) */
+    uint8_t reserved1[3];
     uint32_t name_offset;             /* Offset into Shared String Table */
     uint64_t node_count;              /* Source domain node count */
     uint64_t edge_count;              /* Total directed edges */
@@ -153,14 +153,14 @@ typedef struct impulse_relation_directory_entry_v0_9_t {
     uint64_t csc_col_idx_offset;      /* 128B-aligned CSC col_indices file offset */
     uint64_t csc_col_idx_bytes;       /* CSC col_indices byte length */
     uint16_t attr_count;              /* Number of attached attribute descriptors */
-    uint8_t  reserved2[22];           /* Expansion padding to 128 bytes */
+    uint8_t reserved2[22];           /* Expansion padding to 128 bytes */
 } impulse_relation_directory_entry_v0_9_t;
 
 /* Section 2: Attribute Descriptor Entry (44 Bytes) */
 typedef struct impulse_attribute_descriptor_v0_9_t {
     uint32_t name_offset;             /* Offset into Shared String Table */
-    uint8_t  type_code;               /* Primitive type enum */
-    uint8_t  reserved1;
+    uint8_t type_code;               /* Primitive type enum */
+    uint8_t reserved1;
     uint16_t reserved2;
     uint32_t dimension;               /* 1 for scalar, >1 for fixed-width vector */
     uint64_t data_offset;             /* 128B-aligned payload offset */
@@ -175,13 +175,13 @@ typedef struct impulse_index_directory_entry_v0_9_t {
     uint16_t domain_id;               /* Target domain ID */
     uint16_t relation_id;             /* Target relation ID (0xFFFF for domain attribute) */
     uint16_t attribute_index;         /* 0-indexed attribute index */
-    uint8_t  index_type;              /* impulse_index_type_t (0x01..0x07) */
-    uint8_t  reserved1;
+    uint8_t index_type;              /* impulse_index_type_t (0x01..0x07) */
+    uint8_t reserved1;
     uint32_t name_offset;             /* Offset into Shared String Table */
     uint64_t data_offset;             /* 128B-aligned file offset to index payload */
     uint64_t data_bytes;              /* Index payload byte size */
     uint64_t payload_feature_mask;    /* Index feature bitmask */
-    uint8_t  reserved_padding[24];    /* Padding to 64 bytes */
+    uint8_t reserved_padding[24];    /* Padding to 64 bytes */
 } impulse_index_directory_entry_v0_9_t;
 
 /* 16-Byte Footer Trailer at EOF */
@@ -199,8 +199,8 @@ typedef struct impulse_footer_trailer_v0_9_t {
 ### 3.1 Opaque Handles
 
 ```c
-typedef struct impulse_snapshot    impulse_snapshot_t;
-typedef struct impulse_writer      impulse_writer_t;
+typedef struct impulse_snapshot impulse_snapshot_t;
+typedef struct impulse_writer impulse_writer_t;
 typedef struct impulse_delta_layer impulse_delta_layer_t;
 typedef int32_t (*impulse_write_fn)(const void* data, size_t bytes, void* user_data);
 ```
@@ -356,8 +356,8 @@ IMPULSE_API impulse_status_t impulse_snapshot_sample_neighbors(
 /* Streaming Writer Lifecycle */
 IMPULSE_API impulse_writer_t* impulse_writer_create(const char* output_file_path, uint64_t global_features);
 IMPULSE_API impulse_writer_t* impulse_writer_create_stream(impulse_write_fn write_cb, void* user_data, uint64_t global_features);
-IMPULSE_API impulse_status_t  impulse_writer_add_domain(impulse_writer_t* writer, uint16_t domain_id, uint8_t key_type, const char* name);
-IMPULSE_API impulse_status_t  impulse_writer_add_relation(
+IMPULSE_API impulse_status_t impulse_writer_add_domain(impulse_writer_t* writer, uint16_t domain_id, uint8_t key_type, const char* name);
+IMPULSE_API impulse_status_t impulse_writer_add_relation(
     impulse_writer_t* writer,
     uint16_t src_domain_id,
     uint16_t tgt_domain_id,
@@ -368,7 +368,7 @@ IMPULSE_API impulse_status_t  impulse_writer_add_relation(
     const void* row_offsets_data, uint64_t row_offsets_bytes,
     const void* col_indices_data, uint64_t col_indices_bytes
 );
-IMPULSE_API impulse_status_t  impulse_writer_add_attribute(
+IMPULSE_API impulse_status_t impulse_writer_add_attribute(
     impulse_writer_t* writer,
     uint16_t relation_index,
     const char* name,
@@ -377,7 +377,7 @@ IMPULSE_API impulse_status_t  impulse_writer_add_attribute(
     const void* data, uint64_t data_bytes,
     const void* offsets, uint64_t offsets_bytes
 );
-IMPULSE_API impulse_status_t  impulse_writer_add_index(
+IMPULSE_API impulse_status_t impulse_writer_add_index(
     impulse_writer_t* writer,
     uint16_t domain_id,
     uint16_t relation_id,
@@ -387,16 +387,16 @@ IMPULSE_API impulse_status_t  impulse_writer_add_index(
     const void* index_data, uint64_t index_bytes,
     uint64_t payload_feature_mask
 );
-IMPULSE_API impulse_status_t  impulse_writer_set_metadata(impulse_writer_t* writer, const char* key, const char* value);
-IMPULSE_API impulse_status_t  impulse_writer_finalize(impulse_writer_t* writer);
-IMPULSE_API void              impulse_writer_destroy(impulse_writer_t* writer);
+IMPULSE_API impulse_status_t impulse_writer_set_metadata(impulse_writer_t* writer, const char* key, const char* value);
+IMPULSE_API impulse_status_t impulse_writer_finalize(impulse_writer_t* writer);
+IMPULSE_API void impulse_writer_destroy(impulse_writer_t* writer);
 
 /* Live Overlay Delta Layer & Compaction */
 IMPULSE_API impulse_delta_layer_t* impulse_delta_layer_create(uint16_t src_domain_id, uint16_t tgt_domain_id, const char* relation_name);
-IMPULSE_API impulse_status_t       impulse_delta_layer_add_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API impulse_status_t       impulse_delta_layer_tombstone_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API bool                   impulse_delta_layer_is_tombstoned(const impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API void                   impulse_delta_layer_destroy(impulse_delta_layer_t* delta);
+IMPULSE_API impulse_status_t impulse_delta_layer_add_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
+IMPULSE_API impulse_status_t impulse_delta_layer_tombstone_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
+IMPULSE_API bool impulse_delta_layer_is_tombstoned(const impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
+IMPULSE_API void impulse_delta_layer_destroy(impulse_delta_layer_t* delta);
 
 IMPULSE_API impulse_status_t impulse_snapshot_compact_to_file(
     const impulse_snapshot_t* base_snapshot,
@@ -425,19 +425,19 @@ Every `impOps` instruction is a fixed 8-byte aligned struct (`impulse_instructio
 ```c
 /* Fixed 64-bit (8-Byte) Instruction Layout */
 typedef struct IMPULSE_ALIGN(8) {
-    uint8_t  opcode;    /* Opcode byte (0x00..0x95) */
-    uint8_t  flags;     /* Modifier flags (HALT_ON_EMPTY, INPUT_SEED, ACCUMULATE, INVERT, OFFHEAP) */
+    uint8_t opcode;    /* Opcode byte (0x00..0x95) */
+    uint8_t flags;     /* Modifier flags (HALT_ON_EMPTY, INPUT_SEED, ACCUMULATE, INVERT, OFFHEAP) */
     uint16_t dst_reg;   /* Destination register index (R0..R63) */
     uint32_t payload;   /* Source register, relation ID, jump offset, or immediate constant */
 } impulse_instruction_t;
 
 /* 640-Byte, 64-Byte Aligned VM Execution State Frame */
 typedef struct IMPULSE_ALIGN(64) {
-    uint32_t pc;                         /* Byte 0..3:   Program Counter */
-    uint32_t reserved;                   /* Byte 4..7:   Alignment padding */
-    uint64_t flags;                      /* Byte 8..15:  Status flags (ZF, LT, GT, EQ, ST) */
+    uint32_t pc;                         /* Byte 0..3: Program Counter */
+    uint32_t reserved;                   /* Byte 4..7: Alignment padding */
+    uint64_t flags;                      /* Byte 8..15: Status flags (ZF, LT, GT, EQ, ST) */
     uint64_t registers[64];              /* Byte 16..527: 64-bit general registers R0..R63 */
-    uint8_t  register_types[64];         /* Byte 528..591: Type tags (impulse_register_type_t) */
+    uint8_t register_types[64];         /* Byte 528..591: Type tags (impulse_register_type_t) */
     impulse_vm_context_t* query_context; /* Byte 592..599: Off-heap execution context pointer */
     uint32_t call_stack[8];              /* Byte 600..631: Subroutine return address stack */
     uint32_t call_stack_depth;           /* Byte 632..635: Active call stack depth */
@@ -521,14 +521,14 @@ IMPULSE_API impulse_vm_status_t impulse_vm_execute_to_buffer(
 
 /* Off-heap context lifecycle & handle management */
 IMPULSE_API impulse_vm_context_t* impulse_vm_context_create(const impulse_snapshot_t* snapshot);
-IMPULSE_API void                  impulse_vm_context_destroy(impulse_vm_context_t* ctx);
-IMPULSE_API void                  impulse_vm_context_set_fuel(impulse_vm_context_t* ctx, uint64_t fuel);
+IMPULSE_API void impulse_vm_context_destroy(impulse_vm_context_t* ctx);
+IMPULSE_API void impulse_vm_context_set_fuel(impulse_vm_context_t* ctx, uint64_t fuel);
 
-IMPULSE_API int      impulse_vm_context_acquire_bitset(impulse_vm_context_t* ctx);
-IMPULSE_API void     impulse_vm_context_release_bitset(impulse_vm_context_t* ctx, size_t handle);
-IMPULSE_API void     impulse_vm_context_bitset_add(impulse_vm_context_t* ctx, size_t handle, uint64_t node_id);
-IMPULSE_API bool     impulse_vm_context_bitset_test(const impulse_vm_context_t* ctx, size_t handle, uint64_t node_id);
-IMPULSE_API void     impulse_vm_context_bitset_fill(impulse_vm_context_t* ctx, size_t handle, uint64_t count);
+IMPULSE_API int impulse_vm_context_acquire_bitset(impulse_vm_context_t* ctx);
+IMPULSE_API void impulse_vm_context_release_bitset(impulse_vm_context_t* ctx, size_t handle);
+IMPULSE_API void impulse_vm_context_bitset_add(impulse_vm_context_t* ctx, size_t handle, uint64_t node_id);
+IMPULSE_API bool impulse_vm_context_bitset_test(const impulse_vm_context_t* ctx, size_t handle, uint64_t node_id);
+IMPULSE_API void impulse_vm_context_bitset_fill(impulse_vm_context_t* ctx, size_t handle, uint64_t count);
 IMPULSE_API uint64_t impulse_vm_context_bitset_get_word(const impulse_vm_context_t* ctx, size_t handle, size_t word_idx);
 ```
 
@@ -580,25 +580,25 @@ Provides a stateful prepared statement workflow (`prepare` $\to$ `bind_*` $\to$ 
 typedef struct impulse_stmt impulse_stmt_t;
 
 typedef struct impulse_column_desc {
-    char            name[32];           /* Column identifier */
-    uint8_t         type_code;          /* IMPULSE_KEY_TYPE_* */
-    uint8_t         element_size;       /* Byte size of element (e.g. 8 for uint64, 4 for float32) */
-    bool            is_nullable;        /* False if guaranteed non-null */
-    uint8_t         reserved;
-    uint32_t        dimension;          /* 1 for scalars, >1 for vector embeddings */
-    size_t          byte_offset_in_buf; /* Offset within caller buffer */
-    const void*     data_ptr;           /* Direct pointer to contiguous column array */
+    char name[32];           /* Column identifier */
+    uint8_t type_code;          /* IMPULSE_KEY_TYPE_* */
+    uint8_t element_size;       /* Byte size of element (e.g. 8 for uint64, 4 for float32) */
+    bool is_nullable;        /* False if guaranteed non-null */
+    uint8_t reserved;
+    uint32_t dimension;          /* 1 for scalars, >1 for vector embeddings */
+    size_t byte_offset_in_buf; /* Offset within caller buffer */
+    const void* data_ptr;           /* Direct pointer to contiguous column array */
     const uint64_t* null_bitmap;        /* Arrow validity bitmap (NULL if non-nullable) */
 } impulse_column_desc_t;
 
 typedef struct impulse_execution_result {
     impulse_vm_status_t status;
-    size_t              row_count;
-    uint32_t            column_count;
-    uint32_t            reserved;
-    size_t              total_bytes_written;
-    const void*         data_ptr;
-    uint64_t            scalar_value;
+    size_t row_count;
+    uint32_t column_count;
+    uint32_t reserved;
+    size_t total_bytes_written;
+    const void* data_ptr;
+    uint64_t scalar_value;
 } impulse_execution_result_t;
 
 /* 1. Prepare & Sizing */
@@ -608,7 +608,7 @@ IMPULSE_API impulse_status_t impulse_stmt_prepare(
     impulse_stmt_t** out_stmt
 );
 IMPULSE_API size_t impulse_stmt_buffer_size(const impulse_stmt_t* stmt);
-IMPULSE_API void   impulse_stmt_finalize(impulse_stmt_t* stmt);
+IMPULSE_API void impulse_stmt_finalize(impulse_stmt_t* stmt);
 
 /* 2. Parameter Bindings */
 IMPULSE_API impulse_status_t impulse_stmt_bind_node(impulse_stmt_t* stmt, const char* param, uint64_t node_id);
@@ -624,13 +624,13 @@ IMPULSE_API impulse_status_t impulse_stmt_bind_vector(impulse_stmt_t* stmt, cons
 
 /* 3. Execute & Zero-Copy Column Accessors */
 IMPULSE_API impulse_status_t impulse_stmt_execute(impulse_stmt_t* stmt, void* buffer, size_t buffer_size);
-IMPULSE_API size_t           impulse_stmt_row_count(const impulse_stmt_t* stmt);
-IMPULSE_API uint32_t         impulse_stmt_column_count(const impulse_stmt_t* stmt);
-IMPULSE_API const char*      impulse_stmt_column_name(const impulse_stmt_t* stmt, uint32_t col_idx);
-IMPULSE_API uint8_t          impulse_stmt_column_type(const impulse_stmt_t* stmt, uint32_t col_idx);
-IMPULSE_API uint32_t         impulse_stmt_column_dim(const impulse_stmt_t* stmt, uint32_t col_idx);
-IMPULSE_API const void*      impulse_stmt_column_data(const impulse_stmt_t* stmt, uint32_t col_idx);
-IMPULSE_API bool             impulse_stmt_column_is_null(const impulse_stmt_t* stmt, uint32_t col_idx, size_t row_idx);
+IMPULSE_API size_t impulse_stmt_row_count(const impulse_stmt_t* stmt);
+IMPULSE_API uint32_t impulse_stmt_column_count(const impulse_stmt_t* stmt);
+IMPULSE_API const char* impulse_stmt_column_name(const impulse_stmt_t* stmt, uint32_t col_idx);
+IMPULSE_API uint8_t impulse_stmt_column_type(const impulse_stmt_t* stmt, uint32_t col_idx);
+IMPULSE_API uint32_t impulse_stmt_column_dim(const impulse_stmt_t* stmt, uint32_t col_idx);
+IMPULSE_API const void* impulse_stmt_column_data(const impulse_stmt_t* stmt, uint32_t col_idx);
+IMPULSE_API bool impulse_stmt_column_is_null(const impulse_stmt_t* stmt, uint32_t col_idx, size_t row_idx);
 
 /* One-Line Convenience Execution */
 IMPULSE_API impulse_status_t impulse_exec(
@@ -645,7 +645,7 @@ IMPULSE_API impulse_status_t impulse_exec(
 
 ## 5. Secondary Non-Vector Index C-ABI (`impulse_index.h`)
 
-Section 2.6 of Binary Snapshot Specification v0.9.0 supports 7 secondary index formats for attribute filtering and key lookup:
+Section 2.6 of Binary Snapshot Specification supports 7 secondary index formats for attribute filtering and key lookup:
 
 | Index Type Enum | Code | Builder Function | Query Function |
 | :--- | :--- | :--- | :--- |
@@ -666,9 +666,9 @@ Buffers returned via `void** out_bytes` by any `impulse_index_build_*` function 
 ### 6.1 Dynamic SIMD Kernels
 
 ```c
-IMPULSE_API const char*      impulse_simd_get_target_name(void);
-IMPULSE_API float            impulse_simd_dot_product_f32(const float* a, const float* b, size_t len);
-IMPULSE_API float            impulse_simd_reduce_sum_f32(const float* a, size_t len);
+IMPULSE_API const char* impulse_simd_get_target_name(void);
+IMPULSE_API float impulse_simd_dot_product_f32(const float* a, const float* b, size_t len);
+IMPULSE_API float impulse_simd_reduce_sum_f32(const float* a, size_t len);
 IMPULSE_API impulse_status_t impulse_simd_vector_sum_f32(const float* a, const float* b, float* out, size_t len);
 IMPULSE_API impulse_status_t impulse_simd_vector_scale_f32(float* a, float scalar, size_t len);
 IMPULSE_API impulse_status_t impulse_simd_vector_mul_f32(float* a, const float* b, size_t len);

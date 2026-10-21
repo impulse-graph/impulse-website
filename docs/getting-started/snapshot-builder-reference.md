@@ -1,6 +1,6 @@
 # Impulse Graph: Snapshot Streaming Writer & Builder (`impulse-builder`)
 
-The `impulse-builder` module provides a zero-dependency, Java 21 LTS-native streaming builder and serialization engine for the **Impulse Binary Snapshot Format (`.imps`) v0.9.0**.
+The `impulse-builder` module provides a zero-dependency, Java 21 LTS-native streaming builder and serialization engine for the **Impulse Binary Snapshot Format (`.imps`) **.
 
 It enables creating multi-gigabyte and multi-terabyte graph snapshots with **strict $O(\text{chunk})$ physical memory footprints** and direct-to-cloud **S3 single-pass streaming semantics** (zero backwards seeks on the output channel).
 
@@ -200,7 +200,7 @@ The chunk iterator writes directly to an off-heap `MemorySegment`:
 ```java
 public interface AttributeChunkIterator {
     boolean hasNext();
-    
+
     /**
      * Fills the segment with up to `limit` values.
      * @param destination off-heap memory segment aligned to the attribute type width
@@ -261,7 +261,7 @@ public interface EdgeChunkIterator extends AutoCloseable {
      *
      * @param srcIds segment receiving source node IDs formatted to the source domain's primitive width
      * @param tgtIds segment receiving target node IDs formatted to the target domain's primitive width
-     * @param limit  maximum number of edges to populate
+     * @param limit maximum number of edges to populate
      * @return count of edges actually populated
      */
     int nextChunk(MemorySegment srcIds, MemorySegment tgtIds, int limit);
@@ -381,7 +381,7 @@ Verify compliance using the official `impulse-graph` CLI toolchain:
 # 1. Inspect headers, domains, and topology tables
 impulse-graph inspect banking_graph.imps
 
-# 2. Strict C-ABI v0.9.0 validation with 128-byte hardware alignment check
+# 2. Strict C-ABI validation with 128-byte hardware alignment check
 impulse-graph snapshot validate --strict-alignment banking_graph.imps
 
 # 3. View structural degree statistics & distribution metrics

@@ -1,6 +1,12 @@
-# Java 21 / 25 API Reference (`impulse-graph-java`)
+# Pure Java 25 Engine API Reference (`impulse-graph-java`)
 
-This reference documents the **Java 21 LTS (preview) & Java 22+ / Java 25 LTS Foreign Function & Memory (FFM)** engine located in `impulse-graph-java`.
+This reference documents the **Pure Java 25 Engine** located in `impulse-graph-java`.
+
+The Java 25 engine is a **first-class, 100% pure Java implementation** of the Impulse Graph Engine and `ImpulseVM`—not a JNI or FFI wrapper around C++. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` JIT combinators:
+
+* **Zero External Runtime Dependencies**: Core runtime modules have zero third-party dependencies.
+* **Zero GC Pauses**: All CSR/CSC matrices, SoA attributes, bitsets, and the 640-byte `ImpulseVM` register frame live off-heap.
+* **100% Equivalence with the C++ C-ABI Engine**: Reads the exact same `.imps` binary snapshot format and executes the exact same `impOps` bytecode ISA with bitwise-identical output.
 
 !!! info "Interactive Aggregated Javadocs"
     Browse the full multi-module HTML Javadoc site at [**`/javadoc/index.html`**](/javadoc/index.html).
@@ -17,20 +23,20 @@ This reference documents the **Java 21 LTS (preview) & Java 22+ / Java 25 LTS Fo
 | [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery` |
 | [**`org.impulsegraph.compiler`**](/javadoc/org/impulsegraph/compiler/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes |
 | [**`org.impulsegraph.builder.api`**](/javadoc/org/impulsegraph/builder/api/package-summary.html) | `impulse-builder` | Streaming `SnapshotBuilder`, `DomainDefinition`, `RelationDefinition` |
-| [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format v0.9.0 FFM memory layouts and protocol constants |
+| [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format FFM memory layouts and protocol constants |
 
 ---
 
 ## 1. Maven Module Architecture (`org.impulsegraph`)
 
-The Java engine is partitioned into 6 core modules under groupId `org.impulsegraph` (version `0.9.0`):
+The Pure Java 25 engine is partitioned into 6 core modules under groupId `org.impulsegraph`:
 
-* **`org.impulsegraph:impulse-spec`**: Generated C-ABI Binary Snapshot Specification v0.9.0 FFM memory layouts and opcode constants.
+* **`org.impulsegraph:impulse-spec`**: Binary Snapshot Format FFM memory layouts and opcode constants.
 * **`org.impulsegraph:impulse-api`**: Public interfaces (`ImpulseGraphSnapshot`, `DomainView`, `Traversal`, `ImpulseStatement`, `RowReader`), AST nodes (`ImpScmNode`), and ID mappers.
-* **`org.impulsegraph:impulse-storage`**: Zero-dependency off-heap Java FFM CSR/CSC snapshot loader (`BinarySnapshotLoader`), `DeltaLayer`, secondary indices, and catalog statistics.
+* **`org.impulsegraph:impulse-storage`**: Zero-dependency off-heap Java 25 FFM CSR/CSC snapshot loader (`BinarySnapshotLoader`), `DeltaLayer`, secondary indices, and catalog statistics.
 * **`org.impulsegraph:impulse-vm`**: Register-based `ImpulseVM` interpreter, `MethodHandle` JIT combinators, off-heap `VmStateLayout` (640-byte frame), and bytecode emitter.
-* **`org.impulsegraph:impulse-compiler`**: Polyglot query frontends (`openCypher`, `CEL`, `ImpScheme`), Stage 1/Stage 2 optimization passes, and `.impas` disassembler.
-* **`org.impulsegraph:impulse-builder`**: Direct-to-disk streaming `.imps` v0.9.0 snapshot builder.
+* **`org.impulsegraph:impulse-compiler`**: Multi-pass query frontends (`openCypher`, `CEL`, `ImpScheme`), Stage 1/Stage 2 optimization passes, and `.impas` disassembler.
+* **`org.impulsegraph:impulse-builder`**: Direct-to-disk streaming `.imps` snapshot builder.
 
 ---
 
@@ -134,7 +140,7 @@ try (ImpulseStatement stmt = snap.prepare(
 
 ## 4. Streaming Snapshot Builder (`impulse-builder`)
 
-`SnapshotBuilder` (`org.impulsegraph.builder.api`) streams page-aligned C-ABI Spec v0.9.0 `.imps` snapshots direct-to-disk in $O(\text{chunk})$ physical memory:
+`SnapshotBuilder` (`org.impulsegraph.builder.api`) streams page-aligned C-ABI Spec  `.imps` snapshots direct-to-disk in $O(\text{chunk})$ physical memory:
 
 ```java
 import java.nio.file.Path;

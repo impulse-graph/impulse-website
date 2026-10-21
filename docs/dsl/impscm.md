@@ -67,11 +67,11 @@ ImpScheme exposes native `impOps` primitives directly as S-expressions:
 
 (define-query (bfs-reachability [g : graph] [start : node] [target : node])
   (let ([frontier (bitset:from start)]
-        [visited  (bitset:from start)])
+        [visited (bitset:from start)])
 
     ;; Perform 1-hop CSR walk and remove visited nodes
     (set! frontier (bitset:and-not (g:walk-csr g frontier "FOLLOWS") visited))
-    (set! visited  (bitset:or visited frontier))
+    (set! visited (bitset:or visited frontier))
 
     (return #t)))
 ```
@@ -96,7 +96,7 @@ The AST term rewriter collapses it to:
 
 Generating a single hardware-accelerated Roaring Bitset operation:
 ```assembly
-OP_ROARING_BITMAP_AND_NOT   R8, R9, R11
+OP_ROARING_BITMAP_AND_NOT R8, R9, R11
 ```
 
 ---

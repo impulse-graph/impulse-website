@@ -4,14 +4,14 @@ Impulse Graph Engine (`0.9.0`) is distributed across 7 package registries suppor
 
 | Ecosystem | Registry | Package / Coordinate | Description |
 | :--- | :--- | :--- | :--- |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-api:0.9.0` | Public interfaces, `DomainView`, `Traversal`, `ImpulseStatement`, and AST contracts. |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-storage:0.9.0` | Zero-dependency Java 21/25 FFM off-heap CSR/CSC snapshot engine. |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-vm:0.9.0` | Register-based `ImpulseVM` interpreter, `MethodHandle` JIT, and bytecode emitter. |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-compiler:0.9.0` | Multi-pass `ImpScheme`, `openCypher`, and `CEL` optimizing compiler. |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-builder:0.9.0` | Direct-to-disk streaming `.imps` v0.9.0 snapshot builder. |
-| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-spec:0.9.0` | C-ABI Binary Snapshot Specification v0.9.0 FFM layouts and constants. |
-| **Kotlin** | Maven Central | `org.impulsegraph:impulse-kotlin:0.9.0` | Kotlin DSL builders and coroutine extensions. |
-| **Scala 3** | Maven Central | `org.impulsegraph:impulse-scala_3:0.9.0` | Scala 3 idiomatic typeclasses and given instances. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-api` | Public interfaces, `DomainView`, `Traversal`, `ImpulseStatement`, and AST contracts. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-storage` | Zero-dependency Java 21/25 FFM off-heap CSR/CSC snapshot engine. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-vm` | Register-based `ImpulseVM` interpreter, `MethodHandle` JIT, and bytecode emitter. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-compiler` | Multi-pass `ImpScheme`, `openCypher`, and `CEL` optimizing compiler. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-builder` | Direct-to-disk streaming `.imps` snapshot builder. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-spec` | C-ABI Binary Snapshot Specification FFM layouts and constants. |
+| **Kotlin** | Maven Central | `org.impulsegraph:impulse-kotlin` | Kotlin DSL builders and coroutine extensions. |
+| **Scala 3** | Maven Central | `org.impulsegraph:impulse-scala_3` | Scala 3 idiomatic typeclasses and given instances. |
 | **Rust** | Crates.io | `impulse-graph` | Zero-dependency Rust engine crate (`mmap` reader, SoA slices, traversal, writer). |
 | **Rust** | Crates.io | `impulse-tools` | Developer CLI utilities (`impulse-opt`, `impulse-inspect`). |
 | **Python** | PyPI | `impulse-graph` | Native `pybind11` wheels with zero-copy NumPy and PyTorch tensor views. |

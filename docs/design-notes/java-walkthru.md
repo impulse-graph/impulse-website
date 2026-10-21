@@ -28,29 +28,25 @@ Add the core engine modules to your `pom.xml`:
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-api</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Off-Heap Storage Layer & Binary Snapshot Loader -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-storage</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Compute Virtual Machine & SIMD Traversal Execution -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-vm</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Optional: Query Compiler for openCypher parsing & multi-stage passes -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-compiler</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 </dependencies>
 ```
 
@@ -60,10 +56,10 @@ If your project uses Gradle with Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("org.impulsegraph:impulse-api:0.9.0")
-    implementation("org.impulsegraph:impulse-storage:0.9.0")
-    implementation("org.impulsegraph:impulse-vm:0.9.0")
-    implementation("org.impulsegraph:impulse-compiler:0.9.0") // Optional
+    implementation("org.impulsegraph:impulse-api")
+    implementation("org.impulsegraph:impulse-storage")
+    implementation("org.impulsegraph:impulse-vm")
+    implementation("org.impulsegraph:impulse-compiler") // Optional
 }
 ```
 
@@ -237,12 +233,12 @@ public class RbacSnapshotQueryExample {
             if (userToGroup != null && groupToRole != null) {
                 int startUser = 0;
                 int[] groups = userToGroup.getTargets(startUser);
-                System.out.printf("    User %d -> Groups %s (count=%d)%n", startUser, java.util.Arrays.toString(groups), groups.length);
+                System.out.printf(" User %d -> Groups %s (count=%d)%n", startUser, java.util.Arrays.toString(groups), groups.length);
 
                 Set<Integer> rolesReached = new HashSet<>();
                 for (int group : groups) {
                     int[] rList = groupToRole.getTargets(group);
-                    System.out.printf("    Group %d -> Roles %s%n", group, java.util.Arrays.toString(rList));
+                    System.out.printf(" Group %d -> Roles %s%n", group, java.util.Arrays.toString(rList));
                     for (int r : rList) {
                         rolesReached.add(r);
                     }

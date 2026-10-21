@@ -1,6 +1,5 @@
 # Normative Specification: ImpulseVM Virtual Machine & ImpOps Instruction Set
 
-* **Specification Version**: 0.9.0
 * **Document Status**: Standard Reference Specification
 * **Target Architecture**: 64-bit Register-based Virtual Machine (off-heap execution focus)
 

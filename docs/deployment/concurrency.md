@@ -43,7 +43,7 @@ This is handled by the `QueryContext`. A worker thread (or virtual thread) alloc
     ```java
     // Pre-allocated at startup or worker initialization
     QueryContext ctx = query.createContext();
-    
+
     // In the hot request loop:
     // Reuses `ctx` buffers. No `new` keywords.
     RoaringBitmap result = query.execute(ctx, view, input);

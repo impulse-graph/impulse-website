@@ -17,13 +17,13 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 [ Query Input ] ──▶ [ Step 1: InputNode ] (Heap Allocations & Virtual Dispatch)
                           │
                           ▼
-                    [ Step 2: WalkNode ]  (Allocates HashSet<Integer> & Boxed Integers)
+                    [ Step 2: WalkNode ] (Allocates HashSet<Integer> & Boxed Integers)
                           │
                           ▼
-                    [ Step 3: WalkNode ]  (Cache-line thrashing & GC Overhead)
+                    [ Step 3: WalkNode ] (Cache-line thrashing & GC Overhead)
                           │
                           ▼
-                    [ Final Result ]      (Total Latency: ~850 ns)
+                    [ Final Result ] (Total Latency: ~850 ns)
 
 ----------------------------------------------------------------------------------
 
@@ -31,10 +31,10 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 [ Query Input ] ──▶ [ ImpOps Bytecode Stream ] ──▶ [ JIT Pipeline Fusion / SIMD ]
                           │
                           ▼
-                    [ VmQueryContext ]    (0-Allocation Off-Heap BitSet Arena)
+                    [ VmQueryContext ] (0-Allocation Off-Heap BitSet Arena)
                           │
                           ▼
-                    [ Final Result ]      (Total Latency: < 45 ns -- 19x FASTER!)
+                    [ Final Result ] (Total Latency: < 45 ns -- 19x FASTER!)
 ```
 
 ### 1.1 Performance Bottlenecks of AST Visitors
@@ -120,11 +120,11 @@ All `impulse-vm` instructions are encoded as fixed **64-bit (8-byte) instruction
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    OPCODE     |     FLAGS     |          DST_REG              |
-|   (8 bits)    |   (8 bits)    |         (16 bits)             |
+| OPCODE     | FLAGS     | DST_REG              |
+| (8 bits)    | (8 bits)    | (16 bits)             |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                        PAYLOAD / SRC                          |
-|                          (32 bits)                            |
+| PAYLOAD / SRC                          |
+| (32 bits)                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -155,15 +155,15 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: 3-Tier RBAC Reachability Traversal
 ; Input: userKeys = ["usr_alice", "usr_bob"] | Output: R63 = String Role Keys
 
-0x0000: OP_MAP_KEYS_TO_DENSE  R4, DOMAIN_USER   ; R4 = Map string keys -> dense User IDs (BitSet_0)
+0x0000: OP_MAP_KEYS_TO_DENSE R4, DOMAIN_USER   ; R4 = Map string keys -> dense User IDs (BitSet_0)
 0x0001: OP_JZ                 +6                ; If R4 is empty (ZF=1), branch to HALT at 0x0008
-0x0002: OP_CSR_WALK           R5, R4, REL_U2G   ; R5 = Walk "userToGroup" -> Group IDs (BitSet_1)
+0x0002: OP_CSR_WALK R5, R4, REL_U2G   ; R5 = Walk "userToGroup" -> Group IDs (BitSet_1)
 0x0003: OP_JZ                 +4                ; If R5 is empty (ZF=1), branch to HALT at 0x0008
-0x0004: OP_CSR_WALK           R6, R5, REL_G2R   ; R6 = Walk "groupToRole" -> Role IDs (BitSet_2)
+0x0004: OP_CSR_WALK R6, R5, REL_G2R   ; R6 = Walk "groupToRole" -> Role IDs (BitSet_2)
 0x0005: OP_JZ                 +2                ; If R6 is empty (ZF=1), branch to HALT at 0x0008
-0x0006: OP_MAP_DENSE_TO_KEYS  R63, R6, DOMAIN_ROLE; Map dense Role IDs in R6 -> String Keys in R63
+0x0006: OP_MAP_DENSE_TO_KEYS R63, R6, DOMAIN_ROLE; Map dense Role IDs in R6 -> String Keys in R63
 0x0007: OP_HALT                                 ; Success exit with result in R63
-0x0008: OP_CLEAR_REG          R63               ; Error / empty set fallback
+0x0008: OP_CLEAR_REG R63               ; Error / empty set fallback
 0x0009: OP_HALT
 ```
 
@@ -175,19 +175,19 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: GAPBS Level-Synchronous BFS Traversal
 ; Input: R0 = Root Node S | Output: R63 = Visited BitSet
 
-0x0000: OP_INIT_INPUT_NODE  R0, 0           ; R0 = Root Node S
-0x0001: OP_MOV              R4, R0          ; R4 = Active Frontier F = {S}
-0x0002: OP_MOV              R7, R0          ; R7 = Visited Set V = {S}
+0x0000: OP_INIT_INPUT_NODE R0, 0           ; R0 = Root Node S
+0x0001: OP_MOV R4, R0          ; R4 = Active Frontier F = {S}
+0x0002: OP_MOV R7, R0          ; R7 = Visited Set V = {S}
 
 ; --- BFS Traversal Core Loop ---
-0x0003: OP_CSR_WALK         R5, R4, REL_ALL ; R5 = Walk 1-hop CSR edges from active frontier F
-0x0004: OP_SET_DIFFERENCE   R5, R7          ; R5 = R5 \ V (Filter out already visited nodes)
+0x0003: OP_CSR_WALK R5, R4, REL_ALL ; R5 = Walk 1-hop CSR edges from active frontier F
+0x0004: OP_SET_DIFFERENCE R5, R7          ; R5 = R5 \ V (Filter out already visited nodes)
 0x0005: OP_JZ               +4              ; If R5 is empty (ZF=1), exit loop -> JMP 0x0009
-0x0006: OP_SET_UNION        R7, R5          ; V = V ∪ R5 (Mark new frontier as visited)
-0x0007: OP_MOV              R4, R5          ; F = R5 (Advance frontier to next level)
+0x0006: OP_SET_UNION R7, R5          ; V = V ∪ R5 (Mark new frontier as visited)
+0x0007: OP_MOV R4, R5          ; F = R5 (Advance frontier to next level)
 0x0008: OP_JMP              -5              ; Loop back to 0x0003 for next level expansion
 
-0x0009: OP_COLLECT_BITSET   R63, R7         ; Return full Visited BitSet
+0x0009: OP_COLLECT_BITSET R63, R7         ; Return full Visited BitSet
 0x000A: OP_HALT
 ```
 
@@ -199,17 +199,17 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: PageRank Power Iteration (20 Iterations)
 ; Input: R0 = All Node BitSet | Output: R63 = Float Vector of PageRank values
 
-0x0000: OP_CSR_DEGREE        R1, R0, REL_ALL ; R1 = Out-degree counts per node
-0x0001: OP_LOAD_CONST_FLOAT  R2, 0.15f       ; R2 = Baseline damping rank (1 - d) / N
-0x0002: OP_LOAD_CONST_INT    R30, 20         ; R30 = Loop counter (20 iterations)
-0x0003: OP_LOAD_CONST_FLOAT  R4, 1.0f        ; R4 = Initial PageRank vector PR_0 = 1.0
+0x0000: OP_CSR_DEGREE R1, R0, REL_ALL ; R1 = Out-degree counts per node
+0x0001: OP_LOAD_CONST_FLOAT R2, 0.15f       ; R2 = Baseline damping rank (1 - d) / N
+0x0002: OP_LOAD_CONST_INT R30, 20         ; R30 = Loop counter (20 iterations)
+0x0003: OP_LOAD_CONST_FLOAT R4, 1.0f        ; R4 = Initial PageRank vector PR_0 = 1.0
 
 ; --- PageRank Loop ---
-0x0004: OP_VECTOR_DIV        R5, R4, R1      ; R5 = PR[u] / OutDegree[u] (Contribution vector)
+0x0004: OP_VECTOR_DIV R5, R4, R1      ; R5 = PR[u] / OutDegree[u] (Contribution vector)
 0x0005: OP_CSR_WALK_REDUCE_SUM R6, R5, REL_ALL; R6 = Push contributions across CSR edges & sum
-0x0006: OP_VECTOR_MUL_ATTR   R6, R6, 0.85f   ; R6 = R6 * 0.85 (Damping factor d = 0.85)
+0x0006: OP_VECTOR_MUL_ATTR R6, R6, 0.85f   ; R6 = R6 * 0.85 (Damping factor d = 0.85)
 0x0007: OP_VECTOR_ADD_SCALAR R4, R6, R2      ; PR_{k+1} = R6 + baseline (R2)
-0x0008: OP_LOOP_DECR         R30, -4         ; Decrement counter R30. If > 0, jump to 0x0004
+0x0008: OP_LOOP_DECR R30, -4         ; Decrement counter R30. If > 0, jump to 0x0004
 
 0x0009: OP_COLLECT_VALUE_MAP R63, R0, R4     ; Return Map<NodeKey, FloatPageRank>
 0x000A: OP_HALT

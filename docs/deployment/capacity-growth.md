@@ -35,7 +35,7 @@ In environments where you want manual control over growth, or when you proactive
         .maxNodes(EntityType.USER, 150_000_000)
         .maxEdges(Relation.USER_TO_GROUP, 800_000_000)
         .build();
-        
+
     // Proactively resize buffers before the ingestion spike hits
     liveGraph.pool().adaptTo(upcomingDemand);
     ```

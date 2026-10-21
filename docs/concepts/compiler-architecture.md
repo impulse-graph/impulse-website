@@ -98,7 +98,7 @@ System.out.println(tracer.generateTraceReport());
 Sample Trace Output:
 ```
 =========================================================================
-                 IMPULSE COMPILER MULTI-PASS TRACE REPORT               
+                 IMPULSE COMPILER MULTI-PASS TRACE REPORT
 =========================================================================
 Pass #01: AlgebraicTypeInferencePass       [0.014 ms]
   AST Output:
@@ -125,7 +125,7 @@ Disassemble compiled off-heap bytecode programs into canonical human-readable `.
 try (Arena arena = Arena.ofConfined()) {
     // Compile and emit 64-bit aligned off-heap impOps instructions
     ImpOpsBytecodeEmitter.EmittedProgram program = ImpOpsBytecodeEmitter.emit(optimizedAst, snapshot, arena);
-    
+
     // Disassemble into canonical .impas assembly text
     String disassembly = ImpAsmDisassembler.disassemble(program);
     System.out.println(disassembly);
@@ -135,15 +135,15 @@ try (Arena arena = Arena.ofConfined()) {
 Sample output disassembly (`.impas`):
 ```impas
 ; =========================================================================
-;                  IMPULSE VM BYTECODE DISASSEMBLY (.impas)               
+; IMPULSE VM BYTECODE DISASSEMBLY (.impas)
 ; =========================================================================
 .version 0.9.0
 .instructions 4
 
-  0x0000:  OP_CSC_WALK              flags=0x03, dst=R1 , payload=0x00240000 ; Walk src=R0 -> dst=R1 via rel[36] ("CtD") [seed-inlined] [early-exit]
-  0x0001:  OP_CSR_WALK              flags=0x01, dst=R0 , payload=0x00080001 ; Walk src=R1 -> dst=R0 via rel[8] ("CrC") [early-exit]
-  0x0002:  OP_COLLECT_BITSET        flags=0x00, dst=R0 , payload=0x00000000 ; Collect active result bitset from R0
-  0x0003:  OP_HALT                  flags=0x00, dst=R0 , payload=0x00000000 ; Execution complete
+  0x0000: OP_CSC_WALK flags=0x03, dst=R1 , payload=0x00240000 ; Walk src=R0 -> dst=R1 via rel[36] ("CtD") [seed-inlined] [early-exit]
+  0x0001: OP_CSR_WALK flags=0x01, dst=R0 , payload=0x00080001 ; Walk src=R1 -> dst=R0 via rel[8] ("CrC") [early-exit]
+  0x0002: OP_COLLECT_BITSET flags=0x00, dst=R0 , payload=0x00000000 ; Collect active result bitset from R0
+  0x0003: OP_HALT flags=0x00, dst=R0 , payload=0x00000000 ; Execution complete
 ; =========================================================================
 ```
 

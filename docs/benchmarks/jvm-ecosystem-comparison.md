@@ -61,12 +61,12 @@ All runtimes were evaluated executing the **GAPBS BFS Benchmark** over the canon
                                            │
          ┌─────────────────────────────────┼─────────────────────────────────┐
          ▼                                 ▼                                 ▼
-   Kubernetes Pod Auto-Scaling       Strict Sub-10µs Latencies           High-Density K8s Packing
+   Kubernetes Pod Auto-Scaling Strict Sub-10µs Latencies High-Density K8s Packing
    & Serverless / AWS Lambda         & Zero GC Pause Spikes              & Memory Constrained Pods
          │                                 │                                 │
          ▼                                 ▼                                 ▼
  🏆 GraalVM Native Image          🏆 Azul Zing / Graal Enterprise     🏆 Eclipse OpenJ9 / IBM Semeru
-(0.025ms launch, 18MB RSS)       (7.0µs - 7.2µs micro-latency)       (4.15ms launch, 24MB RSS)
+(0.025ms launch, 18MB RSS) (7.0µs - 7.2µs micro-latency) (4.15ms launch, 24MB RSS)
 ```
 
 ---

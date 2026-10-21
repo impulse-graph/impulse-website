@@ -10,7 +10,7 @@
 
 ## 1. Specification Overview & Modular Design Principles
 
-This document defines the formal binary protocol specification for the **Impulse-Graph C-ABI Binary Snapshot Format (Version 0.9.0)**.
+This document defines the formal binary protocol specification for the **Impulse-Graph C-ABI Binary Snapshot Format**.
 
 The format is organized into **4KB OS page-aligned physical blocks**, structured to support **single-pass S3/cloud streaming uploads**, **$O(1)$ zero-copy `mmap` range loading**, and **AVX-512 / GPU SIMD vectorization**.
 
@@ -60,7 +60,7 @@ The snapshot header occupies byte offset `0x00000000` (Page 0). It contains a **
 | Byte Offset | Field Name | C-ABI Type | Size | Default / Constant | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `0x0000` – `0x0003` | `Magic` | `uint32_t` | 4 Bytes | `0x494D5053` (`"IMPS"`) | Magic constant identifying Impulse-Graph binary snapshot file. |
-| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x0009` (`9`) | Protocol specification version number (v0.9.0 packed `0x0009`). |
+| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x0009` (`9`) | Protocol specification version number ( packed `0x0009`). |
 | `0x0006` – `0x0009` | `DataOffset` | `uint32_t` | 4 Bytes | `4096` (`0x00001000`) | Fixed constant (`4096`). Section 2 always starts at byte 4096 (Page 1). |
 | `0x000A` – `0x000B` | `DomainCount` | `uint16_t` | 2 Bytes | Variable | Total number of node domains in the catalog (up to 65,536). |
 | `0x000C` – `0x000D` | `RelationCount` | `uint16_t` | 2 Bytes | Variable | Total number of relations in the matrix (up to 65,536). |
@@ -164,7 +164,7 @@ Attribute data types are encoded in an 8-bit field (`uint8_t type_code`):
 
 // Bitwise evaluation in C-ABI parsers
 uint8_t base_type   = descriptor->type_code & IMPULSE_TYPE_MASK;
-bool    is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
+bool is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
 ```
 
 * **Non-Nullable (`is_nullable == false`, Bit 7 = 0)**: Zero validity bitmap overhead. 100% of memory is allocated to contiguous data values.
@@ -211,7 +211,7 @@ Attribute storage layout depends on whether the attribute is fixed-width (scalar
 For unseekable S3 multi-part uploads, signatures, SHA-256 digests, and catalog directories are serialized into the **Footer Block at EOF**.
 
 ### 5.2 16-Byte Footer Trailer Specification
-Every compliant v0.9.0 snapshot MUST terminate with exactly 16 bytes at EOF:
+Every compliant snapshot MUST terminate with exactly 16 bytes at EOF:
 
 ```c
 typedef struct impulse_footer_trailer {
@@ -230,5 +230,5 @@ typedef struct impulse_footer_trailer {
 #define IMPULSE_ALIGN_128(offset) (((offset) + 127ULL) & ~127ULL)
 
 // 4KB Page Alignment for OS Virtual Memory Area (VMA) Isolation
-#define IMPULSE_ALIGN_4K(offset)  (((offset) + 4095ULL) & ~4095ULL)
+#define IMPULSE_ALIGN_4K(offset) (((offset) + 4095ULL) & ~4095ULL)
 ```

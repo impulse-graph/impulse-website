@@ -13,7 +13,7 @@ This reference documents the **C++20 Native Engine, Optimizing Compiler, and Flu
 `impulse-cpp` provides two programming layers:
 
 1. **C-ABI Kernel Headers** (documented in detail in [C-ABI Reference](c-abi.md)):
-   * `#include "impulse_format_v0_9.h"`: Binary Snapshot v0.9.0 POD structures and protocol enums.
+   * `#include "impulse_format_v0_9.h"`: Binary Snapshot POD structures and protocol enums.
    * `#include "impulse_graph.h"`: Snapshot `mmap` loader, catalog inspection, CSR/CSC buffer accessors, streaming writer, and delta compaction.
    * `#include "impulse_vm.h"`: Raw 64-bit VM opcode definitions (`impulse_instruction_t`), 640-byte state frame (`impulse_vm_state_t`), off-heap context (`impulse_vm_context_t`), in-kernel compiler C-ABI, and `impulse_stmt_t` prepared statements.
    * `#include "impulse_index.h"`: Secondary non-vector index builders and query evaluators.
@@ -40,7 +40,7 @@ impulse_snapshot_t* snapshot = impulse_snapshot_open("datasets/rbac.imps", &stat
 
 if (status == IMPULSE_OK && snapshot) {
     uint32_t magic = impulse_snapshot_magic(snapshot);       // 0x494D5053 ("IMPS")
-    uint16_t version = impulse_snapshot_version(snapshot);   // 9 (v0.9.0 spec)
+    uint16_t version = impulse_snapshot_version(snapshot);   // 9 ( spec)
     uint16_t domains = impulse_snapshot_domain_count(snapshot);
     uint16_t rels = impulse_snapshot_relation_count(snapshot);
 }
@@ -210,7 +210,7 @@ int main() {
     if (result.isOk()) {
         std::cout << "[+] ReBAC Query executed successfully!\n";
         bool canAccessRole42 = result.testBitset(ctx, 42);
-        std::cout << "    User 100 -> Role 42 permission: " 
+        std::cout << " User 100 -> Role 42 permission: " 
                   << (canAccessRole42 ? "ALLOWED" : "DENIED") << "\n";
     }
 

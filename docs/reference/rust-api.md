@@ -2,7 +2,7 @@
 
 This reference documents the **Impulse Graph Engine Core Rust Crate** (`impulse-graph`, located in `impulse-graph-core/impulse-rust`).
 
-The Rust crate has zero third-party runtime dependencies (`AGENTS.md §3.2`) and provides memory-mapped `.imps` v0.9.0 binary snapshot reading, Structure-of-Arrays (SoA) attribute slice accessors, fluent multi-hop traversals, single-pass snapshot writing, and C-ABI FFI bindings.
+The Rust crate has zero third-party runtime dependencies (`AGENTS.md §3.2`) and provides memory-mapped `.imps` binary snapshot reading, Structure-of-Arrays (SoA) attribute slice accessors, fluent multi-hop traversals, single-pass snapshot writing, and C-ABI FFI bindings.
 
 ---
 
@@ -10,7 +10,7 @@ The Rust crate has zero third-party runtime dependencies (`AGENTS.md §3.2`) and
 
 ```toml
 [dependencies]
-impulse-graph = "0.9.0"
+impulse-graph = "*"
 ```
 
 ---
@@ -30,7 +30,7 @@ impulse-graph = "0.9.0"
 
 ## 3. Zero-Copy Snapshot Reader (`SnapshotReader`)
 
-`SnapshotReader::open` maps a v0.9.0 `.imps` binary file via OS `mmap`, validating the 4KB Page 0 header, CRC-16-CCITT header checksum, and SHA-256 payload digest:
+`SnapshotReader::open` maps a  `.imps` binary file via OS `mmap`, validating the 4KB Page 0 header, CRC-16-CCITT header checksum, and SHA-256 payload digest:
 
 ```rust
 use impulse_graph::SnapshotReader;
@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 5. Single-Pass Streaming Writer (`SnapshotWriter`)
 
-Constructs page-aligned and 128-byte-section-aligned Spec v0.9.0 `.imps` snapshots with automatic CRC-16 header and SHA-256 payload checksum computation:
+Constructs page-aligned and 128-byte-section-aligned Spec  `.imps` snapshots with automatic CRC-16 header and SHA-256 payload checksum computation:
 
 ```rust
 use std::collections::HashMap;

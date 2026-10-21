@@ -1,8 +1,5 @@
 # Query Context & Execution Architecture — Impulse Graph Engine (Java)
 
-> [!WARNING]
-> **Pre-release Documentation**: This documentation describes pre-release software under active development and may be inaccurate, incomplete, or missing.
-
 This document describes the query execution context architecture of **Impulse Graph Engine** (`impulse-graph`), detailing how queries interact with memory-mapped immutable snapshots (`ImpulseGraphSnapshot`), how the runtime execution context (`VmQueryContext`) manages off-heap state and scratch memory, and how zero-delay "blue/green" snapshot swaps rebind compiled query bytecode without invalidating query caches or blocking active readers.
 
 ## 1. Universal Traversal Model & Domain-Bound Context
@@ -113,16 +110,16 @@ When queries execute against the virtual machine, execution state and temporary 
 
 ```
 +-------------------------------------------------------------------------+
-|                              VmQueryContext                             |
+| VmQueryContext                             |
 |                                                                         |
 |  +---------------------+   +---------------------+   +---------------+  |
-|  |  Off-Heap Arena     |   | Scratch Memory Pool |   | BitSet Pool   |  |
-|  |  (FFM Arena)        |   | (64KB - 512MB cap)  |   | (OffHeapBitSet|  |
+|  | Off-Heap Arena     |   | Scratch Memory Pool |   | BitSet Pool   |  |
+|  | (FFM Arena)        |   | (64KB - 512MB cap)  |   | (OffHeapBitSet|  |
 |  +---------------------+   +---------------------+   +---------------+  |
 |                                                                         |
 |  +---------------------+   +---------------------+   +---------------+  |
-|  |  Vector Pools       |   | Inline Data Segment |   | DoP & Threads |  |
-|  |  (int/float/double) |   | (constant tables)   |   | (IMPULSE_DOP) |  |
+|  | Vector Pools       |   | Inline Data Segment |   | DoP & Threads |  |
+|  | (int/float/double) |   | (constant tables)   |   | (IMPULSE_DOP) |  |
 |  +---------------------+   +---------------------+   +---------------+  |
 +-------------------------------------------------------------------------+
                                     |
@@ -244,7 +241,7 @@ To ensure compile-time safety and IDE autocompletion, `SchemaCodeGenerator` gene
                |
                v
   +--------------------------+
-  |    UserQueryBuilder<R>   |  extends TypedQueryBuilder<User, R>
+  | UserQueryBuilder<R>   | extends TypedQueryBuilder<User, R>
   +--------------------------+
   | - walkFollows()          |  --> returns UserQueryBuilder<R>
   | - filterScore(op, val)   |  --> appends CEL filter

@@ -20,7 +20,7 @@ Updates to the `CsrDeltaLayer` publish to readers via **Atomic Reference Swaps**
 
 As the in-memory delta layer grows, memory usage increases. The standard lifecycle pattern involves an offline or background thread generating a new baseline snapshot (`B`), merging the old snapshot (`A`) and the accumulated delta layer. Once the new `B` snapshot is ready on disk, the `ImpulseGraph` performs an atomic pointer swap to base future queries off of `B`, immediately dropping the old delta memory.
 
-## Future Research & Empirical Performance Verification (v0.9.2+ Feature Roadmap)
+## Future Research & Empirical Performance Verification
 
 
 While the delta overlay enables real-time Graph CRUD operations (insert/delete nodes and edges, attribute updates), combining static zero-copy `mmap` arrays with dynamic in-memory delta lists is hypothesized to introduce traversal overhead (tombstone bitset checks, branch mispredictions, non-contiguous cache line access). 

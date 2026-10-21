@@ -25,7 +25,7 @@ Impulse Graph excels at this by compiling permission checks into flat opcode pla
         .walkEdge("roleToPermission")
         // Terminal: Does the resulting set contain our target resource?
         .collect(ReturnType.EXISTS);
-        
+
     // Execute on the hot path (e.g., inside an interceptor)
     boolean allowed = canEditQuery.execute(ctx, view, requestingUserId);
     ```

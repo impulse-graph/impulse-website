@@ -81,7 +81,7 @@ snap.domain("Warehouse").from(activeWarehouses)
     .outWithState("TRUCK_ROUTE", """
         // 1. The Primary Metric Reduction
         state.lowest_cost:MIN = src.cost + edge.fee,
-        
+
         // 2. The Co-Reduced Witness (Who won?)
         state.best_supplier:ARGMIN(state.lowest_cost) = src.id
         """)

@@ -125,7 +125,7 @@ impulse snapshot inspect production.imps --format json
 ```
 
 #### `impulse snapshot validate`
-Validate binary snapshot file against Spec v0.9.0 / v2.4 normative requirements and 128-byte hardware alignment.
+Validate binary snapshot file against Spec normative requirements and 128-byte hardware alignment.
 
 ```bash
 impulse snapshot validate production.imps --strict-alignment

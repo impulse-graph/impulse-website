@@ -17,8 +17,8 @@ In traditional relational and graph databases (e.g., PostgreSQL, Neo4j, Cockroac
 
 ```
    ┌───────────────────────┐         ┌───────────────────────────────┐
-   │   Un-optimized AST    │         │  Immutable Snapshot (.imps)   │
-   │  (CEL / Cypher / ImpK)│         │ • Exact Domain Cardinalities  │
+   │ Un-optimized AST    │         │ Immutable Snapshot (.imps)   │
+   │ (CEL / Cypher / ImpK)│         │ • Exact Domain Cardinalities  │
    └───────────┬───────────┘         │ • Exact Degree Distributions  │
                │                     │ • Injective/Bijective Flags   │
                │                     │ • Min/Max Zone Maps per Attr  │
@@ -27,7 +27,7 @@ In traditional relational and graph databases (e.g., PostgreSQL, Neo4j, Cockroac
                            │                         │
                            ▼                         ▼
                ┌─────────────────────────────────────────────┐
-               │    AST Binding & Property Labeling Phase    │
+               │ AST Binding & Property Labeling Phase    │
                │  • Interval Bounds ([L, U])                 │
                │  • Morphism Type (Inj, Surj, Bij, Fn)       │
                │  • Algebraic Structures (Monoid, Lattice)   │
@@ -36,7 +36,7 @@ In traditional relational and graph databases (e.g., PostgreSQL, Neo4j, Cockroac
                                      │
                                      ▼
                ┌─────────────────────────────────────────────┐
-               │    Algebraic Transformation & DCE Passes    │
+               │ Algebraic Transformation & DCE Passes    │
                │  • Constant Folding & Zone Map Pruning      │
                │  • Semilattice Idempotency Rewrites         │
                │  • Deduplication (DISTINCT) Elimination     │
@@ -46,12 +46,12 @@ In traditional relational and graph databases (e.g., PostgreSQL, Neo4j, Cockroac
                                      │
                                      ▼
                ┌─────────────────────────────────────────────┐
-               │      Optimized ImpScheme IR / ImpAsm        │
-               │  (Allocation-Free SIMD / impOps Bytecode)   │
+               │ Optimized ImpScheme IR / ImpAsm        │
+               │ (Allocation-Free SIMD / impOps Bytecode)   │
                └─────────────────────────────────────────────┘
 ```
 
-> **The Immutable Optimization Thesis**: Because an Impulse Snapshot (`.imps` v0.9.0+) is **100% immutable and memory-mapped**, all structural topology, degree distributions, attribute value ranges, nullability flags, and algebraic morphism classifications are **exact, deterministic, and closed**. 
+> **The Immutable Optimization Thesis**: Because an Impulse Snapshot (`.imps` +) is **100% immutable and memory-mapped**, all structural topology, degree distributions, attribute value ranges, nullability flags, and algebraic morphism classifications are **exact, deterministic, and closed**. 
 > 
 > Binding an expression AST to a specific snapshot instance converts probabilistic heuristic optimization into **sound, deterministic algebraic reduction**.
 
@@ -66,9 +66,9 @@ When an expression is bound to a snapshot, the compiler immediately evaluates bo
                                 │
           ┌─────────────────────┴─────────────────────┐
           ▼                                           ▼
-   Predicate: u.age > 250                      Predicate: u.status == "ACTIVE"
-   Snapshot Zone Map:                          Snapshot Dictionary:
-   age.min = 18, age.max = 114                 status ∈ {"ACTIVE", "INACTIVE", "PENDING"}
+   Predicate: u.age > 250 Predicate: u.status == "ACTIVE"
+   Snapshot Zone Map: Snapshot Dictionary:
+   age.min = 18, age.max = 114 status ∈ {"ACTIVE", "INACTIVE", "PENDING"}
           │                                           │
           ▼                                           ▼
    [EVALUATES: CONSTANT FALSE]                 [EVALUATES: VALID PREDICATE]
@@ -134,7 +134,7 @@ Statistics must remain lightweight to preserve $O(1)$ zero-copy cold start and f
 │ └── DensityFlags       │ ├── Min/Max/Avg OutDegree │ ├── MaxVal (8B raw int/float/off) │
 │                        │ ├── Min/Max/Avg InDegree  │ ├── NullCount (32-bit uint)       │
 │                        │ └── StructuralFlags       │ ├── DistinctCount (32-bit uint)   │
-│                        │     (DAG, Inj, Bij, Sym)  │ └── MonotonicityFlags (8-bit enum)│
+│                        │ (DAG, Inj, Bij, Sym)  │ └── MonotonicityFlags (8-bit enum)│
 └────────────────────────┴───────────────────────────┴───────────────────────────────────┘
 ```
 
@@ -164,18 +164,18 @@ In `RelationDirectoryEntry`, `SectionFeatures` encodes strict relational topolog
 
 ```c
 // Topology Multiplicity (Bits 3..4)
-#define IMP_REL_CARDINALITY_MASK     (3ULL << 3)
-#define IMP_REL_CARDINALITY_M_N      (0ULL << 3) // Many-to-Many
-#define IMP_REL_CARDINALITY_M_1      (1ULL << 3) // Many-to-One (Functional: Out-Degree <= 1)
-#define IMP_REL_CARDINALITY_1_M      (2ULL << 3) // One-to-Many (Injective: In-Degree <= 1)
-#define IMP_REL_CARDINALITY_1_1      (3ULL << 3) // One-to-One  (Bijective: In-Degree <= 1 && Out-Degree <= 1)
+#define IMP_REL_CARDINALITY_MASK (3ULL << 3)
+#define IMP_REL_CARDINALITY_M_N (0ULL << 3) // Many-to-Many
+#define IMP_REL_CARDINALITY_M_1 (1ULL << 3) // Many-to-One (Functional: Out-Degree <= 1)
+#define IMP_REL_CARDINALITY_1_M (2ULL << 3) // One-to-Many (Injective: In-Degree <= 1)
+#define IMP_REL_CARDINALITY_1_1 (3ULL << 3) // One-to-One (Bijective: In-Degree <= 1 && Out-Degree <= 1)
 
 // Algebraic Structural Topology Flags (Bits 8..15)
-#define IMP_REL_STRUCT_ACYCLIC       (1ULL << 8)  // Directed Acyclic Graph (DAG) - Guarantees termination
-#define IMP_REL_STRUCT_SYMMETRIC     (1ULL << 9)  // Undirected / Symmetric (CSR == CSC)
-#define IMP_REL_STRUCT_REFLEXIVE     (1ULL << 10) // Self-loops on all nodes (id <= R)
-#define IMP_REL_STRUCT_TRANSITIVE    (1ULL << 11) // Transitive closure pre-materialized (R ∘ R ⊆ R)
-#define IMP_REL_STRUCT_SURJECTIVE    (1ULL << 12) // Every target node has In-Degree >= 1
+#define IMP_REL_STRUCT_ACYCLIC (1ULL << 8)  // Directed Acyclic Graph (DAG) - Guarantees termination
+#define IMP_REL_STRUCT_SYMMETRIC (1ULL << 9)  // Undirected / Symmetric (CSR == CSC)
+#define IMP_REL_STRUCT_REFLEXIVE (1ULL << 10) // Self-loops on all nodes (id <= R)
+#define IMP_REL_STRUCT_TRANSITIVE (1ULL << 11) // Transitive closure pre-materialized (R ∘ R ⊆ R)
+#define IMP_REL_STRUCT_SURJECTIVE (1ULL << 12) // Every target node has In-Degree >= 1
 ```
 
 ---
@@ -186,17 +186,17 @@ During query compilation, the AST is decorated with an **Algebraic Property Vect
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                AST Node Decoration Schema                              │
+│ AST Node Decoration Schema                              │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ struct ImpulseAstNode {                                                                │
-│     AstNodeType           type;            // CALL, IDENT, LITERAL, TRAVERSAL, FOLD    │
-│     AstTypeSignature      data_type;       // BOOL, INT64, FLOAT64, NODE_SET, VECTOR   │
-│     ImpulseIntervalBound  interval;        // [MinBound, MaxBound] (for ints/floats)   │
-│     ImpulseNullability    null_state;      // DEFINITELY_NULL, NON_NULL, MAYBE_NULL    │
-│     ImpulseMorphismClass  morphism;        // INJECTIVE, SURJECTIVE, BIJECTIVE, FN     │
-│     ImpulseAlgebraicClass algebra;         // MONOID, SEMILATTICE, IDEMPOTENT, ABELIAN │
-│     uint64_t              cardinality_max; // Upper bound on set/vector output size    │
-│     uint8_t               monotonicity;    // MONO_ASC, MONO_DESC, NON_MONOTONIC      │
+│ AstNodeType type;            // CALL, IDENT, LITERAL, TRAVERSAL, FOLD    │
+│ AstTypeSignature data_type;       // BOOL, INT64, FLOAT64, NODE_SET, VECTOR   │
+│ ImpulseIntervalBound interval;        // [MinBound, MaxBound] (for ints/floats)   │
+│ ImpulseNullability null_state;      // DEFINITELY_NULL, NON_NULL, MAYBE_NULL    │
+│ ImpulseMorphismClass morphism;        // INJECTIVE, SURJECTIVE, BIJECTIVE, FN     │
+│ ImpulseAlgebraicClass algebra;         // MONOID, SEMILATTICE, IDEMPOTENT, ABELIAN │
+│ uint64_t cardinality_max; // Upper bound on set/vector output size    │
+│ uint8_t monotonicity;    // MONO_ASC, MONO_DESC, NON_MONOTONIC      │
 │ };                                                                                     │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -206,14 +206,14 @@ During query compilation, the AST is decorated with an **Algebraic Property Vect
 ```
                                   Morphism Taxonomy
                                 ┌───────────────────┐
-                                │     Relation      │
+                                │ Relation      │
                                 └─────────┬─────────┘
                                           │
                   ┌───────────────────────┴───────────────────────┐
                   ▼                                               ▼
          ┌─────────────────┐                             ┌─────────────────┐
          │ Functional (Fn) │                             │ Injective (Inj) │
-         │ OutDegree ≤ 1   │                             │  InDegree ≤ 1   │
+         │ OutDegree ≤ 1   │                             │ InDegree ≤ 1   │
          └────────┬────────┘                             └────────┬────────┘
                   │                                               │
                   └───────────────────────┬───────────────────────┘
@@ -226,22 +226,22 @@ During query compilation, the AST is decorated with an **Algebraic Property Vect
 
                               Aggregation Algebra
                                 ┌───────────────────┐
-                                │     Semigroup     │
-                                │   (Associative)   │
+                                │ Semigroup     │
+                                │ (Associative)   │
                                 └─────────┬─────────┘
                                           │
                   ┌───────────────────────┴───────────────────────┐
                   ▼                                               ▼
          ┌─────────────────┐                             ┌─────────────────┐
-         │     Monoid      │                             │   Semilattice   │
-         │ (Identity elem) │                             │  (Idempotent)   │
+         │ Monoid      │                             │ Semilattice   │
+         │ (Identity elem) │                             │ (Idempotent)   │
          └────────┬────────┘                             └────────┬────────┘
                   │                                               │
                   └───────────────────────┬───────────────────────┘
                                           │
                                           ▼
                                  ┌─────────────────┐
-                                 │   Join-Monoid   │
+                                 │ Join-Monoid   │
                                  │ (Comm + Idemp)  │
                                  └─────────────────┘
 ```
@@ -264,47 +264,47 @@ During query compilation, the AST is decorated with an **Algebraic Property Vect
 
 ```
                  ┌──────────────────────────────────────────────┐
-                 │       Initial Un-optimized CEL/Query AST     │
+                 │ Initial Un-optimized CEL/Query AST     │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 1: Algebraic Dead Code Elimination     │
+                 │ Pass 1: Algebraic Dead Code Elimination     │
                  │  • Interval arithmetic fold ([L, U])         │
                  │  • Zone map & dictionary pruning             │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 2: Deduplication & Bitset Elimination  │
+                 │ Pass 2: Deduplication & Bitset Elimination  │
                  │  • Injective/Bijective path check            │
                  │  • Skip OP_SET_DEDUPLICATE & bitset pooling  │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 3: Semilattice & Reducer Pushdown      │
+                 │ Pass 3: Semilattice & Reducer Pushdown      │
                  │  • Fold aggregators directly into CSR loops  │
                  │  • Exploit idempotency (x ⊕ x = x)           │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 4: Join Direction & Topology Inversion │
+                 │ Pass 4: Join Direction & Topology Inversion │
                  │  • Compare AvgOutDegree vs AvgInDegree       │
                  │  • Select CSR (0x10) vs CSC (0x18)           │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 5: Monotonic Range Slicing             │
+                 │ Pass 5: Monotonic Range Slicing             │
                  │  • Replace linear vector scans with binary   │
-                 │    search slicing on sorted columns          │
+                 │ search slicing on sorted columns          │
                  └──────────────────────┬───────────────────────┘
                                         │
                                         ▼
                  ┌──────────────────────────────────────────────┐
-                 │  Pass 6: impOps Emitter (ImpScheme / ImpAsm) │
+                 │ Pass 6: impOps Emitter (ImpScheme / ImpAsm) │
                  └──────────────────────────────────────────────┘
 ```
 
@@ -475,14 +475,14 @@ RETURN MAX(p.priority)
 .text
 _query_start:
     ; Step 1: O(1) Flat Dereference for M:1 relation (no CSR row offsets needed)
-    OP_LOAD_FLAT_EDGE     R1, REL_BELONGS_TO, 101       ; R1 = Tenant ID
-    CMP_EQ_IMM            R1, 0xFFFFFFFF, _empty_exit   ; If no tenant, exit early
+    OP_LOAD_FLAT_EDGE R1, REL_BELONGS_TO, 101       ; R1 = Tenant ID
+    CMP_EQ_IMM R1, 0xFFFFFFFF, _empty_exit   ; If no tenant, exit early
 
     ; Step 2: Pushdown MAX aggregator directly into CSR traversal loop
-    OP_CSR_FOLD_MAX_I32   R2, REL_HAS_PROJECT, R1, ATTR_PROJECT_PRIORITY
+    OP_CSR_FOLD_MAX_I32 R2, REL_HAS_PROJECT, R1, ATTR_PROJECT_PRIORITY
 
     ; Step 3: Return scalar result in R2
-    OP_RET                R2
+    OP_RET R2
 
 _empty_exit:
     OP_RET_NULL
@@ -518,7 +518,7 @@ typedef enum ImpulseMorphismClass {
     IMP_MORPHISM_GENERAL    = 0x00,
     IMP_MORPHISM_FUNCTIONAL = 0x01, // Many-to-One (Out-Degree <= 1)
     IMP_MORPHISM_INJECTIVE  = 0x02, // One-to-Many (In-Degree <= 1)
-    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One  (In-Degree <= 1 && Out-Degree <= 1)
+    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One (In-Degree <= 1 && Out-Degree <= 1)
 } ImpulseMorphismClass;
 
 // Algebraic Structure Classification
@@ -533,10 +533,10 @@ typedef enum ImpulseAlgebraicClass {
 
 // Scalar Value Interval
 typedef struct ImpulseIntervalBound {
-    int64_t  min_int;
-    int64_t  max_int;
-    double   min_double;
-    double   max_double;
+    int64_t min_int;
+    int64_t max_int;
+    double min_double;
+    double max_double;
 ---
 
 ## 7. Functional Programming Perspective: Monotonic Homomorphisms & Kleisli Composition
@@ -545,15 +545,15 @@ Through the lens of **Category Theory** and **Functional Programming**, queries 
 
 ```
        Category-Theoretic Commuting Diagram for Monotonic Homomorphisms
-       
+
                        f = log (Strictly Monotonic Increasing)
                Set(A) ─────────────────────────────────────────> Set(B)
                  │                                                 │
                  │                                                 │
-          fold(max)                                          fold(max)
+          fold(max) fold(max)
                  │                                                 │
                  ▼                                                 ▼
-                 A    ─────────────────────────────────────────>   B
+                 A    ─────────────────────────────────────────> B
                                        f = log
 ```
 
@@ -586,7 +586,7 @@ Un-optimized Pipeline:
 Optimized Pipeline via Homomorphism Pushdown:
   Array[N] of v ──[Fold MAX on raw ints/floats]──> max_v ──[Compute log(max_v) ONCE]──> Result
   Complexity: O(N) SIMD vector MAX + EXACTLY 1 Math.log call.
-  
+
 Zero-Scan Instantaneous Zone Map Path (if query is unfiltered over entire domain):
   max_v = metadata.attr("v").MaxVal ──[Compute log(max_v) ONCE]──> Result
   Complexity: O(1) latency (< 2 nanoseconds), ZERO array reads, ZERO vector scans!
@@ -600,19 +600,19 @@ To make such rewrites trivial for compiler passes to identify, the AST nodes are
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                         AST Algebraic & Functorial Labels                              │
+│ AST Algebraic & Functorial Labels                              │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ 1. Variance / Monotonicity Label (VarianceClass)                                       │
-│    ├── MONO_STRICT_INC : x < y  ⟹  f(x) < f(y)   (e.g., log(x), exp(x), x + c, 2*x)   │
-│    ├── MONO_WEAK_INC   : x ≤ y  ⟹  f(x) ≤ f(y)   (e.g., floor(x), ceil(x))            │
-│    ├── MONO_STRICT_DEC : x < y  ⟹  f(x) > f(y)   (e.g., -x, 1/x for x>0)              │
-│    ├── MONO_WEAK_DEC   : x ≤ y  ⟹  f(x) ≥ f(y)   (e.g., -floor(x))                    │
+│    ├── MONO_STRICT_INC : x < y  ⟹ f(x) < f(y) (e.g., log(x), exp(x), x + c, 2*x)   │
+│    ├── MONO_WEAK_INC   : x ≤ y  ⟹ f(x) ≤ f(y) (e.g., floor(x), ceil(x))            │
+│    ├── MONO_STRICT_DEC : x < y  ⟹ f(x) > f(y) (e.g., -x, 1/x for x>0)              │
+│    ├── MONO_WEAK_DEC   : x ≤ y  ⟹ f(x) ≥ f(y) (e.g., -floor(x))                    │
 │    └── NON_MONOTONIC   : (e.g., sin(x), hash(x), x^2 over negative & positive reals)   │
 │                                                                                        │
 │ 2. Homomorphism Commutativity Bitmask (HomomorphismFlags)                              │
 │    ├── COMMUTES_WITH_MAX  : f(max(S)) ≡ max(f(S))                                     │
 │    ├── COMMUTES_WITH_MIN  : f(min(S)) ≡ min(f(S))                                     │
-│    ├── COMMUTES_WITH_SUM  : f(∑ x) ≡ ∑ f(x)    (Linear: f(x) = c * x)                  │
+│    ├── COMMUTES_WITH_SUM  : f(∑ x) ≡ ∑ f(x) (Linear: f(x) = c * x)                  │
 │    └── DISTRIBUTES_OVER_OR: f(a ∨ b) ≡ f(a) ∨ f(b)                                     │
 │                                                                                        │
 │ 3. Domain Range Guard (DomainRangeBound)                                                │
@@ -631,7 +631,7 @@ To make such rewrites trivial for compiler passes to identify, the AST nodes are
               │                                         │
               ▼                                         ▼
       [MAP_EXPR: f=log]                 ───►    [MAP_EXPR: f=log]
-              │                                   Labels:
+              │ Labels:
               ▼                                     • Variance: MONO_STRICT_INC
       [COLUMN_REF: attr="v"]                        • Homomorphism: COMMUTES_WITH_MAX
                                                     • Guard: [MinVal=2, MaxVal=1000] > 0
@@ -656,7 +656,7 @@ In the **Kleisli Category** of the Semiring-Weighted Monad $\mathbf{Kl}(\mathcal
 $$(g \odot f)(x) = \mu_{\mathcal{W}_R}\left(\mathcal{W}_R(g)(f(x))\right) = \bigoplus_{y \in f(x)} g(y)$$
 
 ```
-                     f: A → W_R(B)             g: B → W_R(C)
+                     f: A → W_R(B) g: B → W_R(C)
            NodeSet<A> ────────────> NodeSet<B> ────────────> NodeSet<C>
                │                                                ▲
                │                                                │
@@ -688,13 +688,13 @@ Where:
 
 ```
                       The Frontier State Fiber Bundle
-                      
+
       State Fiber (S) ┌───┐       ┌───┐       ┌───┐
-                      │s_1│       │s_2│       │s_3│   (Weights / Labels / Distances)
+                      │s_1│       │s_2│       │s_3│ (Weights / Labels / Distances)
                       └───┘       └───┘       └───┘
-                        │           │           │     (Fibration Projection π)
+                        │           │           │ (Fibration Projection π)
       Base Space (V)    ▼           ▼           ▼
-                      Node 0      Node 1      Node 2  (0 ... N-1 Off-Heap Index)
+                      Node 0 Node 1 Node 2 (0 ... N-1 Off-Heap Index)
 ```
 
 A relational traversal step is a **Kleisli Morphism in the State-Weighted Monad**:
@@ -752,11 +752,11 @@ Traditional engines compute `COUNT(DISTINCT attr)` via expensive hash tables ($O
 
 ```
                   Algebraic Deduplication Elimination Hierarchy
-                  
+
                        Is the Relation Injective (1:M / 1:1)?
                                      │
                        ┌─────────────┴─────────────┐
-                      YES                          NO
+                      YES NO
                        │                           │
          ┌─────────────▼─────────────┐     ┌───────▼───────────────────┐
          │ Zero Deduplication Needed │     │ Is Aggregator Idempotent? │
@@ -764,7 +764,7 @@ Traditional engines compute `COUNT(DISTINCT attr)` via expensive hash tables ($O
          │ Cost: O(1) sum of degrees │     └───────┬───────────────────┘
          └───────────────────────────┘             │
                                        ┌───────────┴───────────┐
-                                      YES                      NO
+                                      YES NO
                                        │                       │
                          ┌─────────────▼──────────┐  ┌─────────▼───────────────┐
                          │ Deduplication Bypass   │  │ Flat Scratch Bitset     │
@@ -786,15 +786,15 @@ Traditional engines compute `COUNT(DISTINCT attr)` via expensive hash tables ($O
 
 ```
                             Categorical Morphism Spectrum
-                            
+
     ┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
-    │       Isomorphisms       │      Endomorphisms       │       Idempotent         │
-    │     (Reversible 1:1)     │      (A → A Loops)       │      Monad Closures      │
+    │ Isomorphisms       │ Endomorphisms       │ Idempotent         │
+    │ (Reversible 1:1)     │ (A → A Loops)       │ Monad Closures      │
     ├──────────────────────────┼──────────────────────────┼──────────────────────────┤
     │ • Perfect Invertibility  │ • Binary Exponentiation  │ • Pre-materialized       │
-    │ • Zero-Loss Bidirection  │   (R^8 = ((R^2)^2)^2)    │   Transitive Closure     │
+    │ • Zero-Loss Bidirection  │ (R^8 = ((R^2)^2)^2)    │ Transitive Closure     │
     │ • Flat Array Lookup      │ • Self-Adjoint (R = R^T) │ • Multi-hop R^+ ⟹ R*    │
-    │   in O(1)                │ • Spectral GraphBLAS     │ • O(1) Reachability      │
+    │ in O(1)                │ • Spectral GraphBLAS     │ • O(1) Reachability      │
     └──────────────────────────┴──────────────────────────┴──────────────────────────┘
 ```
 
@@ -828,10 +828,10 @@ $$\langle \mathrm{cata}(f), \mathrm{cata}(g) \rangle \equiv \mathrm{cata}(f \tim
   Instead of 4 separate passes or dynamic tuple allocations, the compiler fuses all 4 reducers into a **single vectorized register pass**:
   ```nasm
   ; Single-pass SIMD register accumulator
-  VPADDD   ZMM0, ZMM0, ZMM_VAL   ; ZMM0 = Rolling Sum
-  VPADDD   ZMM1, ZMM1, ZMM_ONE   ; ZMM1 = Rolling Count
-  VPMAXSD  ZMM2, ZMM2, ZMM_VAL   ; ZMM2 = Rolling Max
-  VPMINSD  ZMM3, ZMM3, ZMM_VAL   ; ZMM3 = Rolling Min
+  VPADDD ZMM0, ZMM0, ZMM_VAL   ; ZMM0 = Rolling Sum
+  VPADDD ZMM1, ZMM1, ZMM_ONE   ; ZMM1 = Rolling Count
+  VPMAXSD ZMM2, ZMM2, ZMM_VAL   ; ZMM2 = Rolling Max
+  VPMINSD ZMM3, ZMM3, ZMM_VAL   ; ZMM3 = Rolling Min
   ```
 
 ---
@@ -876,7 +876,7 @@ typedef enum ImpulseMorphismClass {
     IMP_MORPHISM_GENERAL    = 0x00,
     IMP_MORPHISM_FUNCTIONAL = 0x01, // Many-to-One (Out-Degree <= 1)
     IMP_MORPHISM_INJECTIVE  = 0x02, // One-to-Many (In-Degree <= 1)
-    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One  (In-Degree <= 1 && Out-Degree <= 1)
+    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One (In-Degree <= 1 && Out-Degree <= 1)
 } ImpulseMorphismClass;
 
 // Algebraic Structure Classification
@@ -907,7 +907,7 @@ Where:
 
 ```
                   The Axiomatic Algebraic Hierarchy
-                  
+
                Magma (Closed binary operation ⊕)
                          │
                          ▼ [+ Assoc: (a ⊕ b) ⊕ c = a ⊕ (b ⊕ c)]
@@ -918,7 +918,7 @@ Where:
                          │
         ┌────────────────┴────────────────┐
         ▼ [+ Commutative: a ⊕ b = b ⊕ a]   ▼ [+ Idempotent: a ⊕ a = a]
-   Abelian Monoid                     Join-Semilattice (⊔)
+   Abelian Monoid Join-Semilattice (⊔)
         │                                 │
         └────────────────┬────────────────┘
                          ▼
@@ -936,7 +936,7 @@ Properties are inferred systematically using an **Algebraic Type Inference Pass*
 
 ```
                             AST Property Inference Rules
-                            
+
         Leaf Nodes (Literals, Columns) ──[Snapshot Metadata Binding]──┐
                                                                       ▼
         Composite Expressions (f ∘ g)  ──[Functorial Composition Rules]──► Annotated AST
@@ -989,7 +989,7 @@ Once AST nodes are annotated with their algebraic signature $\Sigma$, the optimi
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                     Universal Equational Rewrite Calculus Table                        │
+│ Universal Equational Rewrite Calculus Table                        │
 ├────────────────────┬──────────────────────────────────────┬────────────────────────────┤
 │ Axiom Present in Σ │ Formal Mathematical Theorem          │ Compiler Engine Action     │
 ├────────────────────┼──────────────────────────────────────┼────────────────────────────┤
@@ -1047,17 +1047,17 @@ $$\mathrm{VR} = \coproduct_{i=1}^k R_i = R_1 \oplus R_2 \oplus \dots \oplus R_k$
 
 ```
               Virtual Relation Coproduct Decomposition Pipeline
-              
+
                           Virtual Super-Relation VR
                          (VR = R1 + R2 + R3 + R4)
                                      │
                  ┌───────────────────┼───────────────────┐
                  ▼                   ▼                   ▼
-           Constituent R1      Constituent R2      Constituent R3
-         (Forward CSR Dense)  (Low In-Degree CSC)  (Functional M:1)
+           Constituent R1 Constituent R2 Constituent R3
+         (Forward CSR Dense) (Low In-Degree CSC) (Functional M:1)
                  │                   │                   │
                  ▼                   ▼                   ▼
-           OP_CSR_WALK          OP_CSC_WALK       OP_LOAD_FLAT_EDGE
+           OP_CSR_WALK OP_CSC_WALK OP_LOAD_FLAT_EDGE
                  │                   │                   │
                  └───────────────────┬───────────────────┘
                                      ▼
@@ -1105,18 +1105,18 @@ Where `MEMBER_OF_ANY` is a virtual relation $\mathrm{VR} = R_{\text{DirectMember
 .text
 _traverse_vr:
     ; Path 1: Fast O(1) flat array dereference for M:1 constituent
-    OP_LOAD_FLAT_EDGE     R1, REL_DIRECT_MEMBER, 42
-    OP_BITSET_SET         REG_ACCUMULATOR, R1
+    OP_LOAD_FLAT_EDGE R1, REL_DIRECT_MEMBER, 42
+    OP_BITSET_SET REG_ACCUMULATOR, R1
 
     ; Path 2: CSC Transpose Walk for inverted low-degree constituent
-    OP_CSC_WALK           R2, REL_ASSIGNED_ROLE, 42
-    OP_BITSET_UNION       REG_ACCUMULATOR, R2
+    OP_CSC_WALK R2, REL_ASSIGNED_ROLE, 42
+    OP_BITSET_UNION REG_ACCUMULATOR, R2
 
     ; Path 3: Forward CSR vector walk for standard CSR constituent
-    OP_CSR_WALK           R3, REL_INHERITED_ORG, 42
-    OP_BITSET_UNION       REG_ACCUMULATOR, R3
+    OP_CSR_WALK R3, REL_INHERITED_ORG, 42
+    OP_BITSET_UNION REG_ACCUMULATOR, R3
 
-    OP_RET                REG_ACCUMULATOR
+    OP_RET REG_ACCUMULATOR
 ```
 
 #### 9.4.4 Partition Elimination for Free via Virtual Relations & Invariant Folding
@@ -1125,7 +1125,7 @@ A natural consequence of combining Virtual Super-Relations with Snapshot Zone Ma
 
 ```
                            Zero-Cost Static Partition Elimination
-                           
+
              Query: (s:Store)-[:IN_SECTION {section: 'FRUIT'}]->(p:Product)
                                             │
                                             ▼
@@ -1134,14 +1134,14 @@ A natural consequence of combining Virtual Super-Relations with Snapshot Zone Ma
                                             │
                 ┌───────────────────────────┼───────────────────────────┐
                 ▼                           ▼                           ▼
-        Constituent: SEC_FRUIT      Constituent: SEC_BREAD      Constituent: SEC_DAIRY
-        Zone Map: section='FRUIT'   Zone Map: section='BREAD'   Zone Map: section='DAIRY'
-        Eval: 'FRUIT'=='FRUIT'      Eval: 'BREAD'=='FRUIT'      Eval: 'DAIRY'=='FRUIT'
-        Result: TRUE                Result: FALSE               Result: FALSE
+        Constituent: SEC_FRUIT Constituent: SEC_BREAD Constituent: SEC_DAIRY
+        Zone Map: section='FRUIT' Zone Map: section='BREAD' Zone Map: section='DAIRY'
+        Eval: 'FRUIT'=='FRUIT' Eval: 'BREAD'=='FRUIT' Eval: 'DAIRY'=='FRUIT'
+        Result: TRUE Result: FALSE Result: FALSE
                 │                           │                           │
                 ▼                           ▼                           ▼
         [EMIT OP_CSR_WALK]          [PRUNED AT COMPILE-TIME]    [PRUNED AT COMPILE-TIME]
-        (Filter stripped from loop!)    (Zero Bytecode)             (Zero Bytecode)
+        (Filter stripped from loop!) (Zero Bytecode) (Zero Bytecode)
 ```
 
 ##### 1. Physical Snapshot Construction
@@ -1185,20 +1185,20 @@ Instead of degrading to an un-optimized full scan across all physical partitions
 
 ```
                        Dynamic Partition Elimination Strategies
-                       
+
              Parameterized Query: WHERE e.section == @p1
                                      │
                      ┌───────────────┴───────────────┐
                      ▼                               ▼
-       Categorical Parameter (@p1)       Continuous Range Parameter (@p1)
+       Categorical Parameter (@p1) Continuous Range Parameter (@p1)
        ┌───────────────────────────┐     ┌───────────────────────────────┐
        │ Strategy 1: O(1) String   │     │ Strategy 2: Scalar Zone-Map   │
        │ Dictionary Jump Table     │     │ Guard Preambles (CMP + JMP)   │
        └─────────────┬─────────────┘     └───────────────┬───────────────┘
                      │                                   │
                      ▼                                   ▼
-          Direct Jump to Specialized         Scalar register compare skips
-          Partition Bytecode Block           entire multi-megabyte CSR walk
+          Direct Jump to Specialized Scalar register compare skips
+          Partition Bytecode Block entire multi-megabyte CSR walk
 ```
 
 ##### Strategy 1: $O(1)$ Dictionary Jump Table (Categorical Partition Dispatch)
@@ -1213,7 +1213,7 @@ When partitioning is discrete (e.g. `section ∈ {'FRUIT', 'BREAD', 'DAIRY'}`):
 .text
 _dynamic_partition_dispatch:
     ; R_PARAM: Holds incoming @p1 string ID
-    OP_SWITCH_HASH        R_PARAM, _dispatch_table, _empty_exit
+    OP_SWITCH_HASH R_PARAM, _dispatch_table, _empty_exit
 
 _dispatch_table:
     .entry HASH_FRUIT,  _walk_sec_fruit
@@ -1222,16 +1222,16 @@ _dispatch_table:
 
 _walk_sec_fruit:
     ; Filter stripped! Raw unmasked vector walk
-    OP_CSR_WALK           REG_OUT, REL_SEC_FRUIT, R_SRC_NODE
-    OP_RET                REG_OUT
+    OP_CSR_WALK REG_OUT, REL_SEC_FRUIT, R_SRC_NODE
+    OP_RET REG_OUT
 
 _walk_sec_bread:
-    OP_CSR_WALK           REG_OUT, REL_SEC_BREAD, R_SRC_NODE
-    OP_RET                REG_OUT
+    OP_CSR_WALK REG_OUT, REL_SEC_BREAD, R_SRC_NODE
+    OP_RET REG_OUT
 
 _walk_sec_dairy:
-    OP_CSR_WALK           REG_OUT, REL_SEC_DAIRY, R_SRC_NODE
-    OP_RET                REG_OUT
+    OP_CSR_WALK REG_OUT, REL_SEC_DAIRY, R_SRC_NODE
+    OP_RET REG_OUT
 
 _empty_exit:
     OP_RET_EMPTY
@@ -1249,24 +1249,24 @@ For range predicates like `WHERE tx.timestamp >= @min_time`:
 .text
 _traverse_range_partitions:
     ; --- Partition 1: TX_2026_Q1 (Zone Map: [Jan 1, Mar 31] = [1704067200, 1711929600]) ---
-    CMP_GT_IMM            R_MIN_TIME, 1711929600, _skip_q1   ; If @min_time > Mar 31, skip Q1 completely!
-    CMP_LE_IMM            R_MIN_TIME, 1704067200, _run_q1_raw; If @min_time <= Jan 1, 100% match!
-    OP_CSR_WALK_GE_I64    R_ACC, REL_TX_Q1, R_SRC, ATTR_TIME, R_MIN_TIME
+    CMP_GT_IMM R_MIN_TIME, 1711929600, _skip_q1   ; If @min_time > Mar 31, skip Q1 completely!
+    CMP_LE_IMM R_MIN_TIME, 1704067200, _run_q1_raw; If @min_time <= Jan 1, 100% match!
+    OP_CSR_WALK_GE_I64 R_ACC, REL_TX_Q1, R_SRC, ATTR_TIME, R_MIN_TIME
     JMP                   _skip_q1
 _run_q1_raw:
-    OP_CSR_WALK           R_ACC, REL_TX_Q1, R_SRC            ; Filter stripped!
+    OP_CSR_WALK R_ACC, REL_TX_Q1, R_SRC            ; Filter stripped!
 _skip_q1:
 
     ; --- Partition 2: TX_2026_Q2 (Zone Map: [Apr 1, Jun 30] = [1711929600, 1719792000]) ---
-    CMP_GT_IMM            R_MIN_TIME, 1719792000, _skip_q2   ; If @min_time > Jun 30, skip Q2 completely!
-    CMP_LE_IMM            R_MIN_TIME, 1711929600, _run_q2_raw; If @min_time <= Apr 1, 100% match!
-    OP_CSR_WALK_GE_I64    R_ACC, REL_TX_Q2, R_SRC, ATTR_TIME, R_MIN_TIME
+    CMP_GT_IMM R_MIN_TIME, 1719792000, _skip_q2   ; If @min_time > Jun 30, skip Q2 completely!
+    CMP_LE_IMM R_MIN_TIME, 1711929600, _run_q2_raw; If @min_time <= Apr 1, 100% match!
+    OP_CSR_WALK_GE_I64 R_ACC, REL_TX_Q2, R_SRC, ATTR_TIME, R_MIN_TIME
     JMP                   _skip_q2
 _run_q2_raw:
-    OP_CSR_WALK           R_ACC, REL_TX_Q2, R_SRC            ; Filter stripped!
+    OP_CSR_WALK R_ACC, REL_TX_Q2, R_SRC            ; Filter stripped!
 _skip_q2:
 
-    OP_RET                R_ACC
+    OP_RET R_ACC
 ```
 
 ##### Strategy 3: JIT Parameter Template Specialization (Hot-Path Caching)
@@ -1282,15 +1282,15 @@ When query parameters are evaluated at runtime, the combination of parameter val
 
 ```
                   Advanced Dynamic Parameter Optimizations
-                  
+
   ┌─────────────────────────┬─────────────────────────┬─────────────────────────┐
   │ 1. Value Short-Circuits │ 2. Adaptive CSR/CSC     │ 3. Kernel Dispatch      │
-  │    (Absorbing Elements) │    Direction Inversion  │    (Scale Specialization│
+  │ (Absorbing Elements) │ Direction Inversion  │ (Scale Specialization│
   ├─────────────────────────┼─────────────────────────┼─────────────────────────┤
   │ • @is_admin == true     │ • Compare |src| × Deg   │ • |ids| == 1 ⟹ Scalar   │
-  │   ⟹ Skip Traversal     │   vs |dst| × InDeg      │ • |ids| ≤ 64 ⟹ AVX-512  │
+  │   ⟹ Skip Traversal     │ vs |dst| × InDeg      │ • |ids| ≤ 64 ⟹ AVX-512  │
   │ • @scale == 0 ⟹ Ret 0   │ • Super-Node Inversion  │ • |ids| > 64 ⟹ OpenMP   │
-  │ • @limit == 1 ⟹ 1st BFS│   (500,000x Speedup)    │ • @k ≤ 32 ⟹ Reg Top-K  │
+  │ • @limit == 1 ⟹ 1st BFS│ (500,000x Speedup)    │ • @k ≤ 32 ⟹ Reg Top-K  │
   └─────────────────────────┴─────────────────────────┴─────────────────────────┘
 ```
 
@@ -1324,17 +1324,17 @@ $$\text{Reverse Cost} = |\text{dst\_list}| \times \text{AvgInDegree}(\text{FOLLO
 
 ```
                   The Super-Node Traversal Inversion
-                  
+
    Scenario: Path check between Influencer (@src, OutDeg=1,000,000) and Normal User (@dst, InDeg=2)
-   
+
    Forward CSR Walk (Naive):
      @src (1M edges) ──[Scan 1,000,000 edges]──► Massive Frontier ──► Intersect with @dst
      Cost: 1,000,000 edge lookups + large bitset allocation.
-     
+
    Reverse CSC Transpose Walk (Inverted):
      @dst (2 edges) ──[Scan 2 incoming edges]──► Tiny Frontier {u1, u2} ──► Match @src
      Cost: EXACTLY 2 edge lookups!
-     
+
    Speedup Factor: 500,000x faster, zero allocation!
 ```
 
@@ -1393,7 +1393,7 @@ typedef enum ImpulseMorphismClass {
     IMP_MORPHISM_GENERAL    = 0x00,
     IMP_MORPHISM_FUNCTIONAL = 0x01, // Many-to-One (Out-Degree <= 1)
     IMP_MORPHISM_INJECTIVE  = 0x02, // One-to-Many (In-Degree <= 1)
-    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One  (In-Degree <= 1 && Out-Degree <= 1)
+    IMP_MORPHISM_BIJECTIVE  = 0x03  // One-to-One (In-Degree <= 1 && Out-Degree <= 1)
 } ImpulseMorphismClass;
 
 // Algebraic Axiomatic Flags
@@ -1410,40 +1410,40 @@ typedef enum ImpulseAlgebraicClass {
 
 // Scalar Value Interval
 typedef struct ImpulseIntervalBound {
-    int64_t  min_int;
-    int64_t  max_int;
-    double   min_double;
-    double   max_double;
-    bool     is_valid;
+    int64_t min_int;
+    int64_t max_int;
+    double min_double;
+    double max_double;
+    bool is_valid;
 } ImpulseIntervalBound;
 
 // AST Node Property Annotation Record
 typedef struct ImpulseAstAnnotation {
-    ImpulseIntervalBound    interval;
-    ImpulseMorphismClass    morphism;
-    uint32_t                algebra_flags;      // Bitmask of ImpulseAlgebraicClass
-    ImpulseMonotonicity     monotonicity;
-    uint32_t                homomorphism_flags; // Bitmask of ImpulseHomomorphismFlags
-    uint32_t                cardinality_upper;  // Upper bound on intermediate elements
-    bool                    is_pure;            // True if free of side-effects
-    bool                    is_constant_known;
-    bool                    constant_bool_val;
-    uint64_t                constant_raw_val;
+    ImpulseIntervalBound interval;
+    ImpulseMorphismClass morphism;
+    uint32_t algebra_flags;      // Bitmask of ImpulseAlgebraicClass
+    ImpulseMonotonicity monotonicity;
+    uint32_t homomorphism_flags; // Bitmask of ImpulseHomomorphismFlags
+    uint32_t cardinality_upper;  // Upper bound on intermediate elements
+    bool is_pure;            // True if free of side-effects
+    bool is_constant_known;
+    bool constant_bool_val;
+    uint64_t constant_raw_val;
 } ImpulseAstAnnotation;
 
 // Core Compiler API: Annotate and Optimize AST bound to Snapshot
 int impulse_ast_bind_snapshot(
-    void*                   ast_root,
-    const void*             snapshot_handle,
-    ImpulseAstAnnotation*   out_annotation_tree
+    void* ast_root,
+    const void* snapshot_handle,
+    ImpulseAstAnnotation* out_annotation_tree
 );
 
 int impulse_ast_optimize_and_emit_impas(
-    const void*             ast_root,
+    const void* ast_root,
     const ImpulseAstAnnotation* annotations,
-    char*                   out_impas_buffer,
-    size_t                  buffer_capacity,
-    size_t*                 out_impas_length
+    char* out_impas_buffer,
+    size_t buffer_capacity,
+    size_t* out_impas_length
 );
 
 #ifdef __cplusplus

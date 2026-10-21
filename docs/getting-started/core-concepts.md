@@ -65,11 +65,11 @@ In CSR format, this entire graph is stored in two compact arrays:
 ```
 row_offsets:    [ 0,    2,    3,    3,    6 ]
                   │     │     │     │     │
-Node Index:       0     1     2     3    (end)
+Node Index:       0     1     2     3 (end)
 
 column_targets: [ 1, 2, │ 2, │ (none), │ 0, 1, 2 ]
                   ──────  ───          ───────────
-                  Node 0  Node 1         Node 3
+                  Node 0 Node 1 Node 3
 ```
 
 ### How an Edge Lookup Works in $O(1)$
@@ -116,8 +116,8 @@ Impulse Graph does not use global IDs. Instead, **each Node Domain possesses its
 
 ```
 ┌─────────────────────────┐         ┌─────────────────────────┐
-│       User Domain       │         │     Account Domain      │
-│  Cardinality: 10,000    │         │   Cardinality: 50,000   │
+│ User Domain       │         │ Account Domain      │
+│ Cardinality: 10,000    │         │ Cardinality: 50,000   │
 ├─────────────────────────┤         ├─────────────────────────┤
 │ Dense IDs: 0 .. 9,999   │         │ Dense IDs: 0 .. 49,999  │
 │ User 0 ≠ Account 0      │         │ Account 0 ≠ User 0      │
@@ -187,7 +187,7 @@ When evaluating a traversal filter like `.filter("node.age >= 21")`:
 
 ## 8. The Impulse Binary Snapshot (`.imps`)
 
-All of the above primitives—CSR matrices, CSC matrices, domain catalogs, string pools, and columnar attributes—are serialized into a single immutable file ending with `.imps` (C-ABI Binary Snapshot Specification v0.9.0).
+All of the above primitives—CSR matrices, CSC matrices, domain catalogs, string pools, and columnar attributes—are serialized into a single immutable file ending with `.imps` (C-ABI Binary Snapshot Specification ).
 
 * **Page 0 (4KB)**: Fixed header with magic bytes `0x494D5053` (`IMPS`), version `0x0009`, and hardware flags.
 * **128-Byte Hardware Alignment**: All sections, matrices, and attribute arrays are strictly aligned to 128-byte boundaries. This matches AVX-512 cache lines and GPU warp memory coalescing (NVIDIA GPUDirect Storage `cuFile`).
@@ -199,7 +199,7 @@ All of the above primitives—CSR matrices, CSC matrices, domain catalogs, strin
 
 | Term | Canonical Definition | Role in Impulse Graph |
 | :--- | :--- | :--- |
-| **`.imps`** | Impulse Binary Snapshot File (v0.9.0). | Immutable, page-aligned, zero-copy binary file format. |
+| **`.imps`** | Impulse Binary Snapshot File. | Immutable, page-aligned, zero-copy binary file format. |
 | **Node Domain** | A distinct entity namespace (e.g., `User`, `Account`). | Defines an independent dense ID space $0 \dots N_d - 1$. |
 | **Dense ID** | A zero-indexed primitive integer ($0 \dots N-1$). | Direct index into CSR offsets and columnar attribute arrays. |
 | **Relation** | A directed edge type connecting a source domain to a target domain. | Encodes graph connections (e.g., `User -[:OWNS]-> Account`). |

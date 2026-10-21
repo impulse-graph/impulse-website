@@ -1,7 +1,7 @@
 # Impulse Graph Engine — Cross-Language Fluent API Specification & Guide
 
-> **Document Status**: Normative Ecosystem Standard  
-> **Target Version**: `v0.9.0` / `v1.0.0`  
+> **Document Status**: Normative Ecosystem Standard
+> **Target Version**: `` / `v1.0.0`
 > **Applies To**: C++20, Rust, Python, Java 25, Node.js, C# (.NET)
 
 ---
@@ -14,7 +14,7 @@ To satisfy both high-level application developers and low-level systems/compiler
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        Impulse Graph Fluent API Architecture                           │
+│ Impulse Graph Fluent API Architecture                           │
 ├───────────────────────────────────────────┬────────────────────────────────────────────┤
 │ Tier 1: High-Level Traversal Pipeline     │ Tier 2: Low-Level VM Query Assembler       │
 │ (Declarative, Path & Hop Centric)         │ (Register-Based, Bytecode & Kernel Centric)│

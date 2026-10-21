@@ -17,7 +17,7 @@ This document presents a technical comparison of NornicDB and Impulse Graph Engi
 | :--- | :--- | :--- |
 | **Primary Focus & Target Workload** | Active AI-native graph + vector database server (Neo4j/Qdrant replacement) for temporal agent memory and Graph-RAG. | Decoupled, zero-copy graph snapshot analytics kernel ("Apache Arrow for Graphs") for sub-microsecond vector traversals & GNNs. |
 | **Language & Stack** | Go 1.26, BadgerDB KV store, ANTLR4, Bolt driver protocol, CUDA/Metal/Vulkan embedding models. | C++20 core kernel, Rust crate, Java 25 FFM, **Zero Runtime Dependencies**. |
-| **Data Immutability & Concurrency** | **Mutable** with Snapshot Isolation MVCC, WAL (Write-Ahead Log), transaction locks, and historical time-travel reads (`pkg/storage/badger_mvcc.go`). | **Strictly Immutable** `.imps` snapshot format (v0.9.0). Snapshot updates generated out-of-band by streaming snapshot compilers. |
+| **Data Immutability & Concurrency** | **Mutable** with Snapshot Isolation MVCC, WAL (Write-Ahead Log), transaction locks, and historical time-travel reads (`pkg/storage/badger_mvcc.go`). | **Strictly Immutable** `.imps` snapshot format. Snapshot updates generated out-of-band by streaming snapshot compilers. |
 | **Memory & Storage Model** | KV store backed by BadgerDB (LSM-tree), dynamic Go heap objects (`Node`, `Edge`), in-memory HNSW vector index arrays. | **Zero-Copy Memory-Mapped (`mmap`)**: 128-byte hardware-aligned C-ABI binary layout (AVX-512 / GPU warp coalesced), zero heap allocations. |
 | **Query Engine Architecture** | ANTLR Cypher Parser $\to$ AST $\to$ Query Shape Matcher / Fast-Path Router $\to$ Go Iterator Executor (`pkg/cypher/executor.go`). | Multi-Frontend Compiler Suite (`ImpK`, `ImpLog`) $\to$ Homoiconic S-Expr IR (`ImpScheme`) $\to$ Register Assembly (`ImpAsm`) $\to$ **`ImpulseVM` bytecode (`impOps`)**. |
 | **Execution Strategy** | Pipeline fast-paths (`executor_match_limit_fastpath.go`) bypassing general AST evaluation for matched query shapes. | Low-level register Virtual Machine (`ImpulseVM` registers `R0`..`R63`) executing fixed `impOps` opcodes with OpenMP parallel loops and SIMD primitives. |
@@ -52,7 +52,7 @@ NornicDB relies on BadgerDB (an LSM-tree key-value store in Go) for persistent g
 
 #### Impulse Binary Snapshot (`.imps`)
 Impulse Graph Engine bypasses key-value stores entirely:
-* **Off-Heap Memory Mapping**: Operates directly over 128-byte hardware-aligned binary files (`.imps` v0.9.0). CSR/CSC topology vectors and SoA attribute matrices are memory-mapped (`mmap`) into process virtual memory.
+* **Off-Heap Memory Mapping**: Operates directly over 128-byte hardware-aligned binary files (`.imps` ). CSR/CSC topology vectors and SoA attribute matrices are memory-mapped (`mmap`) into process virtual memory.
 * **Zero GC & Zero Deserialization**: `ImpulseVM` reads raw C-pointers directly off-heap. Zero Go/Java garbage collection pauses or key decoding steps take place during query evaluation.
 
 ---

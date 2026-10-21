@@ -1,4 +1,4 @@
-# Architectural Review & Critique: ImpulseVM ISA, Spec v0.9.0 & Test Suite
+# Architectural Review & Critique: ImpulseVM ISA, Spec  & Test Suite
 
 **Architectural Review Perspectives**: 
 * **Roberto Ierusalimschy** (Lead Architect & Creator of Lua)
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document captures an architectural critique of the **Impulse Graph Engine Virtual Machine (`ImpulseVM`)**, bytecode instruction set (`impOps`), binary specification (`.imps` v0.9.0), and test verifier processes. 
+This document captures an architectural critique of the **Impulse Graph Engine Virtual Machine (`ImpulseVM`)**, bytecode instruction set (`impOps`), binary specification (`.imps` ), and test verifier processes. 
 
 While ImpulseVM excels at zero-copy off-heap sub-microsecond vector traversals and C-ABI memory layout alignment, scaling the engine requires addressing architectural technical debt in opcode orthogonality, memory allocation semantics, and test vector coverage.
 
@@ -23,14 +23,14 @@ While ImpulseVM excels at zero-copy off-heap sub-microsecond vector traversals a
 * **Impact**: Adding a new graph algorithm requires introducing new C-ABI opcode numbers and modifying every polyglot language interpreter dispatch table.
 * **Remediation**: Retire monolithic opcodes `0x60`–`0x6A`. Implement Louvain, Motif Matching, and K-Core as **bytecode subroutines** composed from orthogonal primitives (`OP_CSR_WALK`, `OP_ROARING_BITMAP_AND`, `OP_EWISE_ADD`, `OP_CALL`).
 
-### 🔴 Flaw #2: Inner-Loop Dynamic Type Tag Dispatch Penalty (RESOLVED v0.9.0)
+### 🔴 Flaw #2: Inner-Loop Dynamic Type Tag Dispatch Penalty (RESOLVED )
 * **Observation**: Every register in `impulse_vm_state_t` carries an 8-bit `register_types` tag. Handlers like `handleVectorReduceSum` perform runtime type branching (`if type == TYPE_FLOAT_VECTOR ... else if type == TYPE_BITSET_HANDLE ...`).
 * **Critique**: Dynamic type dispatch inside inner SIMD vector loops introduces branch mispredictions and disrupts AVX-512 / ARM Neon instruction pipelining.
-* **Status**: **RESOLVED in v0.9.0**. Introduced `ImpulseValidator` (AOT Bytecode Type & Register Bounds Validator). Validates bytecode type propagation across `R0`..`R63` before execution, eliminating inner-loop dynamic type tag branch mispredictions.
+* **Status**: **RESOLVED in **. Introduced `ImpulseValidator` (AOT Bytecode Type & Register Bounds Validator). Validates bytecode type propagation across `R0`..`R63` before execution, eliminating inner-loop dynamic type tag branch mispredictions.
 
 ---
 
-## 1.1 Dynamic Topology Inspection & Optional Snapshot Contracts (v0.9.0 Specification Upgrade)
+## 1.1 Dynamic Topology Inspection & Optional Snapshot Contracts ( Specification Upgrade)
 
 ### ✅ Feature: Optional Topology Error Contracts & Inspection Suite (`0x19` .. `0x1C`)
 * **Observation**: Prior snapshots assumed mandatory CSR availability. Optional topology sections (CSC, COO, Key Catalogs) lacked dynamic runtime inspection.

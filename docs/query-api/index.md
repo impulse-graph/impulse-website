@@ -13,23 +13,23 @@ It can be created at startup, cached, composed into larger queries, sent over a 
 The execution-time graph parameterization relies on a short-lived `GraphView` wrapper:
 
 ```text
-STARTUP                          RUNTIME                          SNAPSHOT ROTATION
+STARTUP RUNTIME SNAPSHOT ROTATION
 ─────────────────────────────────────────────────────────────────────────────────────
 
-ImpulseQuery (long-lived)        GraphView (short-lived)          ImpulseQuery (reused ✓)
+ImpulseQuery (long-lived) GraphView (short-lived) ImpulseQuery (reused ✓)
   │                                │                                │
-  │  Built once from               │  Wraps current graph           │  Same query object,
-  │  pure AST (no graph ref)       │  state for one execute()       │  new GraphView
+  │ Built once from               │ Wraps current graph           │ Same query object,
+  │ pure AST (no graph ref)       │ state for one execute()       │ new GraphView
   │                                │                                │
   ▼                                ▼                                ▼
-ImpulseQuery.builder()          GraphView.of(snapshot)          GraphView.of(newSnapshot)
-  .input(USER, BITSET)      ──▶  query.execute(view, input) ──▶  query.execute(newView, input)
+ImpulseQuery.builder() GraphView.of(snapshot) GraphView.of(newSnapshot)
+  .input(USER, BITSET)      ──▶ query.execute(view, input) ──▶ query.execute(newView, input)
   .walkEdge("userToGroup")
-  .walkEdge("groupToRole")        GraphView.of(liveGraph)
-  .collect(ROARING)          ──▶  query.execute(view, input)
-                                  
+  .walkEdge("groupToRole") GraphView.of(liveGraph)
+  .collect(ROARING)          ──▶ query.execute(view, input)
+
                                   GraphView.of(snapshot, delta)   ← custom delta injection
-                             ──▶  query.execute(view, input)      ← N-2 contingency
+                             ──▶ query.execute(view, input)      ← N-2 contingency
 ```
 
 ## Polyglot Consistency

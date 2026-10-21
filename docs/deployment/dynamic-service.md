@@ -28,7 +28,7 @@ Because memory-mapping large files (TB scale) can take a non-trivial amount of t
 === "Java"
     ```java
     ImpulseGraph liveGraph = ImpulseGraph.open(baseSnapshotPath);
-    
+
     // In background compaction thread:
     Snapshot newSnapshot = loadNewSnapshotInBackground();
     liveGraph.swapAtomic(newSnapshot);

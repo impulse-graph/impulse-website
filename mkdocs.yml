@@ -92,9 +92,9 @@ nav:
     - GraphView & Execution: query-api/graph-view-execution.md
 
   - API Reference:
+    - Java 25 Engine API Reference: reference/java-api.md
     - C-ABI Kernel & VM Reference: reference/c-abi.md
     - C++20 API Reference: reference/cpp-api.md
-    - Java 21 / 25 API Reference: reference/java-api.md
     - Rust Crate Reference: reference/rust-api.md
     - Python SDK Reference: reference/python-api.md
     - Go SDK (CGo) Reference: reference/go-api.md
@@ -112,12 +112,12 @@ nav:
 
   - Specifications:
     - Specification Hub: reference/spec/index.md
-    - Binary Snapshot Format (v0.9.0): reference/spec/format-specification.md
-    - ImpulseVM & ImpOps ISA (v0.9.0): reference/spec/vm-specification.md
-    - ImpAs Assembly Format (v0.9.0): reference/spec/impas-specification.md
+    - Binary Snapshot Format (.imps): reference/spec/format-specification.md
+    - ImpulseVM & ImpOps ISA: reference/spec/vm-specification.md
+    - ImpAs Assembly Format (.impas): reference/spec/impas-specification.md
     - Snapshot Schema (.imps.schema.yaml): reference/spec/schema-specification.md
-    - Generated Protocol Tables (v0.9.0): reference/spec/v0.9.md
-    - Specification Summary (v0.9.0): reference/spec/v0.9.0.md
+    - Generated Protocol Tables: reference/spec/protocol-tables.md
+    - Specification Summary: reference/spec/overview.md
     - Schema Evolution: reference/schema-evolution.md
 
   - Deployment & Tuning:

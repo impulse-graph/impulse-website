@@ -4,7 +4,7 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
 
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│   ImpK (Array)   │  │ ImpLog (Datalog) │  │ ImpScheme (S-Expr)│
+│ ImpK (Array)   │  │ ImpLog (Datalog) │  │ ImpScheme (S-Expr)│
 │ `g @[f; rel]`    │  │ `head :- body`   │  │ `(g:walk-csr ...)`│
 └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
          │                     │                     │
@@ -12,7 +12,7 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
                                │ (Translates to ImpScm IR)
                                ▼
             ┌──────────────────────────────────────────────┐
-            │       ImpScm (Universal Compiler IR)         │
+            │ ImpScm (Universal Compiler IR)         │
             │   • Vector Fusion Pass (&~ -> AND_NOT)       │
             │   • Direction Selection (CSR vs CSC)         │
             │   • Linear Scan Reg Allocator (R0..R63)      │
@@ -20,8 +20,8 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
                                    │
                                    ▼
             ┌──────────────────────────────────────────────┐
-            │        canonical .impas Emitter              │
-            │    OP_CSR_WALK, OP_ROARING_BITMAP_AND_NOT    │
+            │ canonical .impas Emitter              │
+            │ OP_CSR_WALK, OP_ROARING_BITMAP_AND_NOT    │
             └──────────────────────────────────────────────┘
 ```
 

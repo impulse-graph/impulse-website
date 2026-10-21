@@ -39,29 +39,25 @@ Add these to your `pom.xml`:
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-builder</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Public API (DomainView, IdMapper, traversals, bitsets) -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-api</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Binary Snapshot Loader -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-storage</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 
     <!-- Compute Virtual Machine -->
     <dependency>
         <groupId>org.impulsegraph</groupId>
         <artifactId>impulse-vm</artifactId>
-        <version>0.9.0</version>
-    </dependency>
+        </dependency>
 </dependencies>
 ```
 
@@ -425,20 +421,20 @@ SnapshotBuilder.create()
         .withStagingDirectory(stagingDir)
         // RAM limit for staging buffers before spilling to disk
         .withStagingMemoryLimit(64 * 1024 * 1024L) // 64 MB
-        
+
         // Register domains
         .addDomain("User", userDomain)
         .addDomain("Account", accountDomain)
-        
+
         // Register relations
         .addRelation("OWNS", ownsRelation)
         .addRelation("TRANSFERRED_TO", transferRelation)
-        
+
         // Optional footer metadata
         .addFooterMetadata("generator", "BankGraphPipeline-v1")
         .addFooterMetadata("source_database", "production_postgres_replica")
         .addFooterMetadata("built_at", Instant.now().toString())
-        
+
         // Write to disk
         .writeTo(snapshotPath);
 

@@ -41,7 +41,7 @@ Configure code generation and testing snapshot properties:
         schemaFile = file("src/main/resources/schema.yaml")
         outputDirectory = file("build/generated/sources/impulse")
         packageName = "com.example.generated"
-        
+
         // CSV-to-IMPS testing configuration
         csvFile = file("src/test/resources/edges.csv")
         snapshotOutputFile = file("build/snapshots/test.imps")
@@ -55,7 +55,7 @@ Configure code generation and testing snapshot properties:
         schemaFile = file('src/main/resources/schema.yaml')
         outputDirectory = file('build/generated/sources/impulse')
         packageName = 'com.example.generated'
-        
+
         csvFile = file('src/test/resources/edges.csv')
         snapshotOutputFile = file('build/snapshots/test.imps')
     }
@@ -70,7 +70,7 @@ The plugin registers three core tasks in your Gradle build execution graph:
 | Task Name | Description | Default Trigger |
 | :--- | :--- | :--- |
 | **`impulseGenerate`** | Parses `schema.yaml`, generates compile-time type-checked Java/Kotlin query builder classes, and wires output into `sourceSets.main`. | Executed automatically before `compileJava` / `compileKotlin`. |
-| **`impulseCompileCsv`** | Compiles CSV edge lists into page-aligned C-ABI Spec v0.9.0 `.imps` binary snapshot files direct-to-disk for testing. | Executed before `test`. |
+| **`impulseCompileCsv`** | Compiles CSV edge lists into page-aligned C-ABI Spec  `.imps` binary snapshot files direct-to-disk for testing. | Executed before `test`. |
 | **`impulseInspect`** | Inspects a `.imps` binary snapshot file, printing relation names, edge counts, off-heap memory size, and SHA-256 checksums to terminal logs. | Manual or diagnostic pipeline. |
 
 ---
@@ -127,13 +127,13 @@ Inspect compiled snapshot binary headers and stats directly from terminal logs:
 Sample console output:
 ```text
 =========================================================================
-                   IMPULSE GRAPH SNAPSHOT INSPECTOR                      
+                   IMPULSE GRAPH SNAPSHOT INSPECTOR
 =========================================================================
  File Path:              /project/build/snapshots/test.imps
  File Size:              20500 bytes
  Off-Heap Footprint:     68 bytes
  Total Relations:        3
  Relation Names:         [groupToRole, userToGroup, userToRole]
- SHA-256 Checksum:       a8f3b2c1...
+ SHA-256 Checksum: a8f3b2c1...
 =========================================================================
 ```

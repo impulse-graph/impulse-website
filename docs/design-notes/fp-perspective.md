@@ -7,12 +7,12 @@ This document formalizes the **Impulse Graph Engine** through the lenses of **Ca
 ## 1. Executive Summary & The Categorical Thesis
 
 ```
- Traditional Graph Engines (SQL / Cypher)          Impulse Graph Engine (C-ABI Snapshot)
+ Traditional Graph Engines (SQL / Cypher) Impulse Graph Engine (C-ABI Snapshot)
  ─────────────────────────────────────────        ──────────────────────────────────────
- Multi-set (Bag) Monad: M(X) = X → ℕ               Semiring-Weighted Monad: W_R(X) = X → R
- Frontier cardinality: O(d^k) [Path Explosion]    Frontier cardinality: |S| ≤ |V_target|
- Ad-hoc DISTINCT & Hash-Table Deduplication        Implicit Monoidal Reduction (μ : W_R(W_R(X)) → W_R(X))
- Dynamic Heap Allocations & GC Latency             Allocation-Free Flat Off-Heap Vector Spaces
+ Multi-set (Bag) Monad: M(X) = X → ℕ Semiring-Weighted Monad: W_R(X) = X → R
+ Frontier cardinality: O(d^k) [Path Explosion] Frontier cardinality: |S| ≤ |V_target|
+ Ad-hoc DISTINCT & Hash-Table Deduplication Implicit Monoidal Reduction (μ : W_R(W_R(X)) → W_R(X))
+ Dynamic Heap Allocations & GC Latency Allocation-Free Flat Off-Heap Vector Spaces
 ```
 
 ### 1.1 The Fundamental Categorical Thesis
@@ -41,7 +41,7 @@ A heterogeneous graph schema defines a small category $\mathbf{C}_{\text{Schema}
 4. **Composition ($\circ$)**: Relational path traversal $(R_2 \circ R_1)(a, c) \iff \exists b \in \mathcal{V}_B.\; (a, b) \in \mathcal{E}_{R_1} \land (b, c) \in \mathcal{E}_{R_2}$.
 
 ```
-                 E_R1                     E_R2
+                 E_R1 E_R2
       NodeSet<A> ─────> NodeSet<B> ─────> NodeSet<C>
           │                                  ▲
           │                                  │
@@ -70,15 +70,15 @@ In functional programming, collection and query semantics are governed by monads
 
 ```
           ┌─────────────────────────────────────────────────────────────┐
-          │                    The Monad Hierarchy                      │
+          │ The Monad Hierarchy                      │
           └──────────────────────────────┬──────────────────────────────┘
                                          │
                  ┌───────────────────────┴───────────────────────┐
                  ▼                                               ▼
    ┌───────────────────────────┐                   ┌───────────────────────────┐
-   │    Multiset/Bag Monad     │                   │  Semiring-Weighted Monad  │
-   │      M(X) = X → ℕ         │                   │      W_R(X) = X → R       │
-   │  (SQL / Neo4j / Cypher)   │                   │   (Impulse Graph Engine)  │
+   │ Multiset/Bag Monad     │                   │ Semiring-Weighted Monad  │
+   │ M(X) = X → ℕ         │                   │ W_R(X) = X → R       │
+   │ (SQL / Neo4j / Cypher)   │                   │ (Impulse Graph Engine)  │
    ├───────────────────────────┤                   ├───────────────────────────┤
    │ • Duplicates preserved    │                   │ • Monoid reduction on fold│
    │ • Exponential fan-out     │                   │ • Bound: |S| ≤ |V_target| │
@@ -124,7 +124,7 @@ Let $\mathcal{E}_R \subseteq \mathcal{V}_{\text{Src}} \times \mathcal{V}_{\text{
 $$\pi_2^{-1}(d) = \left\{ (s, e) \in \mathcal{E}_R \;\middle|\; \text{target}(e) = d \right\}$$
 
 ```
- Source Frontier (S_Src)           Edges (E_R)            Destination Fiber (π₂⁻¹(d))
+ Source Frontier (S_Src) Edges (E_R) Destination Fiber (π₂⁻¹(d))
  ───────────────────────           ───────────            ───────────────────────────
    (s₁, σ₁) ───────────────────────── e₁ ────┐
                                              ├──> Target Node d ──> Reduced State:
@@ -151,15 +151,15 @@ While GraphBLAS elegantly models linear algebra over homogeneous matrices, it st
 
 ```
                         ┌─────────────────────────────────────────────────────────┐
-                        │              Grothendieck Fibration / Sheaf             │
-                        │       v ↦ Schema(v), e ↦ Schema(e) (Attribute Fibers)   │
+                        │ Grothendieck Fibration / Sheaf             │
+                        │ v ↦ Schema(v), e ↦ Schema(e) (Attribute Fibers)   │
                         └────────────────────────────┬────────────────────────────┘
                                                      │
                                                      ▼
-┌──────────────────────────────────────┐  Lifting   ┌──────────────────────────────────────────┐
-│         Base Category B              │ ─────────> │   Guarded Kleisli Arrow with RWST Monad  │
-│ Nodes (V_A, V_B), Edges (E_R : A->B) │  Optics    │ (Reader: Attributes, Writer: Monoid,     │
-│       (Zero-Copy CSR Topology)       │  Lenses    │  State: Frontier, Option: Predicates)    │
+┌──────────────────────────────────────┐ Lifting   ┌──────────────────────────────────────────┐
+│ Base Category B              │ ─────────> │ Guarded Kleisli Arrow with RWST Monad  │
+│ Nodes (V_A, V_B), Edges (E_R : A->B) │ Optics    │ (Reader: Attributes, Writer: Monoid,     │
+│ (Zero-Copy CSR Topology)       │ Lenses    │ State: Frontier, Option: Predicates)    │
 └──────────────────────────────────────┘            └──────────────────────────────────────────┘
 ```
 
@@ -204,25 +204,25 @@ $$\mathcal{T} = \mathrm{ReaderT}\; (\mathcal{A}_{\text{Src}} \times \mathcal{A}_
 
 ```
                                ┌──────────────────────────────────────────────┐
-                               │             ReaderT (Attributes)             │
+                               │ ReaderT (Attributes)             │
                                │ Read-only zero-copy access to .imps memory   │
                                └──────────────────────┬───────────────────────┘
                                                       │
                                                       ▼
                                ┌──────────────────────────────────────────────┐
-                               │                Option / Guard                │
+                               │ Option / Guard                │
                                │ Drops filtered edges (predicate failure)     │
                                └──────────────────────┬───────────────────────┘
                                                       │
                                                       ▼
                                ┌──────────────────────────────────────────────┐
-                               │             WriterT (Monoid Σ, ⊕)            │
+                               │ WriterT (Monoid Σ, ⊕)            │
                                │ Folds incoming states at destination fiber   │
                                └──────────────────────┬───────────────────────┘
                                                       │
                                                       ▼
                                ┌──────────────────────────────────────────────┐
-                               │             StateT (VM Registers)            │
+                               │ StateT (VM Registers)            │
                                │ Linearly threads off-heap vector buffers     │
                                └──────────────────────────────────────────────┘
 ```
@@ -240,14 +240,14 @@ Impulse translates high-level fluent property accessors into zero-copy **Functio
 
 ```
                ┌────────────────────────────────────────────────────────┐
-               │                         Optics                         │
+               │ Optics                         │
                └───────────────────────────┬────────────────────────────┘
                                            │
          ┌─────────────────────────────────┼─────────────────────────────────┐
          ▼                                 ▼                                 ▼
 ┌──────────────────┐             ┌──────────────────┐              ┌──────────────────┐
-│   Indexed Lens   │             │      Prism       │              │ Affine Traversal │
-│ (Field Offsets)  │             │ (Zone Maps/BRIN) │              │  (CSR Row Slices)│
+│ Indexed Lens   │             │ Prism       │              │ Affine Traversal │
+│ (Field Offsets)  │             │ (Zone Maps/BRIN) │              │ (CSR Row Slices)│
 └──────────────────┘             └──────────────────┘              └──────────────────┘
 ```
 
@@ -331,7 +331,7 @@ The categorical properties of an edge morphism $f: \mathcal{V}_A \to \mathcal{V}
                                         │
            ┌────────────────────────────┼────────────────────────────┐
            ▼                            ▼                            ▼
-   Injective (Monic)            Surjective (Epic)         Bijective (Isomorphism)
+   Injective (Monic) Surjective (Epic) Bijective (Isomorphism)
    |π₂⁻¹(d)| ≤ 1                |π₂⁻¹(d)| ≥ 1             |π₂⁻¹(d)| = 1
    [Lock/Monoid Elimination]    [Dense Fast-Path]         [Zero-Frontier Deforestation]
 ```
@@ -373,11 +373,11 @@ In parallel graph traversal, maintaining synchronous step barriers (Bulk Synchro
 > If the query semiring $(R, \oplus, \otimes)$ is **idempotent** ($a \oplus a = a$, such as Boolean Reachability $\lor$ or Tropical Shortest Path $\min/+$), asynchronous / chaotic parallel updates (Gauss-Seidel style) converge to the exact same unique least fixed point $\mu X. F(X)$ regardless of thread scheduling order or race conditions.
 
 ```
- Synchronous (Non-Idempotent / Counting)            Chaotic Asynchronous (Idempotent Semiring)
+ Synchronous (Non-Idempotent / Counting) Chaotic Asynchronous (Idempotent Semiring)
  ───────────────────────────────────────            ───────────────────────────────────────────
- Thread 1: ──Step 1──┤ BARRIER ├──Step 2──          Thread 1: ──Step 1────Step 2────Step 3────>
- Thread 2: ──Step 1──┤         ├──Step 2──          Thread 2: ────Step 1────────Step 2────────>
- (High lock contention & barrier stalls)            (Zero barriers / Zero CAS / 100% Core Saturation)
+ Thread 1: ──Step 1──┤ BARRIER ├──Step 2── Thread 1: ──Step 1────Step 2────Step 3────>
+ Thread 2: ──Step 1──┤         ├──Step 2── Thread 2: ────Step 1────────Step 2────────>
+ (High lock contention & barrier stalls) (Zero barriers / Zero CAS / 100% Core Saturation)
 ```
 
 - **Non-Idempotent Semirings** ($+/\times$ counting, probability): Require strict BSP barriers because duplicate evaluations alter the sum ($a + a \neq a$).
@@ -411,7 +411,7 @@ In Substructural Type Systems:
 
 ```
        !G (Immutable .imps Snapshot) ──────> Shared by unlimited concurrent queries (mmap)
-       
+
        S_Src (Linear Frontier) ───[ VM Register R0 ]───> Consumed & Reused as S_Dst in-place
 ```
 

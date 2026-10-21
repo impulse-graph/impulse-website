@@ -1,6 +1,6 @@
 # Snapshots
 
-At the heart of the **Impulse Graph Engine** is the **C-ABI Binary Snapshot Specification (v0.9.0)**. Impulse Graph Snapshots (`.imps` files) are immutable, highly optimized binary data files that map directly to physical NVMe disks or stream sequentially to cloud object storage (Amazon S3, Google Cloud Storage).
+At the heart of the **Impulse Graph Engine** is the **C-ABI Binary Snapshot Specification**. Impulse Graph Snapshots (`.imps` files) are immutable, highly optimized binary data files that map directly to physical NVMe disks or stream sequentially to cloud object storage (Amazon S3, Google Cloud Storage).
 
 ## Sub-Millisecond Cold Starts
 

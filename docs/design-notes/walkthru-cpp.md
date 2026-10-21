@@ -171,7 +171,7 @@ impulse_status_t st = impulse_snapshot_sample_neighbors(
 if (st == IMPULSE_OK) {
     std::cout << "[+] Sampled " << out_count << " neighbors for Node 0:\n";
     for (size_t i = 0; i < out_count; ++i) {
-        std::cout << "    Edge: " << out_src[i] << " -> " << out_tgt[i] << "\n";
+        std::cout << " Edge: " << out_src[i] << " -> " << out_tgt[i] << "\n";
     }
 }
 ```
@@ -219,17 +219,17 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "=========================================================\n";
-    std::cout << "       Impulse Graph C++ Engine Query Runner             \n";
+    std::cout << " Impulse Graph C++ Engine Query Runner             \n";
     std::cout << "=========================================================\n";
 
     if (!std::filesystem::exists(snapshot_path)) {
         std::cerr << "[!] Snapshot file not found: " << snapshot_path << "\n";
-        std::cerr << "    Generating sample snapshot in memory...\n";
-        
+        std::cerr << " Generating sample snapshot in memory...\n";
+
         // Build a sample snapshot using impulse_writer_t
         const uint32_t row_offsets[] = { 0, 2, 3, 4 }; // Row offsets for 3 nodes
         const uint32_t col_indices[] = { 1, 2, 2, 0 }; // Edge targets
-        
+
         impulse_writer_t* writer = impulse_writer_create(snapshot_path.c_str(), 0);
         impulse_writer_add_domain(writer, 0, IMPULSE_KEY_TYPE_INT32, "users");
         impulse_writer_add_domain(writer, 1, IMPULSE_KEY_TYPE_INT32, "roles");
@@ -333,7 +333,7 @@ Expected Output:
 
 ```text
 =========================================================
-       Impulse Graph C++ Engine Query Runner             
+       Impulse Graph C++ Engine Query Runner
 =========================================================
 [+] Snapshot Header Details:
     - Magic:         0x494d5053

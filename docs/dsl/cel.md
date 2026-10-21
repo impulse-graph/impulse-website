@@ -10,13 +10,13 @@ CEL decouples complex boolean logic, transcendental math, and attribute transfor
 
 ```
                        ┌───────────────────────────────────────────────┐
-                       │          Google CEL Expression Engine         │
+                       │ Google CEL Expression Engine         │
                        └───────────────────────┬───────────────────────┘
                                                │
                       ┌────────────────────────┴────────────────────────┐
                       ▼                                                 ▼
         ┌───────────────────────────┐                     ┌───────────────────────────┐
-        │  PREDICATE ROLE (Filter)  │                     │ PROJECTION ROLE (Return)  │
+        │ PREDICATE ROLE (Filter)  │                     │ PROJECTION ROLE (Return)  │
         │ • Return Type: Boolean    │                     │ • Return Type: Scalar/Vec │
         │ • Target: TYPE_BITSET     │                     │ • Target: Vector Buffers  │
         │ • Vectorized bitmasking   │                     │ • Direct Apache Arrow map │
@@ -24,9 +24,9 @@ CEL decouples complex boolean logic, transcendental math, and attribute transfor
                       │                                                 │
                       ▼                                                 ▼
         ┌───────────────────────────┐                     ┌───────────────────────────┐
-        │   Filters which nodes &   │                     │ Computes calculated       │
-        │   edges survive traversal │                     │ columns & transformations │
-        │   (e.g., edge.weight > 0) │                     │ (e.g., sqrt(w)*10 + bias) │
+        │ Filters which nodes &   │                     │ Computes calculated       │
+        │ edges survive traversal │                     │ columns & transformations │
+        │ (e.g., edge.weight > 0) │                     │ (e.g., sqrt(w)*10 + bias) │
         └───────────────────────────┘                     └─────────────┬─────────────┘
                                                                         │
                                                                         ▼

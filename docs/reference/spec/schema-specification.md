@@ -1,4 +1,4 @@
-# Impulse Graph Engine — Snapshot Schema Specification v0.9.0 (`.imps.schema.yaml`)
+# Impulse Graph Engine — Snapshot Schema Specification (`.imps.schema.yaml`)
 
 This document defines the normative specification for **Impulse Graph Snapshot Schemas** (`.imps.schema.yaml`). 
 

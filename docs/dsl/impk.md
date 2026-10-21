@@ -30,11 +30,11 @@ ImpK treats graphs as sparse adjacency matrices, frontiers as bitsets/vectors, a
 fn check_reachability(g, start_user, target_doc) {
     frontier: bitset start_user
     visited: bitset start_user
-    
+
     / Advance frontier via CSR walk and compute bitset difference
     frontier: (g @[frontier; "MEMBER_OF"]) &~ visited
     visited: visited | frontier
-    
+
     return true
 }
 ```
