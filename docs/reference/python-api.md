@@ -52,7 +52,7 @@ with Snapshot("power_grid.imps") as snap:
 
 ### `Writer`
 
-Streaming compiler for constructing C-ABI v0.9.0 binary snapshots.
+Streaming compiler for constructing C-ABI binary snapshots.
 
 ```python
 from impulse_graph import Writer
@@ -191,6 +191,6 @@ with vm.VmContext() as ctx:
 
 | Artifact Type | Package Format | Target Platform |
 | :--- | :--- | :--- |
-| **Source Distribution** | `impulse-graph-2.4.0.tar.gz` | Universal (`sdist`) |
-| **macOS ARM64 Wheel** | `impulse_graph-2.4.0-cp314-cp314-macosx_..._arm64.whl` | macOS 11.0+ (Apple Silicon) |
-| **Linux Wheel** | `impulse_graph-2.4.0-cp314-cp314-manylinux_2_28_x86_64.whl` | glibc 2.28+ x86_64 |
+| **Source Distribution** | `impulse-graph.tar.gz` | Universal (`sdist`) |
+| **macOS ARM64 Wheel** | `impulse_graph-cp312-cp312-macosx_11_0_arm64.whl` | macOS 11.0+ (Apple Silicon) |
+| **Linux Wheel** | `impulse_graph-cp312-cp312-manylinux_2_28_x86_64.whl` | glibc 2.28+ x86_64 |

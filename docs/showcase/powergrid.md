@@ -23,13 +23,13 @@ Evaluating 10 Million N-2 scenarios using traditional power flow tools (MATPOWER
 
 ---
 
-## Architecture & Binary Format (`.imps` v0.9.0)
+## Architecture & Binary Format (`.imps` )
 
-Instead of parsing slow text files or allocating millions of heap objects, `impulse-powergrid` compiles MATPOWER network models into **Impulse Graph C-ABI `.imps` v0.9.0 binary snapshots**:
+Instead of parsing slow text files or allocating millions of heap objects, `impulse-powergrid` compiles MATPOWER network models into **Impulse Graph C-ABI `.imps` binary snapshots**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Impulse Graph Snapshot v0.9.0 (.imps)                  │
+│ Impulse Graph Snapshot (.imps)                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Section 1: Header (4096 bytes, 4KB page aligned)                           │
 │ Section 2: Domain Catalog, Shared String Table & Relation Directory          │
@@ -68,12 +68,12 @@ When a transmission line trips, the engine performs parallel BFS graph connectiv
     for (uint64_t e = start; e + 4 <= end; e += 4) {
         uint32x4_t v_branches = vld1q_u32(&edge_branch_ids[e]);
         uint32x4_t v_match = vceqq_u32(v_branches, v_tripped);
-        
+
         // Extract 128-bit SIMD comparison mask in a single hardware cycle
         uint64x2_t v_cast = vreinterpretq_u64_u32(v_match);
         uint64_t m0 = vgetq_lane_u64(v_cast, 0);
         uint64_t m1 = vgetq_lane_u64(v_cast, 1);
-        
+
         // Process unvisited target nodes using 64-bit bitset operations
         ...
     }

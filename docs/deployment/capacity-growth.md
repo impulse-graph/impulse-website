@@ -1,49 +1,24 @@
-# Capacity Growth & Headroom Management
+# Capacity Growth & Scratch Arena Sizing
 
-As your graph grows, the engine needs to scale internal memory buffers without causing Out-of-Memory (OOM) errors or unpredictable latency spikes. The Impulse Graph Engine uses a strict **Monotonic Capacity Rule**: capacities can only grow, never shrink, ensuring stability in high-throughput environments.
+As new `.imps` snapshot generations grow in cardinality, the engine scales its off-heap `VmQueryContext` scratch arenas without causing Out-of-Memory (OOM) errors or unpredictable latency spikes. The Impulse Graph Engine uses a strict **Monotonic Capacity Rule**: off-heap scratch pool capacities only grow, never shrink, ensuring stability in high-throughput environments.
 
 ## The Monotonic Capacity Rule
 
-1. **No Shrinking**: Buffer sizes only increase. This prevents thrashing where the engine constantly reallocates and deallocates memory.
-2. **Delta Node ID Fence**: Newly added nodes during a live session are assigned IDs above a specific threshold (fence), keeping the base snapshot array domains cleanly separated from the live delta domain.
+1. **No Shrinking**: Scratch buffer sizes only increase across snapshot swaps. This prevents thrashing where the engine constantly reallocates and deallocates off-heap memory.
+2. **Exact Domain Cardinality Sizing**: Because every `.imps` snapshot encodes the exact node cardinality $N_d$ per domain in its catalog header, intermediate bitsets ($\lceil N_d / 64 \rceil$ words) and state vectors are sized deterministically at snapshot load time.
 
 ## GrowthPolicies
 
-When constructing an `ImpulseGraph` instance, you configure a `GrowthPolicy` that dictates how the engine reacts when capacity bounds are exceeded.
+When configuring an execution pool across snapshot rotations, a `GrowthPolicy` dictates how off-heap scratch arenas react when a newly swapped `.imps` snapshot exceeds the previous generation's cardinality:
 
 | Policy | Behavior | Best Use Case |
 |--------|----------|---------------|
-| `FIXED` | Hard limits based on the provided configuration. Exceeding limits throws a `CapacityExceededException`. | Embedded environments, strict memory limits. |
-| `GROW_ON_EXCEED` | Automatically expands memory mapping sizes or heap buffers by a growth factor (e.g., 1.5x) when full. | General dynamic services (most common). |
-| `SNAPSHOT_ACTUAL` | Sizes strictly to the exact requirements of the loaded base snapshot, disallowing live delta growth. | Offline analytical pipelines. |
-
-=== "Java"
-    ```java
-    ImpulseGraph liveGraph = ImpulseGraph.builder(snapshotPath)
-        .withGrowthPolicy(GrowthPolicy.GROW_ON_EXCEED)
-        .withGrowthFactor(1.5f)
-        .build();
-    ```
-
-## `pool.adaptTo()`
-
-In environments where you want manual control over growth, or when you proactively know a massive ingestion spike is coming, you can instruct the engine to adapt its resource pools immediately.
-
-=== "Java"
-    ```java
-    CapacityLimits upcomingDemand = CapacityLimits.builder()
-        .maxNodes(EntityType.USER, 150_000_000)
-        .maxEdges(Relation.USER_TO_GROUP, 800_000_000)
-        .build();
-        
-    // Proactively resize buffers before the ingestion spike hits
-    liveGraph.pool().adaptTo(upcomingDemand);
-    ```
+| `FIXED` | Hard limits based on the initial configuration. Exceeding limits throws a `CapacityExceededException`. | Embedded environments, strict memory limits. |
+| `GROW_ON_EXCEED` | Automatically expands off-heap scratch arenas by a growth factor (e.g., 1.5x) when a larger snapshot is swapped in. | Long-lived services with A/B snapshot rotation. |
+| `SNAPSHOT_ACTUAL` | Sizes strictly to the exact domain cardinalities of the loaded `.imps` snapshot. | Offline analytical pipelines. |
 
 ## Headroom Monitoring
 
-The engine exposes JMX and Prometheus metrics to monitor current capacity headroom.
+The engine exposes JMX and Prometheus metrics to monitor current off-heap scratch capacity headroom:
 - `impulse_capacity_nodes_headroom_percent`
 - `impulse_capacity_edges_headroom_percent`
-
-Alerting on these metrics allows you to trigger manual compactions or preemptive pool adaptations before `GROW_ON_EXCEED` causes momentary allocation latency.

@@ -1,8 +1,10 @@
-# C++ API & VM Reference (`impulse-graph-core/impulse-cpp`)
+# C++20 API & VM Reference (`impulse-graph-core/impulse-cpp`)
 
-Welcome to the **C++20 Native Engine & Fluent VM API Reference** for the Impulse Graph Engine.
+This reference documents the **C++20 Native Engine, Optimizing Compiler, and Fluent VM API** located in `impulse-graph-core/impulse-cpp`.
 
-The native C++ engine is located at `impulse-graph-core/impulse-cpp` and delivers zero-copy memory-mapped graph traversals, SIMD vector acceleration, and an ergonomic C++20 Fluent Query API.
+!!! info "C-ABI Reference & Generated Doxygen HTML"
+    * **Low-Level C-ABI Reference**: See the [**C-ABI Kernel & VM Reference (`c-abi.md`)**](c-abi.md) for all C structs, enums, prepared statements, and function signatures.
+    * **Generated Doxygen HTML**: Browse the interactive header documentation at [**`/doxygen/index.html`**](/doxygen/index.html).
 
 ---
 
@@ -10,13 +12,18 @@ The native C++ engine is located at `impulse-graph-core/impulse-cpp` and deliver
 
 `impulse-cpp` provides two programming layers:
 
-1. **C-ABI Kernel Headers**: Zero-dependency C interface for low-level snapshot loading, raw CSR reachability, SIMD sampling, and delta compaction:
-   * `#include "impulse_graph.h"`: Snapshot loader, reachability, SIMD neighbor sampling, and snapshot compaction.
-   * `#include "impulse_vm.h"`: Raw 64-bit VM opcode definitions (`impulse_instruction_t`), VM state frame (`impulse_vm_state_t`), and off-heap execution context (`impulse_vm_context_t`).
-   * `#include "impulse_simd.h"`: Highway SIMD vector operations and AVX-512 / ARM-NEON kernels.
+1. **C-ABI Kernel Headers** (documented in detail in [C-ABI Reference](c-abi.md)):
+   * `#include "impulse_format_v0_9.h"`: Binary Snapshot POD structures and protocol enums.
+   * `#include "impulse_graph.h"`: Snapshot `mmap` loader, catalog inspection, CSR/CSC buffer accessors, and single-pass streaming writer.
+   * `#include "impulse_vm.h"`: Raw 64-bit VM opcode definitions (`impulse_instruction_t`), 640-byte state frame (`impulse_vm_state_t`), off-heap context (`impulse_vm_context_t`), in-kernel compiler C-ABI, and `impulse_stmt_t` prepared statements.
+   * `#include "impulse_index.h"`: Secondary non-vector index builders and query evaluators.
+   * `#include "impulse_simd.h"` & `#include "impulse_math_ops.h"`: Highway SIMD kernels and 54-function analytical vector math catalog.
 
-2. **C++20 Fluent Query API**: High-level type-safe query builder in namespace `impulse::vm`:
-   * `#include "impulse_vm_fluent.hpp"`: Header-only/static-linked C++20 fluent query builder, compiled query representation, and type-safe result accessors.
+2. **C++20 Fluent Query & Compiler Headers**:
+   * `#include "impulse_vm_fluent.hpp"`: Type-safe fluent bytecode builder (`impulse::vm::QueryBuilder`), `CompiledQuery`, and `QueryResult`.
+   * `#include "impulse_compiler.hpp"`: Zero-dependency C++20 multi-pass optimizing compiler (`impulse::compiler::CompilerOptions`, `ImpScmNode` AST hierarchy, kernel fusion, direction selection, and register ping-ponging).
+   * `#include "impulse_cel.h"`: Pratt recursive-descent CEL parser, AST constant-folding optimizer (`impulse::cel::AstOptimizer`), and `ImpScheme` lowering (`impulse::cel::CelCompiler`).
+   * `#include "impulse_cypher.hpp"`, `#include "impulse_impk.hpp"`, `#include "impulse_implog.hpp"`, `#include "impulse_impscm.hpp"`: C++20 DSL frontend parsers and lowering passes.
 
 ---
 
@@ -33,7 +40,7 @@ impulse_snapshot_t* snapshot = impulse_snapshot_open("datasets/rbac.imps", &stat
 
 if (status == IMPULSE_OK && snapshot) {
     uint32_t magic = impulse_snapshot_magic(snapshot);       // 0x494D5053 ("IMPS")
-    uint16_t version = impulse_snapshot_version(snapshot);   // 9 (v0.9.0 spec)
+    uint16_t version = impulse_snapshot_version(snapshot);   // 9 ( spec)
     uint16_t domains = impulse_snapshot_domain_count(snapshot);
     uint16_t rels = impulse_snapshot_relation_count(snapshot);
 }
@@ -46,13 +53,13 @@ impulse_snapshot_close(snapshot);
 Query graph topology directly via lock-free C-ABI kernel calls:
 
 ```cpp
-// 1. Direct edge reachability check (User 0 -> Group 5)
-bool connected = impulse_snapshot_is_reachable(snapshot, 0 /*src_rel*/, 0 /*src_node*/, 1 /*tgt_domain*/, 5 /*tgt_node*/);
+// 1. Direct edge reachability check (Relation 0, Source Node 0 -> Target Node 5)
+bool connected = impulse_snapshot_is_reachable(snapshot, 0 /*relation_index*/, 0 /*src_id*/, 5 /*tgt_id*/);
 
 // 2. SIMD Neighborhood Sampling (sample up to k=10 neighbors for node 0)
-uint32_t src_nodes[] = { 0 };
-uint32_t out_src[64];
-uint32_t out_tgt[64];
+uint64_t src_nodes[] = { 0 };
+uint64_t out_src[64];
+uint64_t out_tgt[64];
 size_t out_count = 0;
 
 impulse_status_t st = impulse_snapshot_sample_neighbors(
@@ -203,7 +210,7 @@ int main() {
     if (result.isOk()) {
         std::cout << "[+] ReBAC Query executed successfully!\n";
         bool canAccessRole42 = result.testBitset(ctx, 42);
-        std::cout << "    User 100 -> Role 42 permission: " 
+        std::cout << " User 100 -> Role 42 permission: " 
                   << (canAccessRole42 ? "ALLOWED" : "DENIED") << "\n";
     }
 
@@ -216,11 +223,34 @@ int main() {
 
 ---
 
-## 6. Auto-Generating Full Doxygen HTML Documentation
+## 6. C++20 Optimizing Compiler & CEL AST (`impulse_compiler.hpp`, `impulse_cel.h`)
 
-All C-ABI headers (`impulse_graph.h`, `impulse_vm.h`, `impulse_simd.h`) and the C++20 Fluent API header (`impulse_vm_fluent.hpp`) contain embedded Doxygen `@brief`, `@param`, `@return`, and `@see` annotations.
+The C++20 compiler pipeline (`impulse::compiler`) and CEL parser/optimizer (`impulse::cel`) lower query expressions into `ImpScheme` S-expression IR and 8-byte `impOps` instructions:
 
-To build the standalone HTML API documentation site locally:
+```cpp
+#include "impulse_compiler.hpp"
+#include "impulse_cel.h"
+
+// 1. Parse and constant-fold a CEL predicate expression
+impulse::cel::Parser parser("node.age >= (18 + 3) && !(!node.active)");
+auto raw_ast = parser.parse_expression();
+auto opt_ast = impulse::cel::AstOptimizer::optimize(raw_ast);
+std::string scm_ir = impulse::cel::CelCompiler::to_impscheme(opt_ast);
+
+// 2. Configure C++20 compiler optimization passes
+auto opts = impulse::compiler::CompilerOptions::default_options();
+opts.enable_kernel_fusion = true;       // Fuse 2-hop CSR walks into OP_CSR_WALK_2HOP
+opts.enable_direction_selection = true; // Select CSR vs CSC based on frontier density
+opts.enable_register_ping_pong = true;  // Reuse R0 <-> R1 across sequential walks
+```
+
+---
+
+## 7. Auto-Generating Full Doxygen HTML Documentation
+
+All C-ABI headers (`impulse_format_v0_9.h`, `impulse_graph.h`, `impulse_vm.h`, `impulse_index.h`, `impulse_simd.h`, `impulse_math_ops.h`) and C++20 headers (`impulse_vm_fluent.hpp`, `impulse_compiler.hpp`, `impulse_cel.h`) contain Doxygen annotations.
+
+Browse the hosted Doxygen HTML at [**`/doxygen/index.html`**](/doxygen/index.html), or generate it locally:
 
 ```bash
 cd impulse-graph-core/impulse-cpp

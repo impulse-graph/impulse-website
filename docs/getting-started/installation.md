@@ -1,41 +1,69 @@
 # Installation
 
-The Impulse Graph Engine is distributed across major package managers, ensuring a native integration experience regardless of your stack. The engine uses a shared C-ABI core, meaning performance is universally exceptional.
+Impulse Graph Engine provides two equivalent, zero-dependency core engines over the `.imps` binary snapshot format:
 
-Choose your language ecosystem below to install Impulse Graph:
+* **Pure Java 25 Engine (`org.impulsegraph`)**: 100% pure Java 25 implementation (FFM off-heap memory segments & Vector API) distributed on Maven Central. Requires no native `.so`/`.dylib`/`.dll` libraries.
+* **Native C++20 / C-ABI Engine (`impulse-graph`)**: Native C-ABI kernel (`libimpulse_graph`) and language bindings for C++, Rust, Python, Go, .NET/C#, and Node.js.
 
-=== "Java"
+Choose your language ecosystem below:
 
-    For JVM projects (Java 25+, Kotlin, Scala), Impulse Graph is available via Maven Central. We utilize Java's Foreign Function & Memory API (FFM) for zero-copy native interoperability.
-    
-    Add the following to your `pom.xml`:
-    
+=== "Java 25 (Maven / Gradle)"
+
+    The pure Java 25 engine is published to Maven Central under groupId `org.impulsegraph`. The core runtime (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) has **zero third-party runtime dependencies**.
+
+    **Maven (`pom.xml`)**:
+
     ```xml
-    <dependency>
-        <groupId>io.impulse.graph</groupId>
-        <artifactId>impulse-core</artifactId>
-        <version>2.3.0</version>
-    </dependency>
+    <dependencies>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-storage</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-vm</artifactId>
+        </dependency>
+        <!-- Multi-pass openCypher, CEL, and ImpScheme compiler -->
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-compiler</artifactId>
+        </dependency>
+        <!-- Optional: Streaming .imps snapshot builder -->
+        <dependency>
+            <groupId>org.impulsegraph</groupId>
+            <artifactId>impulse-builder</artifactId>
+        </dependency>
+    </dependencies>
     ```
-    
-    For Gradle users (`build.gradle.kts`):
-    
+
+    **Gradle (`build.gradle.kts`)**:
+
     ```kotlin
-    implementation("io.impulse.graph:impulse-core:2.3.0")
+    dependencies {
+        implementation("org.impulsegraph:impulse-api")
+        implementation("org.impulsegraph:impulse-storage")
+        implementation("org.impulsegraph:impulse-vm")
+        implementation("org.impulsegraph:impulse-compiler")
+        implementation("org.impulsegraph:impulse-builder")
+    }
     ```
 
-=== "C++"
+=== "C / C++20 (CMake / vcpkg)"
 
-    For C++20 projects, you can integrate Impulse Graph Engine via CMake using `vcpkg` or by building from source. The core library has zero external dependencies.
-    
-    Using **vcpkg**:
-    
+    The C-ABI and C++20 engine (`impulse-graph-core/impulse-cpp`) has zero external runtime dependencies and can be integrated via CMake or `vcpkg`.
+
+    **Using `vcpkg`**:
+
     ```bash
     vcpkg install impulse-graph
     ```
-    
-    In your `CMakeLists.txt`:
-    
+
+    **In `CMakeLists.txt`**:
+
     ```cmake
     find_package(impulse-graph CONFIG REQUIRED)
     target_link_libraries(your_target PRIVATE impulse-graph::impulse-graph)
@@ -43,26 +71,42 @@ Choose your language ecosystem below to install Impulse Graph:
 
 === "Rust"
 
-    For Rust projects, Impulse Graph is available on `crates.io`.
-    
-    Add the dependency to your `Cargo.toml`:
-    
-    ```toml
-    [dependencies]
-    impulse-graph = "2.3.0"
-    ```
-    
-    Or run:
-    
+    The zero-dependency Rust crate is available on `crates.io`:
+
     ```bash
     cargo add impulse-graph
     ```
 
-## Developer Tools (CLI)
+=== "Python"
 
-The optimizer and inspector utilities (`impulse-opt`, `impulse-inspect`) can be pulled globally via Docker:
+    Install the pre-compiled wheel (with zero-copy NumPy and PyTorch `mmap` tensor views) from PyPI:
+
+    ```bash
+    pip install impulse-graph
+    ```
+
+=== ".NET / C#"
+
+    Install the managed API and native C-ABI runtime packages from NuGet:
+
+    ```bash
+    dotnet add package ImpulseGraph
+    dotnet add package ImpulseGraph.Native
+    ```
+
+=== "Node.js / TypeScript"
+
+    Install the N-API native addon and TypeScript definitions from npm:
+
+    ```bash
+    npm install impulse-graph
+    ```
+
+## Developer CLI (`impulse-graph-tooling`)
+
+The CLI toolchain (`impulse build`, `impulse compile`, `impulse run`, `impulse snapshot inspect`, `impulse snapshot validate`) can be run via Docker or installed as a standalone static binary:
 
 ```bash
 docker pull ghcr.io/impulse-graph/impulse-tools:latest
-docker run --rm -v $(pwd):/data ghcr.io/impulse-graph/impulse-tools:latest impulse-inspect /data/snapshot.imps
+docker run --rm -v $(pwd):/data ghcr.io/impulse-graph/impulse-tools:latest impulse snapshot inspect /data/snapshot.imps
 ```

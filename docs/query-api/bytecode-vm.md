@@ -2,9 +2,9 @@
 
 > **Ultra-High Performance Graph Query Execution Architecture**
 
-The **Impulse Graph Bytecode Virtual Machine (`impulse-vm`)** is an off-heap, register-based execution engine designed to compile declarative graph traversal ASTs into compact, 64-bit fixed-width binary instruction streams called **Impulse Opcodes (`ImpOps`)**.
+The **Impulse Graph Bytecode Virtual Machine (`ImpulseVM`)** is an off-heap, register-based execution engine designed to compile declarative graph traversal ASTs into compact, 64-bit fixed-width binary instruction streams called **Impulse Opcodes (`impOps`)**.
 
-Inspired by SQLite’s Virtual Database Engine (VDBE), `impulse-vm` replaces recursive AST visitor evaluation with chunky, vector-accelerated opcodes capable of sub-microsecond graph traversals across multi-terabyte binary snapshot graphs (`.imps`).
+Drawing direct architectural inspiration from the **Lua 5+ VM / LuaJIT** (register-based instruction encoding, register windowing, zero stack-traffic overhead) and **SQLite’s VDBE** (coarse-grained data operators), `ImpulseVM` replaces recursive AST visitor evaluation with chunky, vector-accelerated opcodes over memory-mapped binary snapshot graphs (`.imps`).
 
 ---
 
@@ -17,13 +17,13 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 [ Query Input ] ──▶ [ Step 1: InputNode ] (Heap Allocations & Virtual Dispatch)
                           │
                           ▼
-                    [ Step 2: WalkNode ]  (Allocates HashSet<Integer> & Boxed Integers)
+                    [ Step 2: WalkNode ] (Allocates HashSet<Integer> & Boxed Integers)
                           │
                           ▼
-                    [ Step 3: WalkNode ]  (Cache-line thrashing & GC Overhead)
+                    [ Step 3: WalkNode ] (Cache-line thrashing & GC Overhead)
                           │
                           ▼
-                    [ Final Result ]      (Total Latency: ~850 ns)
+                    [ Final Result ] (Total Latency: ~850 ns)
 
 ----------------------------------------------------------------------------------
 
@@ -31,10 +31,10 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 [ Query Input ] ──▶ [ ImpOps Bytecode Stream ] ──▶ [ JIT Pipeline Fusion / SIMD ]
                           │
                           ▼
-                    [ VmQueryContext ]    (0-Allocation Off-Heap BitSet Arena)
+                    [ VmQueryContext ] (0-Allocation Off-Heap BitSet Arena)
                           │
                           ▼
-                    [ Final Result ]      (Total Latency: < 45 ns -- 19x FASTER!)
+                    [ Final Result ] (Total Latency: < 45 ns -- 19x FASTER!)
 ```
 
 ### 1.1 Performance Bottlenecks of AST Visitors
@@ -44,13 +44,14 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 3. **Instruction Cache (i-Cache) Thrashing**: Navigating recursive object AST trees spreads instruction memory across non-contiguous addresses.
 4. **Lack of Cross-Language Parity**: AST visitors implemented in Java, C++, Python, and Rust produce divergent execution paths and inconsistent latency profiles.
 
-### 1.2 The Bytecode Virtual Machine Solution
+### 1.2 The Lua-Inspired Register VM Solution
 
-`impulse-vm` introduces a 64-bit binary Intermediate Representation (IR) and register-based VM state that solves these bottlenecks:
+`ImpulseVM` introduces a 64-bit binary Intermediate Representation (IR) and a **Lua-inspired register-based VM architecture** that eliminates both AST visitor dispatch and stack-machine overhead:
 
-* **SQLite VDBE-Style Register Machine**: Execution state resides in 64 general-purpose registers (`R0`..`R63`) and thread-local off-heap scratchpad memory (`VmQueryContext`).
-* **Fixed 64-Bit Binary Layout**: Bytecodes are encoded as 8-byte instruction words (`Opcode[8]`, `Flags[8]`, `DstReg[16]`, `Payload[32]`), enabling zero-copy memory mapping (`mmap`).
-* **Zero-Allocation Execution**: Intermediate candidate sets are stored in pooled off-heap BitSets (`RoaringBitmap` / native word masks), guaranteeing **0 heap object allocations** during query execution.
+* **Lua-Style Register Machine (`R0`..`R63`) vs. Stack Machine**: Stack-based virtual machines (such as the JVM bytecode interpreter or WebAssembly) spend 40–50% of their instruction stream executing `PUSH`, `POP`, and `DUP` to move values onto and off an evaluation stack. Like the **Lua 5+ VM and LuaJIT**, `ImpulseVM` is a **register machine** whose instructions address 64 general-purpose registers (`R0`..`R63`) directly Inside a single 640-byte cache-aligned state frame (`impulse_vm_state_t`).
+* **Fixed 64-Bit Instruction Words**: Just as Lua packs opcodes and register indices (`A`, `B`, `C`, `Bx`) into a single fixed-width word for single-cycle bitwise decoding, `impOps` packs every instruction into a fixed 8-byte word (`Opcode[8] | Flags[8] | DstReg[16] | Payload[32]`).
+* **Register Windowing & Zero-Copy Frontier Swapping**: Subroutine calls (`OP_CALL`) use Lua-style register windowing (mapping caller out-registers `R12..R15` directly into callee in-registers `R0..R3`), while iterative loops (`BFS`, `PageRank`, `ConnectedComponents`) swap active and next frontiers in a single register pointer exchange (`OP_SWAP_REG`).
+* **Zero-Allocation Execution**: Intermediate candidate sets reside in pooled off-heap BitSets (`OffHeapBitSet` / `RoaringBitmap`), guaranteeing **0 heap object allocations** during query execution.
 
 ---
 
@@ -93,11 +94,13 @@ Managed JIT Pipeline Fusion (Java 25 MethodHandle / C# DynamicMethod):
   (Zero dispatch overhead: RyuJIT / C2 JIT fuses all opcodes into a single contiguous block)
 ```
 
-### 3.1 JIT Pipeline Fusion Mechanics
+### 3.1 Java 25 `MethodHandle` Combinator Fusion Mechanics
 
-1. **Monolithic Inlining**: When `ImpulseMethodHandleCompiler` (Java 25) or `ImpulseCilCompiler` (C#) compiles an ImpOps program, it links opcode handles into a single combined call tree.
-2. **Zero Loop Dispatch**: The JVM C2 / .NET RyuJIT compiler recognizes the static handle structure and inlines the *entire query execution pipeline into a single, contiguous block of native machine assembly*.
-3. **Elimination of Branch Tables**: JIT fusion removes jump tables, label switches, and program counter increments entirely from the runtime hot path!
+In the Pure Java 25 engine (`impulse-graph-java`), `ImpulseMethodHandleCompiler` and `ShaderCompiler` leverage `java.lang.invoke.MethodHandles` to turn `impOps` bytecode and stream shaders into native machine code without writing custom assembly or JNI wrappers:
+
+1. **Immediate Partial Evaluation (`MethodHandles.insertArguments`)**: When a program or stream shader (`OP_CSR_WALK_STREAM`, `OP_CSC_WALK_STREAM`, `OP_COO_WALK_STREAM`) is compiled, `ImpulseMethodHandleCompiler` decodes each 64-bit instruction once and binds its constant operands (`dstReg`, `srcReg`, attribute column IDs, scalar constants) directly into static handler methods via `MethodHandles.insertArguments(...)`.
+2. **Shader Tree Folding (`MethodHandles.foldArguments`)**: For inline edge/node stream shaders (`0xA1`..`0xBD`), `ShaderCompiler` folds the sequence of micro-operations (`loadSrc`, `loadEdge`, `mathSub`, `cmpGt`, `filter`, `reduce`) into a single composite `MethodHandle` pipeline.
+3. **C2 JIT Constant Folding & Monolithic Inlining**: Because the `MethodHandle` combinator tree has all instruction operands bound as constants, the JVM's **C2 JIT compiler** constant-folds register array offsets and inlines the entire traversal and shader pipeline into a single contiguous block of native machine instructions—eliminating interpreter `switch` jumps, branch mispredictions, and instruction re-decoding on the hot path.
 
 ### 3.2 Micro-Query Latency Benchmark Comparison (3-Hop Traversal)
 
@@ -120,11 +123,11 @@ All `impulse-vm` instructions are encoded as fixed **64-bit (8-byte) instruction
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|    OPCODE     |     FLAGS     |          DST_REG              |
-|   (8 bits)    |   (8 bits)    |         (16 bits)             |
+| OPCODE     | FLAGS     | DST_REG              |
+| (8 bits)    | (8 bits)    | (16 bits)             |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                        PAYLOAD / SRC                          |
-|                          (32 bits)                            |
+| PAYLOAD / SRC                          |
+| (32 bits)                            |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -155,15 +158,15 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: 3-Tier RBAC Reachability Traversal
 ; Input: userKeys = ["usr_alice", "usr_bob"] | Output: R63 = String Role Keys
 
-0x0000: OP_MAP_KEYS_TO_DENSE  R4, DOMAIN_USER   ; R4 = Map string keys -> dense User IDs (BitSet_0)
+0x0000: OP_MAP_KEYS_TO_DENSE R4, DOMAIN_USER   ; R4 = Map string keys -> dense User IDs (BitSet_0)
 0x0001: OP_JZ                 +6                ; If R4 is empty (ZF=1), branch to HALT at 0x0008
-0x0002: OP_CSR_WALK           R5, R4, REL_U2G   ; R5 = Walk "userToGroup" -> Group IDs (BitSet_1)
+0x0002: OP_CSR_WALK R5, R4, REL_U2G   ; R5 = Walk "userToGroup" -> Group IDs (BitSet_1)
 0x0003: OP_JZ                 +4                ; If R5 is empty (ZF=1), branch to HALT at 0x0008
-0x0004: OP_CSR_WALK           R6, R5, REL_G2R   ; R6 = Walk "groupToRole" -> Role IDs (BitSet_2)
+0x0004: OP_CSR_WALK R6, R5, REL_G2R   ; R6 = Walk "groupToRole" -> Role IDs (BitSet_2)
 0x0005: OP_JZ                 +2                ; If R6 is empty (ZF=1), branch to HALT at 0x0008
-0x0006: OP_MAP_DENSE_TO_KEYS  R63, R6, DOMAIN_ROLE; Map dense Role IDs in R6 -> String Keys in R63
+0x0006: OP_MAP_DENSE_TO_KEYS R63, R6, DOMAIN_ROLE; Map dense Role IDs in R6 -> String Keys in R63
 0x0007: OP_HALT                                 ; Success exit with result in R63
-0x0008: OP_CLEAR_REG          R63               ; Error / empty set fallback
+0x0008: OP_CLEAR_REG R63               ; Error / empty set fallback
 0x0009: OP_HALT
 ```
 
@@ -175,19 +178,19 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: GAPBS Level-Synchronous BFS Traversal
 ; Input: R0 = Root Node S | Output: R63 = Visited BitSet
 
-0x0000: OP_INIT_INPUT_NODE  R0, 0           ; R0 = Root Node S
-0x0001: OP_MOV              R4, R0          ; R4 = Active Frontier F = {S}
-0x0002: OP_MOV              R7, R0          ; R7 = Visited Set V = {S}
+0x0000: OP_INIT_INPUT_NODE R0, 0           ; R0 = Root Node S
+0x0001: OP_MOV R4, R0          ; R4 = Active Frontier F = {S}
+0x0002: OP_MOV R7, R0          ; R7 = Visited Set V = {S}
 
 ; --- BFS Traversal Core Loop ---
-0x0003: OP_CSR_WALK         R5, R4, REL_ALL ; R5 = Walk 1-hop CSR edges from active frontier F
-0x0004: OP_SET_DIFFERENCE   R5, R7          ; R5 = R5 \ V (Filter out already visited nodes)
+0x0003: OP_CSR_WALK R5, R4, REL_ALL ; R5 = Walk 1-hop CSR edges from active frontier F
+0x0004: OP_SET_DIFFERENCE R5, R7          ; R5 = R5 \ V (Filter out already visited nodes)
 0x0005: OP_JZ               +4              ; If R5 is empty (ZF=1), exit loop -> JMP 0x0009
-0x0006: OP_SET_UNION        R7, R5          ; V = V ∪ R5 (Mark new frontier as visited)
-0x0007: OP_MOV              R4, R5          ; F = R5 (Advance frontier to next level)
+0x0006: OP_SET_UNION R7, R5          ; V = V ∪ R5 (Mark new frontier as visited)
+0x0007: OP_MOV R4, R5          ; F = R5 (Advance frontier to next level)
 0x0008: OP_JMP              -5              ; Loop back to 0x0003 for next level expansion
 
-0x0009: OP_COLLECT_BITSET   R63, R7         ; Return full Visited BitSet
+0x0009: OP_COLLECT_BITSET R63, R7         ; Return full Visited BitSet
 0x000A: OP_HALT
 ```
 
@@ -199,17 +202,17 @@ ImpulseGraphQuery.from(User.class, userKeys)
 ; Program: PageRank Power Iteration (20 Iterations)
 ; Input: R0 = All Node BitSet | Output: R63 = Float Vector of PageRank values
 
-0x0000: OP_CSR_DEGREE        R1, R0, REL_ALL ; R1 = Out-degree counts per node
-0x0001: OP_LOAD_CONST_FLOAT  R2, 0.15f       ; R2 = Baseline damping rank (1 - d) / N
-0x0002: OP_LOAD_CONST_INT    R30, 20         ; R30 = Loop counter (20 iterations)
-0x0003: OP_LOAD_CONST_FLOAT  R4, 1.0f        ; R4 = Initial PageRank vector PR_0 = 1.0
+0x0000: OP_CSR_DEGREE R1, R0, REL_ALL ; R1 = Out-degree counts per node
+0x0001: OP_LOAD_CONST_FLOAT R2, 0.15f       ; R2 = Baseline damping rank (1 - d) / N
+0x0002: OP_LOAD_CONST_INT R30, 20         ; R30 = Loop counter (20 iterations)
+0x0003: OP_LOAD_CONST_FLOAT R4, 1.0f        ; R4 = Initial PageRank vector PR_0 = 1.0
 
 ; --- PageRank Loop ---
-0x0004: OP_VECTOR_DIV        R5, R4, R1      ; R5 = PR[u] / OutDegree[u] (Contribution vector)
+0x0004: OP_VECTOR_DIV R5, R4, R1      ; R5 = PR[u] / OutDegree[u] (Contribution vector)
 0x0005: OP_CSR_WALK_REDUCE_SUM R6, R5, REL_ALL; R6 = Push contributions across CSR edges & sum
-0x0006: OP_VECTOR_MUL_ATTR   R6, R6, 0.85f   ; R6 = R6 * 0.85 (Damping factor d = 0.85)
+0x0006: OP_VECTOR_MUL_ATTR R6, R6, 0.85f   ; R6 = R6 * 0.85 (Damping factor d = 0.85)
 0x0007: OP_VECTOR_ADD_SCALAR R4, R6, R2      ; PR_{k+1} = R6 + baseline (R2)
-0x0008: OP_LOOP_DECR         R30, -4         ; Decrement counter R30. If > 0, jump to 0x0004
+0x0008: OP_LOOP_DECR R30, -4         ; Decrement counter R30. If > 0, jump to 0x0004
 
 0x0009: OP_COLLECT_VALUE_MAP R63, R0, R4     ; Return Map<NodeKey, FloatPageRank>
 0x000A: OP_HALT

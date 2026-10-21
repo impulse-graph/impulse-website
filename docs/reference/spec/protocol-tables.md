@@ -1,6 +1,6 @@
-# Normative Binary Specification: Impulse Graph Format (0.9.0)
+# Normative Binary Specification: Impulse Graph Format
 
-This document is automatically generated from the normative specification schema `v0.9.yaml`.
+This document is automatically generated from the normative specification schema the normative specification schema.
 
 ---
 
@@ -15,7 +15,7 @@ This document is automatically generated from the normative specification schema
 ## 2. Enumeration Types
 
 ### `impulse_status_t`
-*C-ABI Status and Error Return Codes (v0.9.0)*
+*C-ABI Status and Error Return Codes*
 
 | Name | Value |
 | :--- | :--- |
@@ -31,7 +31,7 @@ This document is automatically generated from the normative specification schema
 | `IMPULSE_ERR_BUFFER_OVERFLOW` | `9` |
 
 ### `impulse_key_type_t`
-*Domain Catalog Key Type Enums (v0.9.0)*
+*Domain Catalog Key Type Enums*
 
 | Name | Value |
 | :--- | :--- |
@@ -49,7 +49,7 @@ This document is automatically generated from the normative specification schema
 | `IMPULSE_KEY_TYPE_UUID128` | `12` |
 
 ### `impulse_encoding_type_t`
-*Primary Topology CSR Encoding Enums (v0.9.0)*
+*Primary Topology CSR Encoding Enums*
 
 | Name | Value |
 | :--- | :--- |
@@ -68,7 +68,7 @@ This document is automatically generated from the normative specification schema
 ## 3. Binary Layout Structs
 
 ### `impulse_snapshot_header_v0_9_t`
-*Section 1 Fixed 4KB Baseline Snapshot Header (Spec v0.9.0)* (Expected Size: 4096 bytes)
+*Section 1 Fixed 4KB Baseline Snapshot Header* (Expected Size: 4096 bytes)
 
 | Field Name | Type | Description |
 | :--- | :--- | :--- |

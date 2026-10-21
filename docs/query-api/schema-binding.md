@@ -9,12 +9,12 @@ When you call `execute()`, the query must resolve string-based relation names in
 ```text
 ImpulseQuery (string-based AST)
        │
-       │  execute(view, input) called
+       │ execute(view, input) called
        ▼
   Check: is there a CompiledQuery cached for view.schema().fingerprint()?
        │
-  NO ──┼──▶  Compile: resolve relation strings → int IDs, validate type chain
-       │     Cache result in ImpulseQuery keyed by schema fingerprint
+  NO ──┼──▶ Compile: resolve relation strings → int IDs, validate type chain
+       │ Cache result in ImpulseQuery keyed by schema fingerprint
        │
   YES ─┘
        │

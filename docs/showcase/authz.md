@@ -25,7 +25,7 @@ Impulse Graph excels at this by compiling permission checks into flat opcode pla
         .walkEdge("roleToPermission")
         // Terminal: Does the resulting set contain our target resource?
         .collect(ReturnType.EXISTS);
-        
+
     // Execute on the hot path (e.g., inside an interceptor)
     boolean allowed = canEditQuery.execute(ctx, view, requestingUserId);
     ```
@@ -34,10 +34,10 @@ Impulse Graph excels at this by compiling permission checks into flat opcode pla
 
 Notice the `ReturnType.EXISTS` terminal. Instead of materializing a full `RoaringBitmap` of all permissions the user has, the engine optimizes the execution plan to return `true` the moment it encounters the target resource ID, pruning unnecessary branches early.
 
-## Live Debezium CDC Sync
+## Live Debezium CDC Sync & Atomic Snapshot Swap
 
-To keep the graph completely up-to-date with the source of truth database (e.g., Postgres), `impulse-authz` uses Debezium Change Data Capture (CDC).
+To keep the authorization graph synchronized with the source-of-truth relational database (e.g., Postgres) without introducing read/write locks on the query path, `impulse-authz` uses Debezium Change Data Capture (CDC) and out-of-band snapshot compilation:
 
 1. Postgres mutations (insert `user_group_membership`) are captured by Debezium and placed on a Kafka topic.
-2. The `impulse-platform` server consumes these events and immediately applies them to the `CsrDeltaLayer`.
-3. Subsequent authorization checks instantly reflect the new membership, fulfilling strict consistency requirements without sacrificing read speed.
+2. The `impulse-platform` streaming builder consumes these events, writes a new immutable `.imps` snapshot, and triggers an atomic A/B pointer swap (`SnapshotSwapManager`).
+3. Authorization checks always execute over 100% lock-free, read-only `.imps` snapshots at full SIMD speed.

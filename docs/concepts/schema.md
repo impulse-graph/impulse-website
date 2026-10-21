@@ -16,14 +16,14 @@ The `GraphSchema` defines the shape of the graph:
 GraphSchema schema = GraphSchema.builder()
     // Define an EntityType named "User" capable of holding up to 10M nodes
     .addEntityType("User", 10_000_000)
-    
+
     // Define an EntityType named "Product" holding up to 5M nodes
     .addEntityType("Product", 5_000_000)
-    
+
     // Define relationships between them
     .addRelation("User", "PURCHASED", "Product")
     .addRelation("User", "FOLLOWS", "User")
-    
+
     .build();
 ```
 

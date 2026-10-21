@@ -1,51 +1,43 @@
 # Archetype 1: Long-Lived Dynamic Service
 
-The **Long-Lived Dynamic Service** archetype is designed for environments where graph data is constantly changing (e.g., streaming in via Kafka), and you need to serve low-latency queries concurrently without interruption. This is typically built using Java 25 or Kotlin alongside a framework like Spring Boot or gRPC.
+The **Long-Lived Dynamic Service** archetype is designed for environments where upstream data changes continuously (e.g., streaming in via Kafka or Debezium CDC), and you need to serve sub-microsecond, read-only graph queries concurrently without interruption.
 
 ## Architecture Overview
 
-In this archetype, the Impulse Graph Engine acts as an embedded database within your application server. The engine combines:
-1. An **immutable base snapshot** memory-mapped from disk.
-2. A **live delta overlay** (`CsrDeltaLayer`) residing in memory that absorbs incoming writes.
+To guarantee 100% lock-free, SIMD-accelerated traversal speed, Impulse Graph never mutates an active graph in place. Instead, it separates **read-only query execution** from **out-of-band snapshot compilation**:
+
+1. **Active Read-Only Snapshot (`Snapshot A`)**: Memory-mapped (`mmap`) into the service with zero locks and zero GC overhead.
+2. **Out-of-Band Streaming Compiler**: Consumes upstream CDC events and streams a new immutable `.imps` snapshot (`Snapshot B`) direct to disk or object storage.
+3. **Atomic A/B Pointer Swap (`SnapshotSwapManager`)**: Atomically redirects new queries to `Snapshot B` once ready, draining in-flight queries on `Snapshot A` before unmapping.
 
 ```mermaid
 graph TD
-    Client[gRPC / HTTP Clients] --> Server[Spring Boot Service]
-    Server --> GraphView[GraphView Layer]
-    GraphView --> Base[Memory-Mapped Base Snapshot]
-    GraphView --> Delta[In-Memory CsrDeltaLayer]
-    Kafka[Kafka Topic] --> Writer[SnapshotWriter / CsrDeltaLayer]
+    Client[gRPC / HTTP Clients] --> Server[Application Service]
+    Server --> Swap[SnapshotSwapManager]
+    Swap --> SnapA["Active Snapshot A (mmap Read-Only)"]
+    Swap -.->|Atomic A/B Swap| SnapB["New Snapshot B (mmap Read-Only)"]
+    Kafka[Kafka / CDC Stream] --> Builder[Streaming SnapshotBuilder]
+    Builder --> SnapB
 ```
 
-## Atomic Snapshot Swap
+## Atomic A/B Snapshot Swap
 
-Because memory-mapping large files (TB scale) can take a non-trivial amount of time, you cannot simply block queries while loading a new base snapshot. Impulse Graph uses an **A/B atomic reference swap** to manage background compaction and rotation.
+Because memory-mapping large `.imps` files is an $O(1)$ OS operation, rotating to a fresh snapshot never blocks active reader threads:
 
-1. **Background Compaction**: A background thread (or separate `impulse-platform` process) periodically merges the base snapshot with the current delta layer and writes a new `.imps` snapshot file to disk.
-2. **Atomic Swap**: The application maps the new snapshot in the background. Once loaded, it atomically swaps the `GraphView` reference (`VarHandle`) to point to the new snapshot, simultaneously resetting the in-memory delta.
-3. **Zero Downtime**: Queries already in flight complete against the old memory-mapped region. Once all old queries finish, the old region is unmapped.
+1. **Out-of-Band Build**: A background worker or `impulse-platform` pipeline writes a new `.imps` snapshot file (`Snapshot B`) to disk.
+2. **Atomic Reference Swap**: The application memory-maps `Snapshot B` and calls `swapManager.swap(newSnapshot)`, atomically updating the active reference.
+3. **Zero Downtime & Lock-Free Draining**: Queries already in flight complete against `Snapshot A`. Once the last reader releases its reference, `Snapshot A`'s `Arena` is closed and unmapped.
 
-=== "Java"
+=== "Java 25"
     ```java
-    ImpulseGraph liveGraph = ImpulseGraph.open(baseSnapshotPath);
-    
-    // In background compaction thread:
-    Snapshot newSnapshot = loadNewSnapshotInBackground();
-    liveGraph.swapAtomic(newSnapshot);
+    SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialSnapshot);
+
+    // Reader thread: zero-lock acquisition
+    try (var holder = swapManager.acquireCurrent()) {
+        GraphSnapshot active = holder.getResource();
+        // Execute read-only traversal...
+    }
+
+    // Background updater thread: atomic A/B pointer swap
+    swapManager.swap(newlyLoadedSnapshot);
     ```
-
-## Live Delta Overlay
-
-The `CsrDeltaLayer` tracks:
-- **Additions**: New nodes or edges appended since the last snapshot.
-- **Tombstones**: Deletions recorded as sparse bitsets (e.g., `RoaringBitmap`).
-
-When queries traverse the graph via `GraphView.of(liveGraph)`, the engine automatically routes memory reads, masking out tombstones and injecting new edges seamlessly into the result sets.
-
-## Resource Pool Adaptation
-
-As graph sizes grow over time, internal buffer sizes (like the `QueryContext` scratch pads) need to adjust dynamically. Impulse provides pool adaptation to resize allocation pools without restarting the service.
-
-```java
-liveGraph.pool().adaptTo(newCapacityLimits);
-```

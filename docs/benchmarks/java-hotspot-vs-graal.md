@@ -14,10 +14,10 @@ All evaluations were conducted over the canonical **`twitter-2010` Graph Snapsho
 ```
                        Full Graph GAPBS Execution Times (twitter-2010)
   BFS (Breadth-First Search)  : C++ 533ms │ HotSpot 642ms │ Native 492ms │ Graal JIT 448ms (🏆 1.19x vs C++)
-  PR  (PageRank per iteration): C++ 355ms │ HotSpot 398ms │ Native 340ms │ Graal JIT 312ms (🏆 1.14x vs C++)
-  CC  (Connected Components)  : C++ 508ms │ HotSpot 582ms │ Native 495ms │ Graal JIT 461ms (🏆 1.10x vs C++)
-  TC  (Triangle Counting)     : C++ 14.2s │ HotSpot 15.8s │ Native 13.7s │ Graal JIT 12.9s (🏆 1.10x vs C++)
-  BC  (Betweenness Centrality): C++ 3.12s │ HotSpot 3.51s │ Native 2.98s │ Graal JIT 2.79s (🏆 1.12x vs C++)
+  PR (PageRank per iteration): C++ 355ms │ HotSpot 398ms │ Native 340ms │ Graal JIT 312ms (🏆 1.14x vs C++)
+  CC (Connected Components)  : C++ 508ms │ HotSpot 582ms │ Native 495ms │ Graal JIT 461ms (🏆 1.10x vs C++)
+  TC (Triangle Counting)     : C++ 14.2s │ HotSpot 15.8s │ Native 13.7s │ Graal JIT 12.9s (🏆 1.10x vs C++)
+  BC (Betweenness Centrality): C++ 3.12s │ HotSpot 3.51s │ Native 2.98s │ Graal JIT 2.79s (🏆 1.12x vs C++)
   SSSP(Shortest Paths)        : C++ 1.85s │ HotSpot 2.12s │ Native 1.79s │ Graal JIT 1.68s (🏆 1.10x vs C++)
 ```
 
@@ -55,12 +55,12 @@ For targeted root-node traversals, permission checks, and microservice RPCs, Hot
                                            │
              ┌─────────────────────────────┴─────────────────────────────┐
              ▼                                                           ▼
-Is sub-millisecond cold start or low RSS required?          Is maximum peak query throughput required?
-(Serverless / AWS Lambda / K8s Auto-scaling)                (High-throughput microservices & batch)
+Is sub-millisecond cold start or low RSS required? Is maximum peak query throughput required?
+(Serverless / AWS Lambda / K8s Auto-scaling) (High-throughput microservices & batch)
              │                                                           │
              ▼                                                           ▼
    🏆 Use GraalVM Native Image                                🏆 Use GraalVM Enterprise JIT
-  (0.025 ms startup, 18 MB RSS)                             (1.10x-1.19x faster than C++ GAPBS)
+  (0.025 ms startup, 18 MB RSS) (1.10x-1.19x faster than C++ GAPBS)
 ```
 
 ### Recommendation 1: GraalVM Native Image for Serverless & Kubernetes Auto-Scaling

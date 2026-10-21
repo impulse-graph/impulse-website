@@ -3,11 +3,16 @@ name: Deploy Documentation to GitHub Pages
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -16,14 +21,72 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout impulse-website
+        uses: actions/checkout@v4
         with:
-          python-version: 3.x
-      - run: pip install mkdocs-material
-      - run: mkdocs build
-      - uses: actions/upload-pages-artifact@v3
+          path: impulse-website
+
+      - name: Checkout impulse-graph-java
+        uses: actions/checkout@v4
         with:
-          path: ./site
-      - id: deployment
+          repository: impulse-graph/impulse-graph-java
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: impulse-graph-java
+        continue-on-error: true
+
+      - name: Checkout impulse-graph-core
+        uses: actions/checkout@v4
+        with:
+          repository: impulse-graph/impulse-graph-core
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: impulse-graph-core
+        continue-on-error: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: impulse-website/requirements.txt
+
+      - name: Install MkDocs dependencies
+        working-directory: impulse-website
+        run: pip install -r requirements.txt
+
+      - name: Build MkDocs portal
+        working-directory: impulse-website
+        run: mkdocs build --strict
+
+      - name: Setup Java 22 for Javadoc generation
+        if: hashFiles('impulse-graph-java/pom.xml') != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "22"
+          cache: "maven"
+
+      - name: Generate Aggregated Javadocs
+        if: hashFiles('impulse-graph-java/pom.xml') != ''
+        working-directory: impulse-graph-java
+        run: |
+          mvn javadoc:aggregate -DskipTests -B
+          mkdir -p ../impulse-website/site/javadoc
+          cp -R target/site/apidocs/* ../impulse-website/site/javadoc/
+
+      - name: Generate C-ABI & C++20 Doxygen HTML
+        if: hashFiles('impulse-graph-core/impulse-cpp/Doxyfile') != ''
+        working-directory: impulse-graph-core/impulse-cpp
+        run: |
+          sudo apt-get update && sudo apt-get install -y doxygen
+          doxygen Doxyfile
+          mkdir -p ../../impulse-website/site/doxygen
+          cp -R build/docs/html/* ../../impulse-website/site/doxygen/
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: impulse-website/site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4

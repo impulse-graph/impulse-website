@@ -1,26 +1,31 @@
 # Package Registry & Distribution
 
-Impulse Graph is distributed across a wide variety of package managers and registries, supporting a truly polyglot ecosystem.
+Impulse Graph Engine (`0.9.0`) is distributed across 7 package registries supporting JVM, native, and managed runtimes.
 
-| Ecosystem | Registry | Package Name | Description |
-|-----------|----------|--------------|-------------|
-| **Java / JVM** | Maven Central | `io.impulse.graph:impulse-core` | Core Java engine, Zero-dependency. |
-| **Java / JVM** | Maven Central | `io.impulse.graph:impulse-api` | Public interfaces and AST builders. |
-| **Scala** | Maven Central | `io.impulse.graph:impulse-scala_3` | Scala 3 Idiomatic wrappers. |
-| **Kotlin** | Maven Central | `io.impulse.graph:impulse-kotlin` | Kotlin extension functions and coroutines. |
-| **Rust** | Crates.io | `impulse-graph` | Core engine crate (zero-cost). |
-| **Rust** | Crates.io | `impulse-tools` | Developer tools (`impulse-opt`, `impulse-inspect`). |
-| **Python** | PyPI | `impulse-graph` | Native wheels for Python, PyTorch GNN integration. |
-| **.NET / C#** | NuGet.org | `ImpulseGraph` | Managed API for .NET. |
-| **.NET / C#** | NuGet.org | `ImpulseGraph.Native` | Cross-platform embedded native binaries. |
-| **F#** | NuGet.org | `ImpulseGraph.FSharp` | F# idiomatic bindings. |
-| **Node.js** | npm | `impulse-graph` | TypeScript definitions & N-API bindings. |
-| **C / C++** | Vcpkg / Conan | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`), C++20 Fluent API (`impulse_vm_fluent.hpp`), and static/shared libs (`ImpulseGraph::impulse_graph_static`). |
-| **Docker** | GHCR | `ghcr.io/impulse-graph/impulse-platform-server:latest` | Enterprise cloud infrastructure platform. |
+| Ecosystem | Registry | Package / Coordinate | Description |
+| :--- | :--- | :--- | :--- |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-api` | Public interfaces, `DomainView`, `Traversal`, `ImpulseStatement`, and AST contracts. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-storage` | Zero-dependency Java 21/25 FFM off-heap CSR/CSC snapshot engine. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-vm` | Register-based `ImpulseVM` interpreter, `MethodHandle` JIT, and bytecode emitter. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-compiler` | Multi-pass `ImpScheme`, `openCypher`, and `CEL` optimizing compiler. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-builder` | Direct-to-disk streaming `.imps` snapshot builder. |
+| **Java / JVM** | Maven Central | `org.impulsegraph:impulse-spec` | C-ABI Binary Snapshot Specification FFM layouts and constants. |
+| **Kotlin** | Maven Central | `org.impulsegraph:impulse-kotlin` | Kotlin DSL builders and coroutine extensions. |
+| **Scala 3** | Maven Central | `org.impulsegraph:impulse-scala_3` | Scala 3 idiomatic typeclasses and given instances. |
+| **Rust** | Crates.io | `impulse-graph` | Zero-dependency Rust engine crate (`mmap` reader, SoA slices, traversal, writer). |
+| **Rust** | Crates.io | `impulse-tools` | Developer CLI utilities (`impulse-opt`, `impulse-inspect`). |
+| **Python** | PyPI | `impulse-graph` | Native `pybind11` wheels with zero-copy NumPy and PyTorch tensor views. |
+| **.NET / C#** | NuGet.org | `ImpulseGraph` / `ImpulseGraph.Native` | Managed .NET 8+ API and cross-platform P/Invoke native binaries. |
+| **F#** | NuGet.org | `ImpulseGraph.FSharp` | Idiomatic F# computation expressions and pipeline operators. |
+| **Node.js / Bun** | npm | `impulse-graph` | TypeScript definitions (`index.d.ts`) and N-API native bindings. |
+| **C / C++** | Vcpkg / Conan | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`), C++20 headers, and `libimpulse_graph_static.a`. |
+| **Containers** | GHCR | `ghcr.io/impulse-graph/impulse-tools:latest` | Standalone CLI and compiler toolchain container image. |
+| **Containers** | GHCR | `ghcr.io/impulse-graph/impulse-platform-server:latest` | Enterprise gRPC server, Kafka WAL consumer, and S3/GCS snapshot sync. |
 
 ## Static Core Engine Linking
 
-All native binaries (`impulse-tools`, Python wheels, Node N-API) statically embed the core Impulse Graph C-ABI kernel (`libimpulse_graph_static.a`). 
-- **Linux**: Targets `glibc >= 2.28`, with `musl` fully static alternatives available.
-- **Windows**: Built with MSVC `/MT` to eliminate runtime installer requirements.
-- **macOS**: Embeds static engine kernel, links standard `libc++.dylib`.
+All native CLI binaries (`impulse-graph-tooling`), Python wheels, and Node.js N-API add-ons statically embed the core Impulse Graph C-ABI kernel (`libimpulse_graph_static.a` / `.lib`):
+
+* **Linux (`.deb` / `.rpm`)**: Targets `glibc >= 2.28`; portable container tarballs link `musl-libc` (`-static`).
+* **macOS (`.pkg` / Homebrew)**: Embeds static engine kernel; links system `libc++.dylib` and `libSystem.B.dylib` (macOS 11.0+).
+* **Windows (`.msi` / `.zip`)**: Built with MSVC `/MT` (`LIBCMT.lib`) with zero external redistributable requirements.

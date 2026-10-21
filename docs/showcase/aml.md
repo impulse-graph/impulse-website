@@ -18,10 +18,10 @@ Impulse Graph solves this using the `repeatUntilStable` fixed-point iteration op
         // Keep following 'transferredTo' edges until the set stops growing
         .repeatUntilStable(step -> step.walkEdge("transferredTo"))
         .collect(ReturnType.ROARING_BITSET);
-        
+
     // Execute to get all downstream accounts
     RoaringBitmap downstream = ringDetector.execute(ctx, view, suspectAccountId);
-    
+
     // If the suspect account is in its own downstream set, we have a cycle!
     boolean isFraudRing = downstream.contains(suspectAccountId);
     ```
@@ -30,21 +30,22 @@ Impulse Graph solves this using the `repeatUntilStable` fixed-point iteration op
 
 Because the `transferredTo` edges are stored in CPU-cache-friendly, 128-byte aligned CSR arrays, following edges is simply a pointer offset addition. The engine can traverse millions of transactions and compute the stable closure in milliseconds.
 
-## Hypothetical "Freeze Account" Scenarios
+## Evaluating Account Exclusion Scenarios
 
-Investigators can also run hypothetical queries. "If we freeze Account B, does it break the fraud ring?"
+Investigators can also evaluate "what-if" scenarios—such as testing whether excluding a specific intermediary account breaks a suspected fraud ring—directly within the read-only traversal pipeline using an inline node filter:
 
-=== "Java"
+=== "Java 25"
     ```java
-    // Hypothetical delta: remove all outgoing edges from Account B
-    ImpulseGraphDelta freezeDelta = ImpulseGraphDelta.builder()
-        .removeEdgesFromNode(accountB_Id, "transferredTo")
-        .build();
-        
-    GraphView hypotheticalView = GraphView.of(baseSnapshot, freezeDelta);
-    RoaringBitmap newDownstream = ringDetector.execute(ctx, hypotheticalView, suspectAccountId);
-    
-    if (!newDownstream.contains(suspectAccountId)) {
-        System.out.println("Freezing Account B breaks the cycle.");
+    boolean cyclePersists = snap.domain("Account")
+        .from(suspectAccountId)
+        .repeatUntilStable(step -> step
+            .out("transferredTo")
+            .filter("node.id != $excludedId"))
+        .withParam("excludedId", accountB_Id)
+        .toBitSet()
+        .get(suspectAccountId);
+
+    if (!cyclePersists) {
+        System.out.println("Excluding Account B breaks the cycle.");
     }
     ```

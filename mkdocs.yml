@@ -1,12 +1,16 @@
 site_name: Impulse Graph Engine
 site_description: High-Performance C-ABI Binary Snapshot Graph Engine
 site_url: https://docs.impulsegraph.io
+repo_url: https://github.com/impulse-graph
+repo_name: impulse-graph
 
 theme:
   name: material
+  logo: assets/logo_icon.jpg
+  favicon: assets/favicon.jpg
   palette:
     - scheme: slate
-      primary: indigo
+      primary: black
       accent: cyan
   features:
     - navigation.tabs
@@ -26,35 +30,56 @@ markdown_extensions:
   - tables
   - admonition
 
+not_in_nav: |
+  design-notes/bugs.md
+  design-notes/cleanup-for-v0.9.0.md
+  design-notes/code-protections-github-pr-todo.md
+  design-notes/java-walkthru.md
+  design-notes/v0.9.0-TODO.md
+  design-notes/walkthru-cpp.md
+
+validation:
+  links:
+    absolute_links: ignore
+
 nav:
   - Home: index.md
-  - Benchmarks & Performance:
-    - Overview: benchmarks.md
-    - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
-    - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
 
   - Getting Started:
     - Overview: getting-started/index.md
     - Installation: getting-started/installation.md
     - Quickstart: getting-started/quickstart.md
-    - Core Concepts: getting-started/core-concepts.md
+    - Core Concepts & Glossary: getting-started/core-concepts.md
+    - Building Snapshots (Java): getting-started/building-snapshots.md
+    - Snapshot Builder Reference: getting-started/snapshot-builder-reference.md
+    - Ingestion Strategies: getting-started/ingestion-strategies.md
 
-  - Concepts:
+  - Concepts & Architecture:
+    - Data-Oriented Design: concepts/data-oriented-design.md
+    - Academic Foundations: academic.md
     - Snapshots: concepts/snapshots.md
     - Graph Model: concepts/graph-model.md
-    - Delta Overlay: concepts/delta-overlay.md
+    - Key Mapping & Projections: concepts/key-mapping-and-projections.md
     - GraphView: concepts/graph-view.md
     - Schema: concepts/schema.md
+    - Compiler Architecture: concepts/compiler-architecture.md
+    - VM Parallel Execution: concepts/vm-parallel-execution.md
+    - Software Modules: software-modules.md
 
   - Languages & DSLs:
     - Overview: dsl/index.md
+    - openCypher Reference: dsl/opencypher.md
+    - Google CEL (Filters & Projections): dsl/cel.md
     - ImpScheme (.impscm): dsl/impscm.md
     - ImpK (.impk): dsl/impk.md
     - ImpLog (.implog): dsl/implog.md
 
   - Query API:
     - Overview: query-api/index.md
+    - Fluent API Specification: query-api/fluent-api.md
     - Building Queries: query-api/building-queries.md
+    - Advanced Querying: query-api/advanced-querying.md
+    - Query Context: query-api/query-context.md
     - Bytecode Virtual Machine (ImpOps): query-api/bytecode-vm.md
     - Operations:
       - Walk Edge: query-api/operations/walk-edge.md
@@ -66,11 +91,46 @@ nav:
     - Memory Layout: query-api/memory-layout.md
     - GraphView & Execution: query-api/graph-view-execution.md
 
-  - Deployment:
+  - API Reference:
+    - Java 25 Engine API Reference: reference/java-api.md
+    - C-ABI Kernel & VM Reference: reference/c-abi.md
+    - C++20 API Reference: reference/cpp-api.md
+    - Rust Crate Reference: reference/rust-api.md
+    - Python SDK Reference: reference/python-api.md
+    - Go SDK (CGo) Reference: reference/go-api.md
+    - .NET / C# SDK Reference: reference/dotnet-api.md
+    - Node.js / TypeScript Reference: reference/node-api.md
+    - Kotlin API Reference: reference/kotlin-api.md
+    - Scala 3 API Reference: reference/scala-api.md
+    - CLI Reference: reference/cli.md
+    - Tooling Architecture: reference/tooling-architecture.md
+    - Gradle Plugin Reference: reference/gradle-plugin.md
+    - YAML Configuration: reference/yaml-configuration.md
+    - Schema Code Generation: reference/schema-codegen.md
+    - Operations Cheatsheet: reference/operations-cheatsheet.md
+    - Package Registry: reference/packages.md
+
+  - Specifications:
+    - Specification Hub: reference/spec/index.md
+    - Binary Snapshot Format (.imps): reference/spec/format-specification.md
+    - ImpulseVM & ImpOps ISA: reference/spec/vm-specification.md
+    - ImpAs Assembly Format (.impas): reference/spec/impas-specification.md
+    - Snapshot Schema (.imps.schema.yaml): reference/spec/schema-specification.md
+    - Generated Protocol Tables: reference/spec/protocol-tables.md
+    - Specification Summary: reference/spec/overview.md
+    - Schema Evolution: reference/schema-evolution.md
+
+  - Deployment & Tuning:
     - Dynamic Service: deployment/dynamic-service.md
     - Fixed Snapshot: deployment/fixed-snapshot.md
     - Capacity & Growth: deployment/capacity-growth.md
     - Concurrency Model: deployment/concurrency.md
+    - JVM Memory & FFM Tuning: deployment/memory-tuning.md
+
+  - Benchmarks:
+    - Overview: benchmarks.md
+    - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
+    - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
 
   - Showcase:
     - Authorization (ReBAC): showcase/authz.md
@@ -78,20 +138,16 @@ nav:
     - Power Grid Stability: showcase/powergrid.md
     - Graph Neural Networks: showcase/gnn.md
 
-  - Reference:
-    - C++ API Reference: reference/cpp-api.md
-    - Java API Reference: reference/java-api.md
-    - Kotlin API Reference: reference/kotlin-api.md
-    - Scala 3 API Reference: reference/scala-api.md
-    - Gradle Plugin Reference: reference/gradle-plugin.md
-    - Python API Reference: reference/python-api.md
-    - CLI Reference: reference/cli.md
+  - Design Notes:
+    - Category Theory & FP Foundations: design-notes/fp-perspective.md
+    - Academic Critique (MLIR vs ImpScheme): design-notes/academic-critique.md
+    - CEL AST Optimization: design-notes/cel-ast-optimize.md
+    - openCypher Query Support: design-notes/cypher-query-support.md
+    - Vector Attribute Specification: design-notes/vector-attribute-spec.md
+    - ImpulseVM Architecture Critique: design-notes/vm-critique.md
+    - Comparison vs. NornicDB: design-notes/nornic-db-comparison.md
+    - Comparison vs. TuringDB: design-notes/turing-db-comparison.md
 
-    - Operations Cheatsheet: reference/operations-cheatsheet.md
-    - Binary Snapshot Spec:
-      - Version Selector Hub: reference/spec/index.md
-      - Specification v0.9.0 (Current): reference/spec/v0.9.0.md
-    - Schema Evolution: reference/schema-evolution.md
-    - Package Registry: reference/packages.md
-
-  - Contributing: contributing/index.md
+  - Contributing:
+    - Contributing Guide: contributing/index.md
+    - Polyglot Validation & Test Process: contributing/polyglot-validation.md

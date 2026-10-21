@@ -10,7 +10,7 @@
 
 ## 1. Specification Overview & Modular Design Principles
 
-This document defines the formal binary protocol specification for the **Impulse-Graph C-ABI Binary Snapshot Format (Version 0.9.0)**.
+This document defines the formal binary protocol specification for the **Impulse-Graph C-ABI Binary Snapshot Format**.
 
 The format is organized into **4KB OS page-aligned physical blocks**, structured to support **single-pass S3/cloud streaming uploads**, **$O(1)$ zero-copy `mmap` range loading**, and **AVX-512 / GPU SIMD vectorization**.
 
@@ -60,7 +60,7 @@ The snapshot header occupies byte offset `0x00000000` (Page 0). It contains a **
 | Byte Offset | Field Name | C-ABI Type | Size | Default / Constant | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `0x0000` – `0x0003` | `Magic` | `uint32_t` | 4 Bytes | `0x494D5053` (`"IMPS"`) | Magic constant identifying Impulse-Graph binary snapshot file. |
-| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x0009` (`9`) | Protocol specification version number (v0.9.0 packed `0x0009`). |
+| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x0009` (`9`) | Protocol specification version number ( packed `0x0009`). |
 | `0x0006` – `0x0009` | `DataOffset` | `uint32_t` | 4 Bytes | `4096` (`0x00001000`) | Fixed constant (`4096`). Section 2 always starts at byte 4096 (Page 1). |
 | `0x000A` – `0x000B` | `DomainCount` | `uint16_t` | 2 Bytes | Variable | Total number of node domains in the catalog (up to 65,536). |
 | `0x000C` – `0x000D` | `RelationCount` | `uint16_t` | 2 Bytes | Variable | Total number of relations in the matrix (up to 65,536). |
@@ -164,7 +164,7 @@ Attribute data types are encoded in an 8-bit field (`uint8_t type_code`):
 
 // Bitwise evaluation in C-ABI parsers
 uint8_t base_type   = descriptor->type_code & IMPULSE_TYPE_MASK;
-bool    is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
+bool is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
 ```
 
 * **Non-Nullable (`is_nullable == false`, Bit 7 = 0)**: Zero validity bitmap overhead. 100% of memory is allocated to contiguous data values.
@@ -211,7 +211,7 @@ Attribute storage layout depends on whether the attribute is fixed-width (scalar
 For unseekable S3 multi-part uploads, signatures, SHA-256 digests, and catalog directories are serialized into the **Footer Block at EOF**.
 
 ### 5.2 16-Byte Footer Trailer Specification
-Every compliant v0.9.0 snapshot MUST terminate with exactly 16 bytes at EOF:
+Every compliant snapshot MUST terminate with exactly 16 bytes at EOF:
 
 ```c
 typedef struct impulse_footer_trailer {
@@ -230,62 +230,5 @@ typedef struct impulse_footer_trailer {
 #define IMPULSE_ALIGN_128(offset) (((offset) + 127ULL) & ~127ULL)
 
 // 4KB Page Alignment for OS Virtual Memory Area (VMA) Isolation
-#define IMPULSE_ALIGN_4K(offset)  (((offset) + 4095ULL) & ~4095ULL)
+#define IMPULSE_ALIGN_4K(offset) (((offset) + 4095ULL) & ~4095ULL)
 ```
-
----
-
-## 7. Future Research & Architectural Explorations
-
-### 7.1 Multi-Snapshot Query Execution & Cross-Snapshot Relation Namespacing
-
-Future specification iterations explore allowing single queries (`ImpulseVM` execution pipelines) to bind and traverse across multiple `.imps` binary snapshots (e.g., Snapshot `A` containing relations `rel0..10`, and Snapshot `B` containing relations `rel11..13`).
-
-#### Core Design & Research Directives:
-
-1. **Relation Namespacing & Virtual Directory Table**:
-   - **Syntax & Disambiguation**: Enforce namespace resolution (`SnapshotAlias::RelationName`, e.g., `A::userToGroup`) to prevent relation collisions across snapshots.
-   - **Composite Relation Handles**: Expand 16-bit relation handles in `impOps` to 32-bit composite handles `(SnapshotID << 16) | LocalRelID` or construct a thread-safe `VirtualRelationDirectory` at query compilation time.
-
-2. **Node ID Space Alignment & Key Compatibility**:
-   - **Identity Verification**: Enforce snapshot bind-time verification comparing node domain names, entity counts, primary key schemas, and domain identity hashes.
-   - **Zero-Copy Pass-Through**: For snapshots generated against identical baseline node ID catalogs (e.g., base snapshot + delta snapshots), preserve sub-microsecond direct $O(1)$ node indexing.
-   - **Dense Translation Vectors (`OP_REMAP_ID_SPACE`)**: For mismatched node ID orderings across snapshots, construct or mmap dense remapping vectors (`map_A_to_B[node_id_A] -> node_id_B`) to translate frontier node bitsets between snapshot steps without allocation overhead.
-   - **Bounds Safety**: Enforce domain count bounds checking ($N_A$ vs $N_B$) to prevent out-of-bounds memory access during CSR row offset lookups.
-
-3. **Off-Heap String Table & Attribute Memory Isolation**:
-   - **String Pool Base Pointer Isolation**: Scope variable-length UTF-8 string offsets (`VAR_STRING`) to their originating snapshot's string pool pointer (`string_table_base_A` vs `string_table_base_B`) to avoid cross-snapshot memory corruption in attribute filter opcodes (`OP_FILTER_ATTR_STR`).
-   - **Attribute Schema Unification**: Standardize bitwise primitive types across snapshots to ensure vector operations (`OP_MXV`) run without runtime alignment or type-coercion overhead.
-
-4. **Multi-Snapshot Lifecycle & Execution Safety**:
-   - **Atomic Ref-Counting & Thread Safety**: Extend `VmQueryContext` to maintain atomic read-locks and reference counts across all participant snapshot `mmap` handles to prevent OS page faults (`SIGBUS`) during dynamic snapshot unmapping or hot-swapping.
-
-### 7.2 Dynamic Delta Overlay for In-Memory Graph CRUD Operations (v0.9.2+ Feature Roadmap)
-
-A major future research initiative slated for the **v0.9.2+ feature roadmap** focuses on evaluating dynamic in-memory **Delta Overlays** (`CsrDeltaLayer`) for handling real-time Graph CRUD operations (insertions/deletions of nodes and edges, and node/edge attribute mutations) directly on top of immutable `.imps` zero-copy snapshots.
-
-
-#### Architectural Challenges & Empirical Verification Mandate:
-
-1. **Traversal Performance Overhead Hypothesis**:
-   - **Tombstone Bitset Evaluation**: Marking deleted nodes/edges via `RoaringBitmap` or dense bitset tombstones requires per-neighbor bitwise checking during `OP_CSR_WALK`, potentially disrupting AVX-512 SIMD vector loops.
-   - **Dual-Path Adjacency Merging**: Traversing inserted edges requires merging static contiguous CSR array reads with dynamic in-memory adjacency lists, introducing pointer indirection, cache line misses, and branch mispredictions.
-   - **Attribute Mutation Overlays**: Overriding fixed-width SoA attribute arrays or variable-length string blobs with dynamic Copy-on-Write (CoW) maps breaks contiguous off-heap array alignment.
-
-2. **Empirical Benchmark Verification Requirement**:
-   - In accordance with empirical verification standards, the engine design team hypothesizes that dynamic delta overlays will incur a measurable performance penalty compared to raw zero-copy `mmap` snapshots.
-   - Rigorous empirical micro- and macro-benchmarks (measuring MTEPS throughput, QPS, L1/L3 cache misses, and branch misprediction rates via JMH and Google Benchmark) must be conducted to establish exact performance curves across varying delta scale ratios (0.1% to 10% mutation volume).
-
-3. **Trade-Off Analysis & Valid Workload Scenarios**:
-   - **Real-Time Read-After-Write (RAW) Consistency**: For Relationship-Based Access Control (ReBAC / Zanzibar), fraud detection, and transactional security, paying a modest traversal latency penalty ($0.2\mu\text{s} \to 1.5\mu\text{s}$) to guarantee instant sub-millisecond Read-After-Write freshness is a highly valid trade-off compared to serving stale access control reads while awaiting offline snapshot compaction.
-   - **High Read-to-Write Ratios ($>99\%$ Read, $<1\%$ Mutation)**: For workloads where $99.9\%$ of edges are read zero-copy from disk `mmap` and only $0.1\%$ hit the delta layer, overall query latency degrades by only 5%–15%, avoiding the massive CPU and disk I/O cost of rebuilding multi-hundred-gigabyte snapshots for single mutations.
-   - **Resource-Constrained Environments**: For edge nodes or cloud instances with strict I/O caps, delta overlays bound write amplification to $O(\Delta)$ memory footprint rather than $O(\text{Snapshot Size})$ disk writes.
-
-4. **v1.0 Tolerable Overhead Guidance & Benchmark SLA ($\le 20\%$ Latency Degrade Target)**:
-   - **v1.0 Performance SLA Standard**: A **$\le 20\%$ max latency overhead** ($\text{Latency}_{\text{delta}} \le 1.20 \times \text{Latency}_{\text{snapshot}}$ for low mutation volumes $\Delta \le 1\%$) is formally established as the target performance budget for v1.0 releases.
-   - **Compaction Trigger Signal**: If empirical benchmark execution demonstrates traversal overhead exceeding 20%, `impulse-engine` runtime automatically triggers background **A/B Snapshot Compaction** to re-baseline the delta layer into a new `.imps` snapshot and restore sub-microsecond zero-copy speeds.
-   - **SIMD Masking Mandate**: To satisfy the $\le 20\%$ target budget, tombstone bitset evaluation inside `impOps` must use vector bitwise masking (e.g. AVX-512 `vpandn` or Java Vector API bitwise masks) rather than scalar `if (isDeleted)` branches.
-
-
-
-

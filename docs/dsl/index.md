@@ -4,7 +4,7 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
 
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│   ImpK (Array)   │  │ ImpLog (Datalog) │  │ ImpScheme (S-Expr)│
+│ ImpK (Array)   │  │ ImpLog (Datalog) │  │ ImpScheme (S-Expr)│
 │ `g @[f; rel]`    │  │ `head :- body`   │  │ `(g:walk-csr ...)`│
 └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
          │                     │                     │
@@ -12,7 +12,7 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
                                │ (Translates to ImpScm IR)
                                ▼
             ┌──────────────────────────────────────────────┐
-            │       ImpScm (Universal Compiler IR)         │
+            │ ImpScm (Universal Compiler IR)         │
             │   • Vector Fusion Pass (&~ -> AND_NOT)       │
             │   • Direction Selection (CSR vs CSC)         │
             │   • Linear Scan Reg Allocator (R0..R63)      │
@@ -20,18 +20,19 @@ The **Impulse Graph Engine** compiler suite (`impulse-graph-tooling`) features a
                                    │
                                    ▼
             ┌──────────────────────────────────────────────┐
-            │        canonical .impas Emitter              │
-            │    OP_CSR_WALK, OP_ROARING_BITMAP_AND_NOT    │
+            │ canonical .impas Emitter              │
+            │ OP_CSR_WALK, OP_ROARING_BITMAP_AND_NOT    │
             └──────────────────────────────────────────────┘
 ```
 
 ## Available Language Dialects & Compiler Hierarchy
 
-1. **[ImpK (`.impk`)](impk.md)**: **Primary User Frontend DSL (Array/Vector)**. High-level language targeting GraphBLAS matrix math, PageRank, connected components, and SIMD vector operations.
-2. **[ImpLog (`.implog`)](implog.md)**: **Primary User Frontend DSL (Datalog/Logic)**. High-level declarative language targeting Relationship-Based Access Control (ReBAC / Zanzibar), transitive reachability, and security rules.
-3. **[ImpScheme (`.impscm`)](impscm.md)**: **Universal Compiler IR & Low-Level Macro Extension Target**. Homoiconic S-Expression AST compiler bus between high-level frontends (`ImpK`, `ImpLog`) and the `impOps` bytecode emitter. Directly writeable for macro metaprogramming or AST pass debugging.
-4. **ImpAsm (`.impas`)**: **Canonical Assembly Text Format**. Human-readable assembly text representation of `ImpulseVM` registers (`R0`..`R63`).
-5. **impOps (`.impb`)**: **Virtual Machine Bytecode ISA**. Register-based opcode instruction set architecture (opcodes `0x01`..`0x6A`). Formally specified in the core engine spec.
+1. **[Google CEL (`.cel`)](cel.md)**: **Universal Expression Engine (Filters & Projections)**. Standardized expression language for boolean graph filters (`WHERE`), calculated column projections (`RETURN`), ReBAC security policies, and 46 vector math functions with automated constant folding.
+2. **[ImpK (`.impk`)](impk.md)**: **Primary User Frontend DSL (Array/Vector)**. High-level language targeting GraphBLAS matrix math, PageRank, connected components, and SIMD vector operations.
+3. **[ImpLog (`.implog`)](implog.md)**: **Primary User Frontend DSL (Datalog/Logic)**. High-level declarative language targeting Relationship-Based Access Control (ReBAC / Zanzibar), transitive reachability, and security rules.
+4. **[ImpScheme (`.impscm`)](impscm.md)**: **Universal Compiler IR & Low-Level Macro Extension Target**. Homoiconic S-Expression AST compiler bus between high-level frontends (`ImpK`, `ImpLog`, `CEL`) and the `impOps` bytecode emitter. Directly writeable for macro metaprogramming or AST pass debugging.
+5. **ImpAsm (`.impas`)**: **Canonical Assembly Text Format**. Human-readable assembly text representation of `ImpulseVM` registers (`R0`..`R63`).
+6. **impOps (`.impb`)**: **Virtual Machine Bytecode ISA**. Register-based opcode instruction set architecture (opcodes `0x01`..`0x6A`). Formally specified in the core engine spec.
 
 
 ## Virtual Relations & Compiler Optimization Passes
