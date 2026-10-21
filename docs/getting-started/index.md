@@ -4,12 +4,12 @@ Impulse Graph Engine was built to answer a simple question:
 
 > **"How fast can a graph traversal possibly go?"**
 
-Instead of running a heavyweight database server or storing millions of heap-allocated `Node` and `Edge` objects, Impulse Graph uses **[Data-Oriented Design](../concepts/data-oriented-design.md)**:
+Its goal is to provide **world-class performance for traversing read-only graphs.** Instead of running a heavyweight database server or storing millions of heap-allocated `Node` and `Edge` objects, Impulse Graph uses **[Data-Oriented Design](../concepts/data-oriented-design.md)**:
 
 1. **You build an immutable `.imps` Binary Snapshot file** containing contiguous CSR/CSC adjacency arrays and columnar Structure-of-Arrays (SoA) attributes.
 2. **You memory-map (`mmap`) the `.imps` file** directly into your application in under a millisecond—with zero parsing and zero heap object allocation.
 3. **You execute queries off-heap** using either of Impulse's **two equivalent, first-class engines**:
-   - **Pure Java 25 Engine (`impulse-graph-java`)**: A 100% pure Java 25 implementation (FFM `MemorySegment`/`Arena` + Vector API) with **zero runtime dependencies**, **zero JNI wrappers**, and **zero GC pauses**.
+   - **Pure Java 25 Engine (`impulse-graph-java`)**: A 100% pure Java 25 implementation (FFM `MemorySegment`/`Arena`, Vector API, and `MethodHandle` JIT combinators) with **zero runtime dependencies**, **zero JNI wrappers**, and **zero GC pauses**.
    - **Native C++20 / C-ABI Engine (`impulse-graph-core`)**: A zero-dependency C++20 and C-ABI kernel (`libimpulse_graph`) that powers C, C++, Rust, Python, Go, .NET/C#, and Node.js.
 
 ---

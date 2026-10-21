@@ -2,9 +2,9 @@
 
 > **Ultra-High Performance Graph Query Execution Architecture**
 
-The **Impulse Graph Bytecode Virtual Machine (`impulse-vm`)** is an off-heap, register-based execution engine designed to compile declarative graph traversal ASTs into compact, 64-bit fixed-width binary instruction streams called **Impulse Opcodes (`ImpOps`)**.
+The **Impulse Graph Bytecode Virtual Machine (`ImpulseVM`)** is an off-heap, register-based execution engine designed to compile declarative graph traversal ASTs into compact, 64-bit fixed-width binary instruction streams called **Impulse Opcodes (`impOps`)**.
 
-Inspired by SQLite’s Virtual Database Engine (VDBE), `impulse-vm` replaces recursive AST visitor evaluation with chunky, vector-accelerated opcodes capable of sub-microsecond graph traversals across multi-terabyte binary snapshot graphs (`.imps`).
+Drawing direct architectural inspiration from the **Lua 5+ VM / LuaJIT** (register-based instruction encoding, register windowing, zero stack-traffic overhead) and **SQLite’s VDBE** (coarse-grained data operators), `ImpulseVM` replaces recursive AST visitor evaluation with chunky, vector-accelerated opcodes over memory-mapped binary snapshot graphs (`.imps`).
 
 ---
 
@@ -44,13 +44,14 @@ In baseline graph query engines, queries (e.g. `ImpulseGraphQuery.builder().inpu
 3. **Instruction Cache (i-Cache) Thrashing**: Navigating recursive object AST trees spreads instruction memory across non-contiguous addresses.
 4. **Lack of Cross-Language Parity**: AST visitors implemented in Java, C++, Python, and Rust produce divergent execution paths and inconsistent latency profiles.
 
-### 1.2 The Bytecode Virtual Machine Solution
+### 1.2 The Lua-Inspired Register VM Solution
 
-`impulse-vm` introduces a 64-bit binary Intermediate Representation (IR) and register-based VM state that solves these bottlenecks:
+`ImpulseVM` introduces a 64-bit binary Intermediate Representation (IR) and a **Lua-inspired register-based VM architecture** that eliminates both AST visitor dispatch and stack-machine overhead:
 
-* **SQLite VDBE-Style Register Machine**: Execution state resides in 64 general-purpose registers (`R0`..`R63`) and thread-local off-heap scratchpad memory (`VmQueryContext`).
-* **Fixed 64-Bit Binary Layout**: Bytecodes are encoded as 8-byte instruction words (`Opcode[8]`, `Flags[8]`, `DstReg[16]`, `Payload[32]`), enabling zero-copy memory mapping (`mmap`).
-* **Zero-Allocation Execution**: Intermediate candidate sets are stored in pooled off-heap BitSets (`RoaringBitmap` / native word masks), guaranteeing **0 heap object allocations** during query execution.
+* **Lua-Style Register Machine (`R0`..`R63`) vs. Stack Machine**: Stack-based virtual machines (such as the JVM bytecode interpreter or WebAssembly) spend 40–50% of their instruction stream executing `PUSH`, `POP`, and `DUP` to move values onto and off an evaluation stack. Like the **Lua 5+ VM and LuaJIT**, `ImpulseVM` is a **register machine** whose instructions address 64 general-purpose registers (`R0`..`R63`) directly Inside a single 640-byte cache-aligned state frame (`impulse_vm_state_t`).
+* **Fixed 64-Bit Instruction Words**: Just as Lua packs opcodes and register indices (`A`, `B`, `C`, `Bx`) into a single fixed-width word for single-cycle bitwise decoding, `impOps` packs every instruction into a fixed 8-byte word (`Opcode[8] | Flags[8] | DstReg[16] | Payload[32]`).
+* **Register Windowing & Zero-Copy Frontier Swapping**: Subroutine calls (`OP_CALL`) use Lua-style register windowing (mapping caller out-registers `R12..R15` directly into callee in-registers `R0..R3`), while iterative loops (`BFS`, `PageRank`, `ConnectedComponents`) swap active and next frontiers in a single register pointer exchange (`OP_SWAP_REG`).
+* **Zero-Allocation Execution**: Intermediate candidate sets reside in pooled off-heap BitSets (`OffHeapBitSet` / `RoaringBitmap`), guaranteeing **0 heap object allocations** during query execution.
 
 ---
 
@@ -93,11 +94,13 @@ Managed JIT Pipeline Fusion (Java 25 MethodHandle / C# DynamicMethod):
   (Zero dispatch overhead: RyuJIT / C2 JIT fuses all opcodes into a single contiguous block)
 ```
 
-### 3.1 JIT Pipeline Fusion Mechanics
+### 3.1 Java 25 `MethodHandle` Combinator Fusion Mechanics
 
-1. **Monolithic Inlining**: When `ImpulseMethodHandleCompiler` (Java 25) or `ImpulseCilCompiler` (C#) compiles an ImpOps program, it links opcode handles into a single combined call tree.
-2. **Zero Loop Dispatch**: The JVM C2 / .NET RyuJIT compiler recognizes the static handle structure and inlines the *entire query execution pipeline into a single, contiguous block of native machine assembly*.
-3. **Elimination of Branch Tables**: JIT fusion removes jump tables, label switches, and program counter increments entirely from the runtime hot path!
+In the Pure Java 25 engine (`impulse-graph-java`), `ImpulseMethodHandleCompiler` and `ShaderCompiler` leverage `java.lang.invoke.MethodHandles` to turn `impOps` bytecode and stream shaders into native machine code without writing custom assembly or JNI wrappers:
+
+1. **Immediate Partial Evaluation (`MethodHandles.insertArguments`)**: When a program or stream shader (`OP_CSR_WALK_STREAM`, `OP_CSC_WALK_STREAM`, `OP_COO_WALK_STREAM`) is compiled, `ImpulseMethodHandleCompiler` decodes each 64-bit instruction once and binds its constant operands (`dstReg`, `srcReg`, attribute column IDs, scalar constants) directly into static handler methods via `MethodHandles.insertArguments(...)`.
+2. **Shader Tree Folding (`MethodHandles.foldArguments`)**: For inline edge/node stream shaders (`0xA1`..`0xBD`), `ShaderCompiler` folds the sequence of micro-operations (`loadSrc`, `loadEdge`, `mathSub`, `cmpGt`, `filter`, `reduce`) into a single composite `MethodHandle` pipeline.
+3. **C2 JIT Constant Folding & Monolithic Inlining**: Because the `MethodHandle` combinator tree has all instruction operands bound as constants, the JVM's **C2 JIT compiler** constant-folds register array offsets and inlines the entire traversal and shader pipeline into a single contiguous block of native machine instructions—eliminating interpreter `switch` jumps, branch mispredictions, and instruction re-decoding on the hot path.
 
 ### 3.2 Micro-Query Latency Benchmark Comparison (3-Hop Traversal)
 

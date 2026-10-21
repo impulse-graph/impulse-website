@@ -4,9 +4,9 @@ Impulse Graph Engine began with a single foundational question:
 
 > **"How fast can a graph traversal possibly go?"**
 
-When you trace that question down to the physical limits of modern hardware—CPU cache lines, hardware prefetchers, branch predictors, and SIMD vector pipelines—you quickly discover that traditional graph software is bottlenecked not by the complexity of graph algorithms, but by **how data is laid out in memory**.
+The goal of Impulse Graph is singular: **to deliver world-class performance for traversing read-only graphs.**
 
-To reach the hardware ceiling of memory bandwidth and instruction throughput, Impulse Graph is built from the ground up using **Data-Oriented Design (DOD)**.
+General-purpose graph databases have to support concurrent point mutations, row-level locks, transaction logs, and dynamic heap allocation during queries. Those compromises cost orders of magnitude in traversal speed. By focusing 100% on **immutable, read-only graph snapshots (`.imps`)** and designing from the hardware up using **Data-Oriented Design (DOD)**, Impulse Graph removes every layer of indirection between your query and the CPU.
 
 ---
 
@@ -35,7 +35,7 @@ Impulse Graph applies five concrete DOD transformations across its storage forma
 | **1. Pointer References & Global UUIDs**<br>64-bit heap pointers or hash-table lookups per hop | **Per-Domain Dense IDs ($0 \dots N_d-1$)**<br>Configurable `uint16`, `uint32`, or `uint64` indices per domain | Node ID *is* the array index ($O(1)$ lookup, zero hashing, up to 4x smaller cache footprint) |
 | **2. Adjacency Lists of Object Pointers**<br>`List<Node>` scattered across the heap | **Contiguous CSR & CSC Arrays**<br>Flat `row_offsets[]` and `col_indices[]` arrays | All neighbors of a node sit contiguously in L1 cache lines; hardware prefetcher streams ahead |
 | **3. Array of Structures (AoS) Properties**<br>`Map<String, Object>` attached to each node | **Structure of Arrays (SoA) Columns**<br>128-byte-aligned primitive vectors (`age[]`, `score[]`) | Filtering `.filter("node.age >= 21")` loads only `age[]` into SIMD registers; zero wasted bandwidth |
-| **4. AST Interpreter / Virtual Dispatch**<br>Polymorphic `Step.next()` calls per vertex | **Flat `impOps` Bytecode & 640B Frame**<br>8-byte instructions over a 64-byte-aligned register frame (`R0`..`R63`) | Entire VM execution state fits in 10 L1 cache lines; zero heap allocations during query execution |
+| **4. AST Interpreter / Stack Machine**<br>Polymorphic `Step.next()` or `PUSH`/`POP` stack traffic | **Lua-Inspired Register VM & 640B Frame**<br>64-bit instructions over a 64-byte-aligned register frame (`R0`..`R63`) | Entire VM execution state fits in 10 L1 cache lines; zero stack traffic and zero heap allocations |
 | **5. Deserialization & Heap Loading**<br>Parsing disk blocks into in-memory objects at startup | **The `.imps` Binary Snapshot Format**<br>On-disk bytes match the exact in-memory C-ABI layout | Instant $O(1)$ cold start via `mmap`; identical zero-copy execution in Pure Java 25 and C++20 |
 
 ---
@@ -74,11 +74,26 @@ In `ImpulseVM`, an active frontier over a domain of $N_d$ nodes is represented a
 
 ---
 
-## 5. How Data-Oriented Design Enables Pure Java 25 Parity with C++
+## 5. Stealing the Best Ideas from the Lua VM (`ImpulseVM`)
 
-Historically, high-performance systems written in Java suffered from the JVM's object model: every object adds a 12-to-16-byte header, arrays are heap-allocated, and large graphs cause multi-second Garbage Collection pauses.
+Once the graph layout is contiguous and cache-aligned, the execution engine itself must not become the bottleneck. Traditional query engines walk a tree of AST objects (`FilterStep`, `ExpandStep`), paying a virtual method call on every hop. Even traditional bytecode VMs (like the JVM or WebAssembly) are **stack machines** that spend up to 40–50% of their instructions executing `PUSH`, `POP`, and `DUP` just to shuttle operands around.
 
-Because Impulse Graph is strictly Data-Oriented, **the Pure Java 25 Engine (`impulse-graph-java`) does not store nodes or edges as Java objects**:
-* It maps the `.imps` binary file directly into off-heap memory using Java 25's standard **`java.lang.foreign.MemorySegment` and `Arena`**.
-* It processes contiguous CSR/CSC and SoA columns using Java's **`jdk.incubator.vector` SIMD API** and **`MethodHandle` JIT combinators**.
-* The Java garbage collector sees **zero graph objects**—delivering predictable, sub-microsecond latency and zero GC pauses in a 100% pure Java 25 library with zero native JNI dependencies.
+`ImpulseVM` took direct inspiration from **Lua 5+ and LuaJIT**—widely regarded as the gold standard for fast, compact virtual machine design:
+
+* **Register-Based Architecture (`R0`..`R63`) Instead of a Stack**: Like the Lua VM, `ImpulseVM` encodes source and destination register indices directly inside the instruction word (`OP_CSR_WALK R5, R4, REL_0`). Operands stay in place inside a single 640-byte cache-line-aligned register file (`impulse_vm_state_t`), eliminating stack-shuffling instructions completely.
+* **Fixed-Width Instruction Word Decoding**: Every `impOps` instruction is a fixed 64-bit word (`opcode[8] | flags[8] | dst_reg[16] | payload[32]`). Instruction decoding is a single bitshift/mask operation with zero variable-length byte parsing stalls.
+* **Lua-Style Register Windowing & Zero-Copy Ping-Ponging**: Subroutine calls (`OP_CALL`) pass arguments via register windowing (`R12..R15` $\to$ `R0..R3`) without allocating call frames, and iterative fixed-point loops (`BFS`, `PageRank`) swap active and next frontiers using a single register swap (`OP_SWAP_REG`) rather than copying arrays.
+
+---
+
+## 6. Java 25 `MethodHandle` Combinators & Pure Java Parity with C++
+
+Historically, high-performance systems written in Java suffered from two penalties: the JVM's object header overhead (12–16 bytes per object + GC pauses) and the branch-misprediction cost of a bytecode interpreter `switch` loop.
+
+The **Pure Java 25 Engine (`impulse-graph-java`)** eliminates both:
+
+1. **Off-Heap Data-Oriented Storage (`MemorySegment` & `Arena`)**: The `.imps` binary file is mapped directly into off-heap memory via Java 25's Foreign Function & Memory (FFM) API. The Java garbage collector sees **zero graph objects**.
+2. **`MethodHandle` Combinator JIT Compilation (`ImpulseMethodHandleCompiler` & `ShaderCompiler`)**: Instead of interpreting bytecode in a `switch` loop at query time, the Java 25 engine compiles `impOps` programs and stream-walk filter/projection shaders (`OP_CSR_WALK_STREAM`, `OP_CSC_WALK_STREAM`) into trees of `java.lang.invoke.MethodHandle` combinators using `MethodHandles.insertArguments` and `MethodHandles.foldArguments`.
+   * Opcode immediates (`dstReg`, `srcReg`, attribute IDs, constant scalars) are bound directly into the `MethodHandle` tree at prepare time.
+   * When invoked, the JVM's **C2 JIT compiler** constant-folds the register offsets and inlines the entire chain of shader operations (`loadSrc`, `mathSub`, `cmpGt`, `filter`, `reduce`) into a single contiguous block of native machine code with **zero interpreter dispatch overhead**.
+3. **Explicit SIMD Vectorization (`jdk.incubator.vector`)**: Attribute filters and reductions execute over 128-byte-aligned SoA columns using Java's Vector API, emitting the same `AVX-512` / `AVX2` / `ARM NEON` instructions as the C++20 engine.

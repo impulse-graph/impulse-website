@@ -2,10 +2,11 @@
 
 This reference documents the **Pure Java 25 Engine** located in `impulse-graph-java`.
 
-The Java 25 engine is a **first-class, 100% pure Java implementation** of the Impulse Graph Engine and `ImpulseVM`—not a JNI or FFI wrapper around C++. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` JIT combinators:
+The Java 25 engine is a **first-class, 100% pure Java implementation** of the Impulse Graph Engine and `ImpulseVM`—not a JNI or FFI wrapper around C++. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and a **Lua-inspired register VM compiled via `MethodHandle` JIT combinators**:
 
 * **Zero External Runtime Dependencies**: Core runtime modules have zero third-party dependencies.
 * **Zero GC Pauses**: All CSR/CSC matrices, SoA attributes, bitsets, and the 640-byte `ImpulseVM` register frame live off-heap.
+* **`MethodHandle` Combinator C2 JIT Fusion (`ImpulseMethodHandleCompiler` & `ShaderCompiler`)**: Binds decoded `impOps` instruction operands and stream-walk shaders into `java.lang.invoke.MethodHandle` trees (`insertArguments` / `foldArguments`), allowing HotSpot's C2 JIT compiler to constant-fold register indices and inline query pipelines without interpreter loop overhead.
 * **100% Equivalence with the C++ C-ABI Engine**: Reads the exact same `.imps` binary snapshot format and executes the exact same `impOps` bytecode ISA with bitwise-identical output.
 
 !!! info "Interactive Aggregated Javadocs"
