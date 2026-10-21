@@ -2,53 +2,97 @@
 
 ![Impulse Graph Engine Banner](assets/banner_letterbox.jpg)
 
-**Zero-copy binary snapshot graph format (`.imps`) with two equivalent, first-class execution engines: Pure Java 25 and Native C++20 / C-ABI.**
+> **"How fast can a graph traversal possibly go?"**
 
-Impulse Graph acts as the **"Apache Arrow / Parquet equivalent for Graph Analytics"**. It decouples graph analytics from stateful database servers by pairing an **immutable, hardware-aligned binary snapshot format (`.imps`)** with a **register-based Virtual Machine (`ImpulseVM`)** that executes SIMD-vectorized traversals directly off-heap without data loading or garbage collection pauses.
+Impulse Graph Engine started with that single question. Answering it required rethinking graph storage and execution from the hardware up using **[Data-Oriented Design](concepts/data-oriented-design.md)**—replacing pointer-chasing object heaps with contiguous, cache-aligned arrays that run at the speed of CPU L1 cache and SIMD vector pipelines.
+
+The result is the **"Apache Arrow / Parquet equivalent for Graph Analytics"**: an immutable **Binary Snapshot Format (`.imps`)** paired with **two equivalent, first-class execution engines**—a **Pure Java 25 Engine** and a **Native C++20 / C-ABI Engine**.
 
 ---
 
-## Architecture: One Binary Format, Two Equivalent Engines
+## 1. The Foundation: Data-Oriented Design & The `.imps` Snapshot
 
-Every `.imps` snapshot is a portable, 128-byte hardware-aligned binary file that mounts directly into virtual memory via OS `mmap`. Impulse Graph provides **two independent, bitwise-equivalent execution engines** that read the exact same `.imps` binary format and execute the exact same `impOps` bytecode ISA:
+Traditional graph databases store nodes and edges as heap-allocated objects connected by pointers. Every traversal hop triggers CPU cache misses, branch mispredictions, and garbage collection pauses.
+
+Impulse Graph serializes the entire graph into a single **`.imps` binary snapshot file** whose on-disk byte layout is the exact in-memory layout required by the CPU:
+
+* **Zero Cold-Start Loading (`mmap`)**: Mounting a 10 MB or 10 TB `.imps` snapshot is a single OS memory-map call (< 1 ms). No bytes are parsed or copied into heap objects.
+* **Contiguous CSR & CSC Matrices**: Edges are packed into flat `row_offsets` and `col_indices` arrays so neighbors sit side-by-side in CPU cache lines.
+* **Structure of Arrays (SoA) Attributes**: Node and edge properties are stored as isolated, 128-byte-aligned columnar vectors (`age[]`, `weight[]`), allowing SIMD instructions to filter 8–16 entities per cycle.
+* **Per-Domain Dense IDs ($0 \dots N_d-1$)**: Every domain (`User`, `Account`, `Resource`) uses compact 0-indexed integer IDs (`uint16`, `uint32`, `uint64`) that act as direct $O(1)$ array offsets.
+
+---
+
+## 2. Two Equivalent, First-Class Execution Engines
+
+Because the `.imps` binary layout is hardware-native, Impulse Graph provides **two independent, bitwise-identical engines** that execute the same register-based **`ImpulseVM`** (`impOps` bytecode) directly over memory-mapped `.imps` files:
 
 ```mermaid
 flowchart TD
-    IMPS["Impulse Binary Snapshot (.imps)\n• 4KB Page-Aligned Header & Shared String Pool\n• 128-Byte Aligned CSR / CSC / SoA Attribute Sections\n• Secondary Indices & Cryptographic Checksums"]
+    IMPS["Impulse Binary Snapshot (.imps)\n• 4KB Page-Aligned Header & Shared String Pool\n• 128-Byte Aligned CSR / CSC / SoA Attribute Columns\n• Secondary Indices & Cryptographic Checksums"]
 
-    IMPS --> JAVA["1. Pure Java 25 Engine (impulse-graph-java)\n• 100% Pure Java 25 (Zero JNI / Native C++ Wrappers)\n• Java 25 FFM API (MemorySegment / Arena) & Vector API\n• Zero Runtime Dependencies & Zero GC Pauses\n• MethodHandle JIT Bytecode Combinators"]
+    IMPS --> JAVA["1. Pure Java 25 Engine (impulse-graph-java)\n• First-Class Enterprise Engine (100% Pure Java 25)\n• Java 25 FFM API (MemorySegment / Arena) & Vector API\n• Zero Runtime Dependencies, Zero JNI, Zero GC Pauses"]
     IMPS --> CABI["2. Native C++20 & C-ABI Engine (impulse-graph-core)\n• Zero-Dependency C++20 Kernel & C-ABI (impulse_graph.h)\n• AVX-512 / ARM NEON SIMD & OpenMP Parallelism\n• Powers C, C++, Rust, Python, Go, .NET/C#, and Node.js SDKs"]
 ```
 
-### 1. Pure Java 25 Engine (`impulse-graph-java`) — First-Class Enterprise Citizen
-The Java 25 engine is a **100% pure Java implementation**—not a JNI or FFI wrapper around C++. It uses Java 25's standard Foreign Function & Memory (FFM) API (`MemorySegment` and `Arena`) to memory-map `.imps` files directly off-heap, paired with the Vector API and `MethodHandle` JIT compilation:
-
-* **Zero External Runtime Dependencies**: Core execution modules (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) have zero third-party runtime dependencies.
-* **Zero GC Pauses**: Graph topologies, columnar attributes, bitsets, and the 640-byte `ImpulseVM` register frame reside strictly off-heap.
-* **Zero Native Packaging Friction**: Runs as standard JVM bytecode without bundling platform-specific `.so` / `.dylib` / `.dll` native libraries.
-
-### 2. Native C++20 & C-ABI Engine (`impulse-graph-core`)
-The C++20 engine exposes a stable, zero-dependency **C-ABI interface** (`impulse_graph.h`, `impulse_vm.h`, `impulse_index.h`) alongside a C++20 Fluent API (`impulse_vm_fluent.hpp`):
-
-* **Direct C-ABI Interoperability**: Provides a canonical C interface for snapshot mounting, CSR/CSC buffer access, in-kernel query compilation (`openCypher`, `CEL`, `ImpScheme`, `ImpK`, `ImpLog`), and SQLite-style prepared statements (`impulse_stmt_t`) with Apache Arrow-compatible columnar output buffers.
-* **Polyglot SDK Foundation**: Powers native bindings across **Rust**, **Python** (with zero-copy NumPy and PyTorch tensor views), **Go** (`CGo`), **.NET / C#** (`P/Invoke`), and **Node.js / TypeScript** (`N-API`).
+| Capability | Pure Java 25 Engine (`impulse-graph-java`) | Native C++20 / C-ABI Engine (`impulse-graph-core`) |
+| :--- | :--- | :--- |
+| **Implementation** | **100% Pure Java 25** (no JNI or native `.so`/`.dll` wrappers) | **Native C++20** with canonical `extern "C"` ABI |
+| **Off-Heap Memory** | Java 25 FFM (`MemorySegment`, `Arena`) | OS `mmap` & 64-byte aligned arena pools |
+| **SIMD Vectorization** | Java Vector API (`jdk.incubator.vector`) & `MethodHandle` JIT | Google Highway (`AVX-512`, `AVX2`, `ARM NEON`) & OpenMP |
+| **Runtime Dependencies** | **Zero** third-party runtime dependencies | **Zero** third-party runtime dependencies |
+| **GC Overhead** | **Zero GC pauses** (100% off-heap topology & VM state) | **Zero GC** (allocation-free hot path) |
+| **Ecosystem Target** | Enterprise JVM services (Java 25, Kotlin, Scala 3) | C/C++, Rust, Python (PyTorch/NumPy), Go, .NET/C#, Node.js |
 
 ---
 
-## Three Execution Paradigms
+## 3. Simple, Composable Querying
 
-```mermaid
-graph LR
-    IMPS[".imps Binary Snapshot"] --> Mode1["1. Zero-Copy Storage Mode\n• Direct CSR/CSC/SoA Slices\n• NumPy & PyTorch Tensors"]
-    IMPS --> Mode2["2. Fluent Traversal & VM API\n• Domain-Bound Kleisli Pipelines\n• Type-Safe Java 25 & C++20 Builders"]
-    IMPS --> Mode3["3. Declarative Queries & DSLs\n• Prepared openCypher & Google CEL\n• ImpLog (Datalog) & ImpK (GraphBLAS)"]
-```
+Whether you query in Java 25, C++20, Rust, Python, Go, C#, or Node.js, you work with the same clean abstractions:
 
-## Quick Links
+=== "Java 25 (Fluent Traversal)"
+    ```java
+    try (Arena arena = Arena.ofShared()) {
+        ImpulseGraphSnapshot snap = BinarySnapshotLoader.loadSnapshot(Path.of("social.imps"), arena).getGraph();
 
-- [**Getting Started & Architecture Primer**](getting-started/core-concepts.md)
-- [**Java 25 API Reference & Aggregated Javadocs**](reference/java-api.md)
-- [**C-ABI Kernel & VM Reference**](reference/c-abi.md)
-- [**Binary Snapshot Format Specification (`.imps`)**](reference/spec/format-specification.md)
-- [**ImpulseVM & `impOps` Instruction Set Specification**](reference/spec/vm-specification.md)
-- [**Benchmarks & Performance Guide**](benchmarks.md)
+        List<Long> friends = snap.domain("User")
+            .fromKey("usr_alice")
+            .out("FOLLOWS")
+            .filter("node.age >= 21 && node.active == true")
+            .toList();
+    }
+    ```
+
+=== "Java 25 (Prepared openCypher)"
+    ```java
+    try (ImpulseStatement stmt = snap.prepare(
+            "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid AND f.age >= $minAge RETURN f.id")) {
+        stmt.bindNode("uid", 42L).bindLong("minAge", 21L);
+        try (RowReader rows = stmt.execute()) {
+            while (rows.next()) {
+                long friendId = rows.getNodeId(0);
+            }
+        }
+    }
+    ```
+
+=== "C / C++20 (C-ABI Prepared Statement)"
+    ```c
+    impulse_stmt_t* stmt = NULL;
+    impulse_stmt_prepare(snap, "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f.id", &stmt);
+    impulse_stmt_bind_node(stmt, "uid", 42);
+    impulse_stmt_execute(stmt, buffer, buffer_size);
+    const uint64_t* ids = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
+    impulse_stmt_finalize(stmt);
+    ```
+
+---
+
+## Explore the Documentation
+
+- **[Getting Started](getting-started/index.md)**: Installation, Quickstart, and Snapshot Builder tutorial.
+- **[Data-Oriented Design](concepts/data-oriented-design.md)**: How `.imps` and `ImpulseVM` eliminate pointer chasing and GC overhead.
+- **[Pure Java 25 API Reference](reference/java-api.md)** & **[Hosted Javadocs](/javadoc/index.html)**
+- **[C-ABI Kernel & VM Reference](reference/c-abi.md)** & **[C++20 API Reference](reference/cpp-api.md)**
+- **[Binary Snapshot Format (`.imps`) Specification](reference/spec/format-specification.md)**
+- **[Benchmarks & Empirical Performance](benchmarks.md)**

@@ -1,63 +1,113 @@
 # Query API Overview
 
-Welcome to the Impulse Graph Engine Query API. The Query API provides a type-safe, composable, and allocation-free environment for executing complex graph traversals.
+The Impulse Graph Query API lets you express multi-hop graph traversals, vectorized attribute filters, fixed-point reachability loops, and parameterized statements that compile directly to `ImpulseVM` (`impOps`) bytecode.
 
-## Queries are Pure Values
+Every query executes identically on both primary engines—the **Pure Java 25 Engine** and the **Native C++20 / C-ABI Engine**—directly over memory-mapped `.imps` snapshots with zero heap allocations on the hot path.
 
-The most important concept in the Impulse Query API is that **queries are pure values**. A query is an immutable, serializable AST (Abstract Syntax Tree) with **no reference to any specific graph instance**. 
+---
 
-It can be created at startup, cached, composed into larger queries, sent over a wire, and executed repeatedly against different graph generations.
+## 1. Domain-Anchored Fluent Traversals
 
-## Query Lifecycle
+In Impulse Graph, every Node Domain (`User`, `Account`, `Product`) has its own independent 0-indexed dense ID space ($0 \dots N_d - 1$). Every traversal starts by anchoring to a domain (`snap.domain("User")`) and chaining operations:
 
-The execution-time graph parameterization relies on a short-lived `GraphView` wrapper:
-
-```text
-STARTUP RUNTIME SNAPSHOT ROTATION
-─────────────────────────────────────────────────────────────────────────────────────
-
-ImpulseQuery (long-lived) GraphView (short-lived) ImpulseQuery (reused ✓)
-  │                                │                                │
-  │ Built once from               │ Wraps current graph           │ Same query object,
-  │ pure AST (no graph ref)       │ state for one execute()       │ new GraphView
-  │                                │                                │
-  ▼                                ▼                                ▼
-ImpulseQuery.builder() GraphView.of(snapshot) GraphView.of(newSnapshot)
-  .input(USER, BITSET)      ──▶ query.execute(view, input) ──▶ query.execute(newView, input)
-  .walkEdge("userToGroup")
-  .walkEdge("groupToRole") GraphView.of(liveGraph)
-  .collect(ROARING)          ──▶ query.execute(view, input)
-
-                                  GraphView.of(snapshot, delta)   ← custom delta injection
-                             ──▶ query.execute(view, input)      ← N-2 contingency
+```mermaid
+flowchart LR
+    A["1. Anchor Domain & Seed\nsnap.domain('User').fromKey('alice')"] --> B["2. Walk Edge (CSR / CSC)\n.out('FOLLOWS')"]
+    B --> C["3. Filter / Project (SIMD SoA)\n.filter('node.age >= 21')"]
+    C --> D["4. Collect Result\n.toList() / .toBitSet() / .count()"]
 ```
 
-## Polyglot Consistency
-
-The same logical operations map 1:1 across Java, Rust, Python, and others:
-
-=== "Java"
+=== "Java 25"
     ```java
-    ImpulseQuery<RoaringBitmap> q = ImpulseQuery.builder()
-        .input(EntityType.USER, ArgType.ROARING_BITSET)
-        .walkEdge("userToGroup")
-        .walkEdge("groupToRole")
-        .collect(ReturnType.ROARING_BITSET);
+    // 1. Multi-hop traversal with vectorized CEL filtering
+    List<Long> friends = snap.domain("User")
+        .fromKey("usr_alice")
+        .out("FOLLOWS")
+        .filter("node.age >= 21 && node.active == true")
+        .toList();
+
+    // 2. Unbounded fixed-point reachability (transitive closure)
+    ImpulseBitSet reachableGroups = snap.domain("User")
+        .from(42L)
+        .out("MEMBER_OF")
+        .repeatUntilStable(step -> step.out("PARENT_GROUP"))
+        .toBitSet();
     ```
 
-=== "C++"
+=== "C++20"
     ```cpp
-    using Q = Collect<RoaringBitmap,
-        WalkEdge<schema::GROUP_TO_ROLE,
-            WalkEdge<schema::USER_TO_GROUP,
-                Input<schema::USER, BitsetArg>>>>;
+    using namespace impulse::vm;
+
+    CompiledQuery query = QueryBuilder()
+        .inputNode(0)
+        .walkEdge(0) // MEMBER_OF
+        .repeatUntilStable([](QueryBuilder& q) {
+            q.walkEdge(1); // PARENT_GROUP
+        })
+        .collectBitset()
+        .compile();
+
+    QueryResult result = query.execute(snap, 42);
     ```
 
 === "Rust"
     ```rust
-    let q = ImpulseQuery::builder()
-        .input("user", ArgType::RoaringBitset)
-        .walk_edge("userToGroup")
-        .walk_edge("groupToRole")
-        .collect::<RoaringBitmap>();
+    let friends: Vec<u64> = reader
+        .traverse(42)
+        .out("FOLLOWS")
+        .to_vec();
     ```
+
+---
+
+## 2. Parameterized Prepared Statements (`ImpulseStatement` / `impulse_stmt_t`)
+
+For declarative queries (`openCypher`, `ImpScheme`, `Google CEL`), prepare a statement once and execute it repeatedly with different parameter bindings—just like a SQLite prepared statement:
+
+=== "Java 25 (`ImpulseStatement`)"
+    ```java
+    try (ImpulseStatement stmt = snap.prepare(
+            "MATCH (u:User)-[:PURCHASED]->(p:Product) " +
+            "WHERE u.id = $userId AND p.price <= $maxPrice " +
+            "RETURN p.id, p.price")) {
+
+        stmt.bindNode("userId", 42L)
+            .bindDouble("maxPrice", 100.0);
+
+        try (RowReader rows = stmt.execute()) {
+            while (rows.next()) {
+                long productId = rows.getNodeId(0);
+                double price   = rows.getDouble(1);
+            }
+        }
+    }
+    ```
+
+=== "C-ABI (`impulse_stmt_t`)"
+    ```c
+    impulse_stmt_t* stmt = NULL;
+    impulse_stmt_prepare(
+        snap,
+        "MATCH (u:User)-[:PURCHASED]->(p:Product) WHERE u.id = $userId AND p.price <= $maxPrice RETURN p.id, p.price",
+        &stmt
+    );
+
+    impulse_stmt_bind_node(stmt, "userId", 42);
+    impulse_stmt_bind_float(stmt, "maxPrice", 100.0);
+    impulse_stmt_execute(stmt, buffer, buffer_size);
+
+    size_t row_count = impulse_stmt_row_count(stmt);
+    const uint64_t* product_ids = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
+    const double* prices        = (const double*)impulse_stmt_column_data(stmt, 1);
+
+    impulse_stmt_finalize(stmt);
+    ```
+
+---
+
+## 3. Query API Sections
+
+* **[Fluent API Specification](fluent-api.md)**: Complete reference for `DomainView`, `Traversal`, and monoidic `Reducer` semantics.
+* **[Building Queries](building-queries.md)** & **[Advanced Querying](advanced-querying.md)**: Fixed-point loops (`repeatUntilStable`), state projections, and semiring reductions.
+* **[Query Context](query-context.md)** & **[Execution Context](execution-context.md)**: Thread-safe off-heap arena lifecycles and zero-downtime snapshot rotation.
+* **[Bytecode Virtual Machine (`impOps`)](bytecode-vm.md)**: How queries lower to 8-byte `impOps` instructions over the 640-byte register frame.

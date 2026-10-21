@@ -55,6 +55,7 @@ nav:
     - Ingestion Strategies: getting-started/ingestion-strategies.md
 
   - Concepts & Architecture:
+    - Data-Oriented Design: concepts/data-oriented-design.md
     - Academic Foundations: academic.md
     - Snapshots: concepts/snapshots.md
     - Graph Model: concepts/graph-model.md
