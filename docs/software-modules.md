@@ -49,7 +49,7 @@ Both engines implement the exact same `ImpulseVM` register architecture (`R0`..`
 impulse-graph-java/
 ├── impulse-spec/               # Binary Snapshot Format FFM memory layouts & opcode constants
 ├── impulse-api/                # Public interfaces (ImpulseGraphSnapshot, DomainView, Traversal, ImpulseStatement)
-├── impulse-storage/            # Zero-dependency Java 25 FFM CSR/CSC loader, DeltaLayer & Secondary Indices
+├── impulse-storage/            # Zero-dependency Java 25 FFM CSR/CSC loader & Secondary Indices
 ├── impulse-vm/                 # Pure Java 25 ImpulseVM interpreter, MethodHandle JIT & bytecode emitter
 ├── impulse-compiler/           # Multi-pass ImpScheme, openCypher & CEL optimizing compiler
 └── impulse-builder/            # Direct-to-disk streaming .imps snapshot builder

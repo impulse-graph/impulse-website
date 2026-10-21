@@ -60,7 +60,6 @@ nav:
     - Snapshots: concepts/snapshots.md
     - Graph Model: concepts/graph-model.md
     - Key Mapping & Projections: concepts/key-mapping-and-projections.md
-    - Delta Overlay: concepts/delta-overlay.md
     - GraphView: concepts/graph-view.md
     - Schema: concepts/schema.md
     - Compiler Architecture: concepts/compiler-architecture.md

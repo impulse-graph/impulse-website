@@ -14,7 +14,7 @@ All language bindings (Java FFM, Rust FFI, Python `pybind11`, Go `CGo`, .NET `P/
 | Header File | Scope |
 | :--- | :--- |
 | **`impulse_format_v0_9.h`** | Packed 1-byte-aligned C-ABI POD structures (`#pragma pack(push, 1)`), feature flags, and enumeration constants for Binary Snapshot Format . |
-| **`impulse_graph.h`** | Snapshot `mmap` loader, domain/relation catalog inspection, direct CSR/CSC/attribute buffer pointers, key catalog resolution, streaming snapshot writer, delta layers, and SIMD neighbor sampling. |
+| **`impulse_graph.h`** | Snapshot `mmap` loader, domain/relation catalog inspection, direct CSR/CSC/attribute buffer pointers, key catalog resolution, streaming snapshot writer, and SIMD neighbor sampling. |
 | **`impulse_vm.h`** | 64-bit bytecode instruction layout (`impulse_instruction_t`), 640-byte execution state frame (`impulse_vm_state_t`), off-heap context handle pool (`impulse_vm_context_t`), AOT validator, in-kernel multi-language compiler, and SQLite-style prepared statement & Arrow column projection API (`impulse_stmt_t`). |
 | **`impulse_index.h`** | Secondary non-vector index construction and lookup functions (Permutation, 2-Tier Zone Map, Inverted Bitset, Minimal Perfect Hash, Trigram, Domain-Split Bitset, Temporal Interval). |
 | **`impulse_simd.h`** | Dynamic SIMD target dispatch (`AVX-512`, `AVX2`, `ARM-NEON`, `WASM-SIMD128`) for float32 vector operations and sorted `uint32_t` array intersections. |
@@ -201,7 +201,6 @@ typedef struct impulse_footer_trailer_v0_9_t {
 ```c
 typedef struct impulse_snapshot impulse_snapshot_t;
 typedef struct impulse_writer impulse_writer_t;
-typedef struct impulse_delta_layer impulse_delta_layer_t;
 typedef int32_t (*impulse_write_fn)(const void* data, size_t bytes, void* user_data);
 ```
 
@@ -350,7 +349,7 @@ IMPULSE_API impulse_status_t impulse_snapshot_sample_neighbors(
 );
 ```
 
-### 3.5 Single-Pass Streaming Snapshot Writer & Delta Compaction
+### 3.5 Single-Pass Streaming Snapshot Writer
 
 ```c
 /* Streaming Writer Lifecycle */
@@ -390,28 +389,6 @@ IMPULSE_API impulse_status_t impulse_writer_add_index(
 IMPULSE_API impulse_status_t impulse_writer_set_metadata(impulse_writer_t* writer, const char* key, const char* value);
 IMPULSE_API impulse_status_t impulse_writer_finalize(impulse_writer_t* writer);
 IMPULSE_API void impulse_writer_destroy(impulse_writer_t* writer);
-
-/* Live Overlay Delta Layer & Compaction */
-IMPULSE_API impulse_delta_layer_t* impulse_delta_layer_create(uint16_t src_domain_id, uint16_t tgt_domain_id, const char* relation_name);
-IMPULSE_API impulse_status_t impulse_delta_layer_add_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API impulse_status_t impulse_delta_layer_tombstone_edge(impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API bool impulse_delta_layer_is_tombstoned(const impulse_delta_layer_t* delta, uint64_t src_node, uint64_t tgt_node);
-IMPULSE_API void impulse_delta_layer_destroy(impulse_delta_layer_t* delta);
-
-IMPULSE_API impulse_status_t impulse_snapshot_compact_to_file(
-    const impulse_snapshot_t* base_snapshot,
-    impulse_delta_layer_t** deltas,
-    size_t delta_count,
-    const char* output_file_path
-);
-
-IMPULSE_API impulse_status_t impulse_snapshot_compact_to_stream(
-    const impulse_snapshot_t* base_snapshot,
-    impulse_delta_layer_t** deltas,
-    size_t delta_count,
-    impulse_write_fn write_cb,
-    void* user_data
-);
 ```
 
 ---

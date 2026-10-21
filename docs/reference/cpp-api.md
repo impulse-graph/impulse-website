@@ -14,7 +14,7 @@ This reference documents the **C++20 Native Engine, Optimizing Compiler, and Flu
 
 1. **C-ABI Kernel Headers** (documented in detail in [C-ABI Reference](c-abi.md)):
    * `#include "impulse_format_v0_9.h"`: Binary Snapshot POD structures and protocol enums.
-   * `#include "impulse_graph.h"`: Snapshot `mmap` loader, catalog inspection, CSR/CSC buffer accessors, streaming writer, and delta compaction.
+   * `#include "impulse_graph.h"`: Snapshot `mmap` loader, catalog inspection, CSR/CSC buffer accessors, and single-pass streaming writer.
    * `#include "impulse_vm.h"`: Raw 64-bit VM opcode definitions (`impulse_instruction_t`), 640-byte state frame (`impulse_vm_state_t`), off-heap context (`impulse_vm_context_t`), in-kernel compiler C-ABI, and `impulse_stmt_t` prepared statements.
    * `#include "impulse_index.h"`: Secondary non-vector index builders and query evaluators.
    * `#include "impulse_simd.h"` & `#include "impulse_math_ops.h"`: Highway SIMD kernels and 54-function analytical vector math catalog.

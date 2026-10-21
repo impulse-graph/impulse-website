@@ -2,7 +2,7 @@
 
 This reference documents the **Impulse Graph Engine Go SDK** (`github.com/impulse-graph/impulse-graph/go`, located in `impulse-graph-core/impulse-go`).
 
-The Go SDK links directly against the C-ABI static kernel (`libimpulse_graph_static.a`) via CGo (`CGO_ENABLED=1`), exposing zero-copy `.imps` snapshot loading, fluent traversals, the `ImpulseVM` bytecode builder, live `DeltaLayer` compaction, and dynamic SIMD kernels.
+The Go SDK links directly against the C-ABI static kernel (`libimpulse_graph_static.a`) via CGo (`CGO_ENABLED=1`), exposing zero-copy `.imps` snapshot loading, fluent traversals, the `ImpulseVM` bytecode builder, single-pass `.imps` snapshot writing, and dynamic SIMD kernels.
 
 ---
 
@@ -80,9 +80,7 @@ if err == nil && res.IsOk() {
 
 ---
 
-## 4. Single-Pass Snapshot Writer & Delta Compaction (`writer.go`, `delta.go`)
-
-### 4.1 `Writer`
+## 4. Single-Pass Snapshot Writer (`writer.go`)
 
 ```go
 writer, err := impulse.NewWriter("output.imps", 0)
@@ -97,16 +95,4 @@ colIndices := []uint32{1, 2, 2, 3, 3}
 
 _ = writer.AddRelation(0, 0, 0, 4, 5, 0, rowOffsets, colIndices)
 _ = writer.Finalize()
-```
-
-### 4.2 `DeltaLayer` Overlay & Compaction
-
-```go
-delta := impulse.NewDeltaLayer(0, 0, "FOLLOWS")
-defer delta.Close()
-
-_ = delta.AddEdge(3, 1)
-_ = delta.TombstoneEdge(0, 2)
-
-_ = snap.CompactToFile([]*impulse.DeltaLayer{delta}, "compacted.imps")
 ```

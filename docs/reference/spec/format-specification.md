@@ -388,32 +388,6 @@ Future specification iterations explore allowing single queries (`ImpulseVM` exe
 4. **Multi-Snapshot Lifecycle & Execution Safety**:
    - **Atomic Ref-Counting & Thread Safety**: Extend `VmQueryContext` to maintain atomic read-locks and reference counts across all participant snapshot `mmap` handles to prevent OS page faults (`SIGBUS`) during dynamic snapshot unmapping or hot-swapping.
 
-### 8.2 Dynamic Delta Overlay for In-Memory Graph CRUD Operations
-
-A major future research initiative slated for the **feature roadmap** focuses on evaluating dynamic in-memory **Delta Overlays** (`CsrDeltaLayer`) for handling real-time Graph CRUD operations (insertions/deletions of nodes and edges, and node/edge attribute mutations) directly on top of immutable `.imps` zero-copy snapshots.
-
-
-#### Architectural Challenges & Empirical Verification Mandate:
-
-1. **Traversal Performance Overhead Hypothesis**:
-   - **Tombstone Bitset Evaluation**: Marking deleted nodes/edges via `RoaringBitmap` or dense bitset tombstones requires per-neighbor bitwise checking during `OP_CSR_WALK`, potentially disrupting AVX-512 SIMD vector loops.
-   - **Dual-Path Adjacency Merging**: Traversing inserted edges requires merging static contiguous CSR array reads with dynamic in-memory adjacency lists, introducing pointer indirection, cache line misses, and branch mispredictions.
-   - **Attribute Mutation Overlays**: Overriding fixed-width SoA attribute arrays or variable-length string blobs with dynamic Copy-on-Write (CoW) maps breaks contiguous off-heap array alignment.
-
-2. **Empirical Benchmark Verification Requirement**:
-   - In accordance with empirical verification standards, the engine design team hypothesizes that dynamic delta overlays will incur a measurable performance penalty compared to raw zero-copy `mmap` snapshots.
-   - Rigorous empirical micro- and macro-benchmarks (measuring MTEPS throughput, QPS, L1/L3 cache misses, and branch misprediction rates via JMH and Google Benchmark) must be conducted to establish exact performance curves across varying delta scale ratios (0.1% to 10% mutation volume).
-
-3. **Trade-Off Analysis & Valid Workload Scenarios**:
-   - **Real-Time Read-After-Write (RAW) Consistency**: For Relationship-Based Access Control (ReBAC / Zanzibar), fraud detection, and transactional security, paying a modest traversal latency penalty ($0.2\mu\text{s} \to 1.5\mu\text{s}$) to guarantee instant sub-millisecond Read-After-Write freshness is a highly valid trade-off compared to serving stale access control reads while awaiting offline snapshot compaction.
-   - **High Read-to-Write Ratios ($>99\%$ Read, $<1\%$ Mutation)**: For workloads where $99.9\%$ of edges are read zero-copy from disk `mmap` and only $0.1\%$ hit the delta layer, overall query latency degrades by only 5%–15%, avoiding the massive CPU and disk I/O cost of rebuilding multi-hundred-gigabyte snapshots for single mutations.
-   - **Resource-Constrained Environments**: For edge nodes or cloud instances with strict I/O caps, delta overlays bound write amplification to $O(\Delta)$ memory footprint rather than $O(\text{Snapshot Size})$ disk writes.
-
-4. **v1.0 Tolerable Overhead Guidance & Benchmark SLA ($\le 20\%$ Latency Degrade Target)**:
-   - **v1.0 Performance SLA Standard**: A **$\le 20\%$ max latency overhead** ($\text{Latency}_{\text{delta}} \le 1.20 \times \text{Latency}_{\text{snapshot}}$ for low mutation volumes $\Delta \le 1\%$) is formally established as the target performance budget for v1.0 releases.
-   - **Compaction Trigger Signal**: If empirical benchmark execution demonstrates traversal overhead exceeding 20%, `impulse-engine` runtime automatically triggers background **A/B Snapshot Compaction** to re-baseline the delta layer into a new `.imps` snapshot and restore sub-microsecond zero-copy speeds.
-   - **SIMD Masking Mandate**: To satisfy the $\le 20\%$ target budget, tombstone bitset evaluation inside `impOps` must use vector bitwise masking (e.g. AVX-512 `vpandn` or Java Vector API bitwise masks) rather than scalar `if (isDeleted)` branches.
-
 
 
 

@@ -2344,12 +2344,12 @@ As formalized by the **RUM Conjecture (Athanassoulis et al., EDBT '16)**, storag
 
 1. **Immutable Snapshot Read Minimization ($R \to 1.0$)**:
    Impulse's zero-copy C-ABI snapshot format (`.imps`) sets Read Overhead $R \approx 1.0$ (direct mmap, zero pointer chasing, zero deserialization).
-2. **Streaming Update Amplification ($U > 1.0$)**:
-   To maintain $R \approx 1.0$ under high-frequency CDC streaming writes (e.g. Kafka WAL ingestion), real-time updates are buffered in an **Off-Heap Delta Overlay Buffer** ($\Delta M$).
-3. **LSM Compaction Tax**:
-   Background compactions merge $\Delta M$ into new immutable `.imps` snapshot generations. The write amplification tax is bounded by:
+2. **Out-of-Band Streaming Snapshot Compilation ($U > 1.0$)**:
+   To maintain $R \approx 1.0$ without introducing locks or delta-merging overhead on the query hot path, real-time CDC updates are compiled out-of-band into new immutable `.imps` snapshot generations and rotated via atomic A/B pointer swaps (`SnapshotSwapManager`).
+3. **Snapshot Compaction Tax**:
+   Out-of-band streaming compilers write new immutable `.imps` snapshot generations. The write amplification tax is bounded by:
    $$\text{WA}_{\text{LSM}} = O\left( T \cdot \log_T \frac{M_{\text{total}}}{M_{\text{buffer}}} \right)$$
-   where $T$ is the LSM size ratio. This trades background CPU compaction cycles for ultra-fast, zero-copy read traversals.
+   where $T$ is the compaction size ratio. This trades background CPU compilation cycles for ultra-fast, zero-copy read traversals.
 
 ---
 
@@ -2587,7 +2587,7 @@ In systems engineering, extreme performance in targeted dimensions requires deli
 
 | System Dimension | Traditional Database Choice | Impulse Intentional Tradeoff | Architectural Rationale & Optimization Payoff |
 | :--- | :--- | :--- | :--- |
-| **1. Snapshot Mutability** | In-Place Dynamic Record Updates (B-Trees / Dynamic Adjacency Lists) | **Immutable Binary Snapshots (`.imps`) + Off-Heap Delta Overlays** | **Tradeoff**: Sacrifices in-place updates.<br>**Payoff**: Enables **zero-copy `mmap()` syscalls**, $O(1)$ zero-parsing cold start ($< 1 \ \mu\text{s}$), and 100% allocation-free & lock-free hot paths. |
+| **1. Snapshot Mutability** | In-Place Dynamic Record Updates (B-Trees / Dynamic Adjacency Lists) | **Immutable Binary Snapshots (`.imps`) & Atomic A/B Rotation** | **Tradeoff**: Sacrifices in-place updates.<br>**Payoff**: Enables **zero-copy `mmap()` syscalls**, $O(1)$ zero-parsing cold start ($< 1 \ \mu\text{s}$), and 100% allocation-free & lock-free hot paths. |
 | **2. Path Semantics** | Multi-Set (Bag) Path Binding Semantics (Cypher / SQL) | **Pure Set-Based Monoidal State Reduction ($\text{NodeSet}\langle T, \Sigma \rangle$)** | **Tradeoff**: Exhaustive path-enumeration queries ($k$-shortest simple paths, cycle enumeration) require explicitly carrying path vectors.<br>**Payoff**: Collapses $O(\text{paths})$ path explosions to **$O(V)$ space and linear $O(V+E)$ vector semirings**. |
 | **3. JIT Compilation Infrastructure** | Heavyweight LLVM JIT Compiler (MLIR / LLVM IR) | **Lightweight Homoiconic S-Expression AST (`ImpScheme`) $\to$ `impOps` Bytecode** | **Tradeoff**: Sacrifices polyhedral loop transformations that require $50 \ \text{ms} - 200 \ \text{ms}$ compilation latency.<br>**Payoff**: Achieves **sub-microsecond query cold start ($0.5 \ \mu\text{s} - 5 \ \mu\text{s}$)** and zero runtime third-party dependencies ($< 2 \text{ MB}$). |
 | **4. Storage Byte Density** | Variable-Length Packed Byte Layouts | **128-Byte Section Alignment & Memory Padding** | **Tradeoff**: Sacrifices $< 2\%$ storage compactness.<br>**Payoff**: Enables **AVX-512 SIMD vector alignment**, 64-byte L1 cache line saturation, and **NVIDIA CUDA GPU warp coalescing (`cuFile` GPUDirect Storage)**. |
