@@ -154,13 +154,13 @@ nav:
       - Schema Evolution: reference/schema-evolution.md
 
   - Deployment & Tuning:
-    - Dynamic Service: deployment/dynamic-service.md
-    - Fixed Snapshot: deployment/fixed-snapshot.md
-    - Capacity & Growth: deployment/capacity-growth.md
-    - Concurrency Model: deployment/concurrency.md
-    - JVM Memory & FFM Tuning: deployment/memory-tuning.md
-
-  - Benchmarks:
-    - Overview: benchmarks.md
-    - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
-    - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
+    - Deployment & Operations:
+      - Dynamic Service: deployment/dynamic-service.md
+      - Fixed Snapshot: deployment/fixed-snapshot.md
+      - Capacity & Growth: deployment/capacity-growth.md
+      - Concurrency Model: deployment/concurrency.md
+      - JVM Memory & FFM Tuning: deployment/memory-tuning.md
+    - Benchmarks:
+      - Overview: benchmarks.md
+      - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
+      - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
