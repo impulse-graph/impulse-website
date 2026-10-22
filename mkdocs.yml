@@ -34,6 +34,9 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.smartsymbols
+  - pymdownx.progressbar
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - tables
   - admonition
 
@@ -55,6 +58,7 @@ validation:
 
 nav:
   - Home: index.md
+  - Status & Roadmap: status.md
 
   - Getting Started:
     - Overview: getting-started/index.md
