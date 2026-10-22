@@ -1,6 +1,6 @@
 # Quickstart
 
-This guide demonstrates how to mount an immutable `.imps` binary snapshot and execute graph traversals across both primary engines (**Pure Java 25** and **Native C++20 / C-ABI**) as well as the Rust SDK.
+This guide demonstrates how to mount an immutable `.imps` binary snapshot and execute graph traversals across both primary engines (**Pure Java 25** and **Native C++20 / C-ABI**) as well as the **Python SDK**.
 
 ---
 
@@ -70,23 +70,19 @@ Impulse Graph maps `.imps` files directly from disk into virtual memory via `mma
     }
     ```
 
-=== "Rust"
-    ```rust
-    use impulse_graph::SnapshotReader;
+=== "Python"
+    ```python
+    from impulse_graph import Snapshot
 
-    fn main() -> Result<(), Box<dyn std::error::Error>> {
-        // 1. Memory-map the .imps binary snapshot
-        let reader = SnapshotReader::open("social.imps")?;
-
-        // 2. Execute a fluent traversal
-        let friends: Vec<u64> = reader
-            .traverse(42)
+    # 1. Memory-map the .imps binary snapshot off-heap
+    with Snapshot("social.imps") as snap:
+        # 2. Execute a fluent traversal on relation 0 (FOLLOWS)
+        friends = (
+            snap.traverse(start_node=42, catalog={"FOLLOWS": 0})
             .out("FOLLOWS")
-            .to_vec();
-
-        println!("User 42 follows: {:?}", friends);
-        Ok(())
-    }
+            .to_list()
+        )
+        print("User 42 follows:", friends)
     ```
 
 ---
@@ -140,4 +136,26 @@ Both the Pure Java 25 engine and the C++20 / C-ABI kernel include an in-kernel c
 
     free(buf);
     impulse_stmt_finalize(stmt);
+    ```
+
+=== "Python"
+    ```python
+    from impulse_graph import Snapshot
+
+    with Snapshot("social.imps") as snap:
+        # 1. Fluent traversal with node attribute filter
+        active_friends = (
+            snap.traverse(start_node=42, catalog={"FOLLOWS": 0})
+            .out("FOLLOWS")
+            .filter(prefix="active")
+            .to_list()
+        )
+
+        # 2. Parameterized openCypher query execution
+        matched_ids = snap.cypher(
+            "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f",
+            params={"uid": 42},
+            catalog={"FOLLOWS": 0},
+        )
+        print("Matched friend IDs:", matched_ids)
     ```
