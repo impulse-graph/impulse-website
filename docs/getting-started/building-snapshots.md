@@ -525,7 +525,7 @@ When `writeTo()` runs, the builder streams bytes sequentially: the 4KB Page 0 he
 
 ## Step 7: Load and Query
 
-Load the `.imps` file and run a traversal:
+Load the `.imps` file, start the traversal using the external business key (`fromKey("101")` for `user_id = 101`), and materialize the surviving target accounts back into their external business keys via `.toKeyList()`:
 
 ```java
 import org.impulsegraph.api.ImpulseGraphSnapshot;
@@ -543,18 +543,20 @@ try (Arena arena = Arena.ofShared()) {
 
     ImpulseGraphSnapshot graph = loaded.getGraph();
 
-    // 2-hop traversal with edge attribute filter:
-    // User(0) -[:OWNS]-> Account -[:TRANSFERRED_TO (amount >= 1000.0)]-> Destination Accounts
+    // 2-hop traversal seeded by business key ("101") and returning destination account business keys:
+    // User(101) -[:OWNS]-> Account -[:TRANSFERRED_TO (amount >= 1000.0)]-> Destination Account Keys
     DomainView users = graph.domain("User");
 
-    List<Long> destinationAccounts = users.from(0)
+    List<String> destinationAccountKeys = users.fromKey("101")
             .out("OWNS")
             .out("TRANSFERRED_TO", "edge.amount >= 1000.0")
-            .toList();
+            .toKeyList();
 
-    System.out.println("Destination accounts (transfers >= $1,000): " + destinationAccounts);
+    System.out.println("Destination account keys (transfers >= $1,000): " + destinationAccountKeys);
 }
 ```
+
+Because we configured `.withPrimaryKeyIndex(true)` on both `User` and `Account` domains in Steps 1 and 2, the engine resolves `"101"` to its internal dense ID at the start of the query, executes the multi-hop CSR walks and SIMD edge filter strictly over dense IDs, and translates only the final matching `Account` dense IDs back to their external business keys (`"7008"`, etc.) on `.toKeyList()`.
 
 ---
 
