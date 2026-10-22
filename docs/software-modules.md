@@ -89,7 +89,7 @@ Developer inspection, compilation, and layout optimization utilities are consoli
 | **`impulse-graph-spec`** | **Normative Specifications & Test Vectors**. Canonical `.imps` binary format, `ImpulseVM` ISA, `.impas` assembly specification, and four-way polyglot compliance vectors. |
 | **`impulse-graph-tooling`** | **Developer CLI Suite**. `impulse build`, `impulse compile`, `impulse run`, `impulse snapshot inspect`, `validate`, and `optimize`. |
 | **`impulse-benchmarks`** | **Performance & Macro Benchmark Suite**. Reproducible JMH, Google Benchmark, and Python benchmark harnesses. |
-| **`impulse-website`** | **Documentation Portal**. Official documentation website (`docs.impulsegraph.io`). |
+| **`impulse-website`** | **Documentation Portal**. Official documentation website (`www.impulsegraph.org`). |
 | **`impulse-platform`** | **Enterprise Cloud Infrastructure**. Spring Boot gRPC server, Kafka WAL ingestion, GCS/S3 snapshot sync, and RocksDB persistence. |
 | **`impulse-powergrid`** | **Showcase**: Electrical power grid stability engine, CIM XML compiler, and parallel N-1 contingency simulator. |
 | **`impulse-gnn`** | **Showcase**: Python PyTorch / PyG zero-copy `mmap` tensor integration and SIMD neighborhood sampler. |

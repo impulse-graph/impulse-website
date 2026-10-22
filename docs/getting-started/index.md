@@ -16,7 +16,7 @@ Its goal is to provide **world-class performance for traversing read-only graphs
 
 ## Step-by-Step Guide
 
-1. **[Installation](installation.md)**: Add the Pure Java 25 Maven/Gradle dependencies, C/C++ CMake package, or polyglot SDK (Rust, Python, Go, .NET, Node.js).
+1. **[Installation](installation.md)**: Add the Pure Java 25 Maven/Gradle dependencies, C/C++ CMake package, or Python wheel.
 2. **[Quickstart](quickstart.md)**: Mount an `.imps` file and run your first traversal or prepared statement in < 20 lines of code.
 3. **[Core Concepts & Glossary](core-concepts.md)**: A clear, visual primer on CSR/CSC matrices, per-domain dense IDs ($0 \dots N_d-1$), primary key catalogs, and SoA attributes.
 4. **[Building Snapshots Walkthrough (Java)](building-snapshots.md)**: A complete tutorial building `.imps` snapshots from in-memory collections and streaming JDBC queries.

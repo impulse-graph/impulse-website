@@ -57,12 +57,12 @@ jobs:
         working-directory: impulse-website
         run: mkdocs build --strict
 
-      - name: Setup Java 22 for Javadoc generation
+      - name: Setup Java 25 for Javadoc generation
         if: hashFiles('impulse-graph-java/pom.xml') != ''
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: "22"
+          java-version: "25"
           cache: "maven"
 
       - name: Generate Aggregated Javadocs

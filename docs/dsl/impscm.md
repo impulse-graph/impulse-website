@@ -1,8 +1,20 @@
 # ImpScheme Specification (`.impscm`)
 
+!!! note "Internal Compiler IR — Prefer Higher-Level APIs for Application Queries"
+    **ImpScheme (`.impscm`) is primarily an internal compiler implementation detail**—the homoiconic S-Expression Intermediate Representation (IR) that sits between Impulse's user-facing frontends and the `impOps` bytecode emitter.
+
+    While writing `.impscm` directly is fully supported (and useful for compiler pass debugging, custom macro authoring, or low-level benchmarking), **application developers will almost always be better served by higher-level options**:
+
+    * **[Fluent Traversal API](../query-api/fluent-api.md)** (`snap.domain("User").fromKey(...).out(...)`)
+    * **[openCypher Prepared Statements](opencypher.md)** (`snap.prepare("MATCH ... WHERE ... RETURN ...")`)
+    * **[Google CEL Filters & Projections](cel.md)** (`node.age >= 21 && edge.amount > 1000.0`)
+    * **[ImpK](impk.md)** or **[ImpLog](implog.md)** domain-specific languages
+
+    All of those higher-level interfaces automatically compile down to this exact `ImpScheme` IR under the hood.
+
 > **Architectural Role**: **Universal Compiler IR & Low-Level Macro Extension Target**
 >
-> **ImpScheme** (`.impscm`) is the homoiconic S-Expression intermediate representation and macro extension language for the **Impulse Graph Engine**. It serves as both the internal AST compiler bus for higher-level frontends (`ImpK` and `ImpLog`) and a directly authorable low-level scripting/macro language for compiler engineers and advanced power users.
+> **ImpScheme** (`.impscm`) serves as the common AST compiler bus where logical optimization passes (filter fusion, partition elimination, direction selection, and register allocation) are performed before emitting `ImpulseVM` bytecode.
 
 
 ---
