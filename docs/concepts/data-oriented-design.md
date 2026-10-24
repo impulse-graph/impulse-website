@@ -1,8 +1,8 @@
-# Data-Oriented Design: How Fast Can a Graph Traversal Go?
+# Data-Oriented Design: How Fast Can You Traverse a Graph?
 
 Impulse Graph Engine began with a single foundational question:
 
-> **"How fast can a graph traversal possibly go?"**
+> **"How fast can you traverse a graph?"**
 
 The goal of Impulse Graph is singular: **to deliver world-class performance for traversing read-only graphs.**
 

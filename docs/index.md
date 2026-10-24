@@ -2,7 +2,7 @@
 
 ![Impulse Graph Engine Banner](assets/banner_letterbox.jpg)
 
-> **"How fast can a graph traversal possibly go?"**
+> **"How fast can you traverse a graph?"**
 
 Impulse Graph Engine started with that single question. Its goal is simple: **to provide world-class performance for traversing read-only graphs.**
 

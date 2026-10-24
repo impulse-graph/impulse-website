@@ -2,7 +2,7 @@
 
 Impulse Graph Engine was built to answer a simple question:
 
-> **"How fast can a graph traversal possibly go?"**
+> **"How fast can you traverse a graph?"**
 
 Its goal is to provide **world-class performance for traversing read-only graphs.** Instead of running a heavyweight database server or storing millions of heap-allocated `Node` and `Edge` objects, Impulse Graph uses **[Data-Oriented Design](../concepts/data-oriented-design.md)**:
 
