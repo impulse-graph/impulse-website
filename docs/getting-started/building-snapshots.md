@@ -17,15 +17,18 @@ Our relational database has standard tables:
 | `users` | `user_id BIGINT`, `name VARCHAR`, `age INT` |
 | `accounts` | `account_id BIGINT`, `balance DOUBLE` |
 | `user_accounts` | `user_id BIGINT`, `account_id BIGINT` |
-| `account_transfers` | `from_account_id BIGINT`, `to_account_id BIGINT` |
+| `account_transfers` | `from_account_id BIGINT`, `to_account_id BIGINT`, `amount DOUBLE` |
+
+> [!NOTE]
+> In a production banking database, `account_transfers` would also carry a `timestamp` (`TIMESTAMP_MS`), `currency`, `transfer_type` (ACH, wire), and reference IDs. Each of those columns can be attached to the `TRANSFERRED_TO` relation as its own 128-byte-aligned Structure-of-Arrays (SoA) edge attribute column. Here we attach `amount` (`DataType.F64`) to keep the walkthrough focused.
 
 The graph we want:
 
 ```
- (User: 101) ──[:OWNS]──> (Account: 5001) ──[:TRANSFERRED_TO]──> (Account: 7008)
+ (User: 101) ──[:OWNS]──> (Account: 5001) ──[:TRANSFERRED_TO {amount: 2500.00}]──> (Account: 7008)
 ```
 
-Once built, we can memory-map the snapshot and answer queries like *"Which accounts received money from accounts owned by User 101?"*.
+Once built, we can memory-map the snapshot and answer queries like *"Which accounts received transfers over \$1,000 from accounts owned by User 101?"*.
 
 ---
 
@@ -196,15 +199,21 @@ RelationDefinition ownsRelation = RelationDefinition.builder("User", "Account")
 - **`Topology.CSR` (Compressed Sparse Row)** — Stores forward edges. Enables queries like `snap.domain("User").from(userId).out("OWNS")`. CSR is required for all relations.
 - **`Topology.CSC` (Compressed Sparse Column)** — Stores reverse (incoming) edges. Enables queries like `snap.domain("Account").from(accountId).in("OWNS")` (*"Who owns this account?"*). CSC is optional.
 
-### TRANSFERRED_TO: Account → Account
+### TRANSFERRED_TO: Account → Account (with `amount` Edge Attribute)
+
+Edges can also carry columnar attributes (stored as parallel 128-byte-aligned Structure-of-Arrays vectors indexed by edge position $0 \dots E-1$). Here we attach an `amount` property (`DataType.F64`) to `TRANSFERRED_TO`:
 
 ```java
 RelationDefinition transferRelation = RelationDefinition.builder("Account", "Account")
         .addTopology(Topology.CSR, CompressionScheme.RAW)
         .addTopology(Topology.CSC, CompressionScheme.RAW)
         .dataSource(transferEdgeDataSource)
+        .addAttribute("amount", transferAmountSource) // Edge property: transfer amount (F64)
         .build();
 ```
+
+> [!TIP]
+> **Real-World Transfer Metadata**: In a production financial graph, you would typically attach additional edge attributes alongside `amount`—such as `.addAttribute("timestamp", transferTimestampSource)` (`DataType.TIMESTAMP_MS`) for temporal window filtering, `channel`, or `status`. Because Impulse stores edge attributes in Structure-of-Arrays (SoA) layout, a query that only filters on `edge.amount > 1000.0` scans only the contiguous `amount[]` column and never touches `timestamp[]` or `channel[]` in memory.
 
 ---
 
@@ -392,14 +401,83 @@ RelationDataSource ownsDataSource = new JdbcRelationDataSource(
 );
 
 // TRANSFERRED_TO: Account -> Account
-// ORDER BY from_account_id matches the domain scan order from Step 2.
+// ORDER BY from_account_id, to_account_id matches the domain scan order from Step 2.
 RelationDataSource transferDataSource = new JdbcRelationDataSource(
         conn,
         "SELECT COUNT(*) FROM account_transfers",
-        "SELECT from_account_id, to_account_id FROM account_transfers ORDER BY from_account_id",
+        "SELECT from_account_id, to_account_id FROM account_transfers ORDER BY from_account_id, to_account_id",
         accountMapper,
         accountMapper
 );
+```
+
+### Streaming the `amount` Edge Attribute (`AttributeDataSource`)
+
+Edge attributes are streamed in the **exact same edge order** (`ORDER BY from_account_id, to_account_id`) so that element $k$ in the `amount[]` column corresponds to edge $k$ in the CSR `col_indices[]` array:
+
+```java
+import org.impulsegraph.builder.api.DataType;
+import org.impulsegraph.builder.api.Nullability;
+import org.impulsegraph.builder.spi.AttributeChunkIterator;
+import org.impulsegraph.builder.spi.AttributeDataSource;
+
+AttributeDataSource transferAmountSource = new AttributeDataSource() {
+    @Override
+    public DataType dataType() {
+        return DataType.F64; // 64-bit IEEE-754 double
+    }
+
+    @Override
+    public Nullability nullability() {
+        return Nullability.NOT_NULL;
+    }
+
+    @Override
+    public AttributeChunkIterator iterator() {
+        try {
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT amount FROM account_transfers ORDER BY from_account_id, to_account_id",
+                    ResultSet.TYPE_FORWARD_ONLY,
+                    ResultSet.CONCUR_READ_ONLY
+            );
+            stmt.setFetchSize(10_000);
+            ResultSet rs = stmt.executeQuery();
+
+            return new AttributeChunkIterator() {
+                private boolean hasNextRow = rs.next();
+
+                @Override
+                public boolean hasNext() {
+                    return hasNextRow;
+                }
+
+                @Override
+                public int nextChunk(MemorySegment destination, int limit) {
+                    int count = 0;
+                    try {
+                        while (hasNextRow && count < limit) {
+                            double amount = rs.getDouble(1);
+                            destination.setAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, count, amount);
+                            count++;
+                            hasNextRow = rs.next();
+                        }
+                    } catch (SQLException e) {
+                        throw new RuntimeException("Error reading transfer amount", e);
+                    }
+                    return count;
+                }
+
+                @Override
+                public void close() throws Exception {
+                    rs.close();
+                    stmt.close();
+                }
+            };
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to stream transfer amounts", e);
+        }
+    }
+};
 ```
 
 ---
@@ -447,7 +525,7 @@ When `writeTo()` runs, the builder streams bytes sequentially: the 4KB Page 0 he
 
 ## Step 7: Load and Query
 
-Load the `.imps` file and run a traversal:
+Load the `.imps` file, start the traversal using the external business key (`fromKey("101")` for `user_id = 101`), and materialize the surviving target accounts back into their external business keys via `.toKeyList()`:
 
 ```java
 import org.impulsegraph.api.ImpulseGraphSnapshot;
@@ -465,17 +543,20 @@ try (Arena arena = Arena.ofShared()) {
 
     ImpulseGraphSnapshot graph = loaded.getGraph();
 
-    // 2-hop traversal: User(0) -[:OWNS]-> Account -[:TRANSFERRED_TO]-> Destination Accounts
+    // 2-hop traversal seeded by business key ("101") and returning destination account business keys:
+    // User(101) -[:OWNS]-> Account -[:TRANSFERRED_TO (amount >= 1000.0)]-> Destination Account Keys
     DomainView users = graph.domain("User");
 
-    List<Long> destinationAccounts = users.from(0)
+    List<String> destinationAccountKeys = users.fromKey("101")
             .out("OWNS")
-            .out("TRANSFERRED_TO")
-            .toList();
+            .out("TRANSFERRED_TO", "edge.amount >= 1000.0")
+            .toKeyList();
 
-    System.out.println("Destination accounts: " + destinationAccounts);
+    System.out.println("Destination account keys (transfers >= $1,000): " + destinationAccountKeys);
 }
 ```
+
+Because we configured `.withPrimaryKeyIndex(true)` on both `User` and `Account` domains in Steps 1 and 2, the engine resolves `"101"` to its internal dense ID at the start of the query, executes the multi-hop CSR walks and SIMD edge filter strictly over dense IDs, and translates only the final matching `Account` dense IDs back to their external business keys (`"7008"`, etc.) on `.toKeyList()`.
 
 ---
 

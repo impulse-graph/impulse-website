@@ -69,37 +69,12 @@ Choose your language ecosystem below:
     target_link_libraries(your_target PRIVATE impulse-graph::impulse-graph)
     ```
 
-=== "Rust"
-
-    The zero-dependency Rust crate is available on `crates.io`:
-
-    ```bash
-    cargo add impulse-graph
-    ```
-
 === "Python"
 
     Install the pre-compiled wheel (with zero-copy NumPy and PyTorch `mmap` tensor views) from PyPI:
 
     ```bash
     pip install impulse-graph
-    ```
-
-=== ".NET / C#"
-
-    Install the managed API and native C-ABI runtime packages from NuGet:
-
-    ```bash
-    dotnet add package ImpulseGraph
-    dotnet add package ImpulseGraph.Native
-    ```
-
-=== "Node.js / TypeScript"
-
-    Install the N-API native addon and TypeScript definitions from npm:
-
-    ```bash
-    npm install impulse-graph
     ```
 
 ## Developer CLI (`impulse-graph-tooling`)
