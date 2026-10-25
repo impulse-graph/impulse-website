@@ -1,245 +1,183 @@
-# Impulse Graph Engine — Cross-Language Fluent API Specification & Guide
+# Fluent Traversal API
 
-> **Document Status**: Normative Ecosystem Standard
-> **Target Version**: `` / `v1.0.0`
-> **Applies To**: C++20, Rust, Python, Java 25, Node.js, C# (.NET)
+The **Fluent Traversal API** provides a strongly-typed, allocation-free pipeline for stepping across domains, filtering node and edge attributes with [Google CEL](../dsl/cel.md), performing off-heap bitset algebra, and materializing results.
 
 ---
 
-## 1. Executive Summary & Architectural Philosophy
+## 1. The Five Stages of a Fluent Traversal
 
-The **Impulse Graph Engine** provides a unified, type-safe **Fluent API** designed to construct, optimize, and execute graph traversals with **zero heap allocations** on hot paths and **sub-microsecond execution latencies**.
+Every fluent query follows the same five-stage lifecycle:
 
-To satisfy both high-level application developers and low-level systems/compiler engineers, the Fluent API is partitioned into **two distinct tiers**:
-
+```mermaid
+flowchart LR
+    S1["1. Anchor Domain\nsnap.domain('User')"] --> S2["2. Seed Frontier\n.fromKey('usr_101')\n.from(0, 1) / .all()"]
+    S2 --> S3["3. Walk & Filter\n.out('OWNS')\n.filter('node.balance > 0')"]
+    S3 --> S4["4. Loops / State\n.repeatUntilStable(...)\n.outWithState(...)"]
+    S4 --> S5["5. Terminal Collect\n.toKeyList() / .toList()\n.toBitSet() / .count()"]
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ Impulse Graph Fluent API Architecture                           │
-├───────────────────────────────────────────┬────────────────────────────────────────────┤
-│ Tier 1: High-Level Traversal Pipeline     │ Tier 2: Low-Level VM Query Assembler       │
-│ (Declarative, Path & Hop Centric)         │ (Register-Based, Bytecode & Kernel Centric)│
-├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ • snapshot.traverse(seed)                 │ • qb = QueryBuilder()                      │
-│ • .out("knows").in_("liked")              │ • qb.inputNode(0).walkEdge(relId, 1)       │
-│ • .filter("edge.weight > 0.8")            │ • qb.afforest().matrixVectorMul(...)       │
-│ • .to_list() / .count() / .contains()     │ • qb.collectBitset().compile()             │
-├───────────────────────────────────────────┼────────────────────────────────────────────┤
-│ Target: App Devs, Data Science, AuthZ/ReBAC│ Target: Engine Kernels, DSL Compilers, JIT │
-└───────────────────────────────────────────┴────────────────────────────────────────────┘
-```
+
+### Stage 1 & 2: Anchor Domain & Seed the Frontier
+Because every Node Domain (`User`, `Account`, `Product`) has its own independent 0-indexed dense ID space ($0 \dots N_d - 1$), multi-domain queries always begin by binding a domain via `snap.domain("DomainName")` and selecting the initial frontier:
+
+| Seed Method (Java 25) | Python Equivalent | Description |
+| :--- | :--- | :--- |
+| `.all()` | `.all()` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
+| `.from(long id)` | `.from_id(id)` | Seeds a single dense node ID. |
+| `.from(long... ids)` | `.from_ids([id1, id2])` | Seeds a batch of dense node IDs. |
+| `.from(ImpulseBitSet bits)` | `.from_bitset(bits)` | Seeds from a pre-computed off-heap BitSet. |
+| `.fromKey(String key)` | `.from_key(key)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
+| `.fromKeys(String... keys)` | `.from_keys([k1, k2])` | Resolves a batch of external business keys to dense IDs. |
 
 ---
 
-## 2. Standardized Method Naming Matrix Across All Languages
+## 2. Cross-Language Method Reference
 
-To ensure developers experience a predictable, idiomatic API regardless of language, all method names follow strict cross-language mapping rules.
+Method names follow idiomatic conventions in each language SDK:
 
-### Tier 1: High-Level Traversal Pipeline
-
-| Traversal Operation | C++20 | Rust | Python | Java 25 | Node.js / TS | C# (.NET) |
+| Operation | Java 25 | Python | C++20 | Rust | Node.js / TS | C# (.NET) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Start (Single Seed)** | `snap->traverse(42)` | `snap.traverse(42)` | `snap.traverse(42)` | `snap.traverse(42)` | `snap.traverse(42)` | `snap.Traverse(42)` |
-| **Start (Batch Seeds)** | `snap->traverse({45,46,47})` | `snap.traverse(&[45,46,47])` | `snap.traverse([45,46,47])` | `snap.traverse(45, 46, 47)` | `snap.traverse([45,46,47])` | `snap.Traverse([45,46,47])` |
-| **Forward Walk** | `out(rel)` | `out(rel)` | `out(rel)` | `out(rel)` | `out(rel)` | `Out(rel)` |
-| **Incoming Walk** | `in_step(rel)` | `in_step(rel)` | `in_(rel)` | `in(rel)` / `inStep(rel)` | `in(rel)` | `In(rel)` |
-| **CEL Attribute Filter** | `filter(expr)` | `filter(expr)` | `filter(expr)` | `filter(expr)` | `filter(expr)` | `Filter(expr)` |
-| **Filtered Forward Walk** | `out_filtered(rel, expr)` | `out_filtered(rel, expr)` | `out(rel, filter=...)` | `outFiltered(rel, expr)` | `outFiltered(rel, expr)` | `OutFiltered(rel, expr)` |
-| **Filtered Incoming Walk**| `in_filtered(rel, expr)` | `in_filtered(rel, expr)` | `in_(rel, filter=...)` | `inFiltered(rel, expr)` | `inFiltered(rel, expr)` | `InFiltered(rel, expr)` |
-| **Bind Scalar Parameter**| `with_param(name, val)` | `with_param(name, val)` | `with_param(name, val)` | `withParam(name, val)` | `withParam(name, val)` | `WithParam(name, val)` |
-| **Collect List / Array** | `to_vector()` | `to_vec()` | `to_list()` | `toList()` / `collectArray()` | `toArray()` | `ToList()` / `ToArray()` |
-| **Collect Unique Set**   | `to_set()` | `to_hashset()` | `to_set()` | `toSet()` / `collectSet()` | `toSet()` | `ToHashSet()` |
-| **Collect Node Count**   | `count()` | `count()` | `count()` | `count()` / `collectCount()` | `count()` | `Count()` |
-| **Test Reachability**    | `contains(tgt)` | `contains(tgt)` | `contains(tgt)` | `contains(tgt)` | `contains(tgt)` | `Contains(tgt)` |
-| **Emit Text Assembly**   | `to_impas()` | `to_impas()` | `to_impas()` | `toImpas()` | `toImpas()` | `ToImpas()` |
+| **Anchor Domain** | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.Domain(d)` |
+| **Forward Walk (CSR)** | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.Out(rel)` |
+| **Reverse Walk (CSC)** | `.in(rel)` | `.in_(rel)` | `.in_step(rel)` | `.in_step(rel)` | `.in(rel)` | `.In(rel)` |
+| **Filtered Forward Walk** | `.out(rel, cel)` | `.out(rel, filter=cel)` | `.out_filtered(rel, cel)` | `.out_filtered(rel, cel)` | `.outFiltered(rel, cel)` | `.OutFiltered(rel, cel)` |
+| **Filtered Reverse Walk** | `.in(rel, cel)` | `.in_(rel, filter=cel)` | `.in_filtered(rel, cel)` | `.in_filtered(rel, cel)` | `.inFiltered(rel, cel)` | `.InFiltered(rel, cel)` |
+| **In-Domain Node Filter** | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.Filter(cel)` |
+| **Bind Parameter** | `.withParam(k, v)` | `.with_param(k, v)` | `.with_param(k, v)` | `.with_param(k, v)` | `.withParam(k, v)` | `.WithParam(k, v)` |
+| **Collect Dense IDs** | `.toList()` / `.toSet()` | `.to_list()` / `.to_set()` | `.to_vector()` | `.to_vec()` | `.toArray()` | `.ToList()` |
+| **Collect Business Keys** | `.toKeyList()` | `.to_keys()` | `.to_keys()` | `.to_keys()` | `.toKeys()` | `.ToKeyList()` |
+| **Collect Off-Heap BitSet**| `.toBitSet()` | `.to_bitset()` | `.to_bitset()` | `.to_bitset()` | `.toBitSet()` | `.ToBitSet()` |
+| **Count Surviving Nodes** | `.count()` | `.count()` | `.count()` | `.count()` | `.count()` | `.Count()` |
+| **Test Single Target** | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.Contains(id)` |
+| **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | `.to_impas()` | `.to_impas()` | `.toImpas()` | `.ToImpas()` |
+
+> [!NOTE]
+> **Why `.in_()` in Python and `.in_step()` in Rust?**
+> Both Python and Rust reserve `in` as a language keyword (`for x in y`). Python follows PEP 8 with a trailing underscore (`.in_("REL")`), while Rust and C++ use `.in_step("REL")`.
 
 ---
 
-### Tier 2: Low-Level VM Bytecode Assembler (`QueryBuilder`)
+## 3. Filtering & Parameter Binding with Google CEL
 
-| VM Assembler Step | C++20 | Rust | Python | Java 25 | C# (.NET) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Input Node Seed** | `inputNode(dstReg)` | `input_node(dst_reg)` | `input_node(dst_reg)` | `inputNode(dstReg)` | `InputNode(dstReg)` |
-| **Input Set / BitSet**| `inputSet(dstReg)` | `input_set(dst_reg)` | `input_set(dst_reg)` | `inputSet(dstReg)` | `InputSet(dstReg)` |
-| **Load Constant Int** | `loadConstInt(val, dst)` | `load_const_int(val, dst)` | `load_const_int(val, dst)` | `loadConstInt(val, dst)` | `LoadConstInt(val, dst)` |
-| **Load Constant Float**| `loadConstFloat(val, dst)` | `load_const_float(val, dst)` | `load_const_float(val, dst)` | `loadConstFloat(val, dst)` | `LoadConstFloat(val, dst)` |
-| **CSR Forward Walk** | `walkEdge(relId)` | `walk_edge(rel_id)` | `walk_edge(rel_id)` | `walkEdge(relId)` | `WalkEdge(relId)` |
-| **CSC Incoming Walk**| `walkCsc(relId)` | `walk_csc(rel_id)` | `walk_csc(rel_id)` | `walkCsc(relId)` | `CscWalk(relId)` |
-| **Degree Computation** | `walkDegree(relId)` | `walk_degree(rel_id)` | `walk_degree(rel_id)` | `walkDegree(relId)` | `Degree(relId)` |
-| **Set Union** | `unionWith(srcReg)` | `union_with(src_reg)` | `union_with(src_reg)` | `unionWith(srcReg)` | `SetUnion(r1, r2, dst)` |
-| **Set Intersection** | `intersectWith(srcReg)` | `intersect_with(src_reg)`| `intersect_with(src_reg)`| `intersectWith(srcReg)` | `SetIntersect(r1, r2, dst)` |
-| **Set Difference** | `differenceWith(srcReg)` | `difference_with(src_reg)`| `difference_with(src_reg)`| `differenceWith(srcReg)` | `SetDifference(r1, r2, dst)` |
-| **Set Cardinality** | `cardinality()` | `cardinality()` | `cardinality()` | `cardinality()` | `SetCardinality(src, dst)` |
-| **Matrix-Vector Mul** | `matrixVectorMul(matReg)` | `matrix_vector_mul(mat)` | `matrix_vector_mul(mat)` | `matrixVectorMul(matReg)` | `MxV(relId, vecReg, dst)` |
-| **Connected Comps** | `afforest()` | `afforest()` | `afforest()` | `afforest()` | `AfforestCC(relId, dst)` |
-| **Sample Neighbors** | `sampleNeighbors(rel, k)` | `sample_neighbors(rel, k)`| `sample_neighbors(rel, k)`| `sampleNeighbors(rel, k)` | `SampleNeighbors(rel, k)` |
-| **ReBAC Rule Check** | `rebacCheck(permId)` | `rebac_check(perm_id)` | `rebac_check(perm_id)` | `rebacCheck(permId)` | `RebacCheck(rel, tgtReg)` |
-| **Collect BitSet** | `collectBitset()` | `collect_bitset()` | `collect_bitset()` | `collectBitset()` | `CollectBitset(reg)` |
-| **Collect Array** | `collectArray()` | `collect_array()` | `collect_array()` | `collectArray()` | `CollectArray(reg)` |
-| **Compile Bytecode** | `compile()` | `compile()` | `compile()` | `compile()` | `Compile()` |
+Filters can be applied either **in-domain** via `.filter(celExpr)` (which scans only the active domain's Structure-of-Arrays attribute columns) or **inline during an edge walk** via `.out(rel, celExpr)` (which evaluates edge, source, and target attributes in a single fused pass):
 
----
+* **`node.<attr>`**: Attribute on the currently active node domain (used in `.filter("node.age >= 21")`).
+* **`src.<attr>`**: Attribute on the source node of a walk step.
+* **`edge.<attr>`**: Attribute on the traversed edge (used in `.out("TRANSFERRED_TO", "edge.amount >= 1000.0")`).
+* **`tgt.<attr>`**: Attribute on the candidate target node of a walk step.
+* **`$param` or `@param`**: Named parameters bound via `.withParam("param", value)`.
 
-## 3. Language-Specific Reserved Keyword Handling
-
-Several languages have reserved keywords that collide with graph traversal directions (`in` in Python and Rust). The ecosystem enforces the following canonical conventions:
-
-1. **Python**:
-   - Forward walk: `.out("relation")`
-   - Reverse walk: `.in_("relation")` (trailing underscore, following PEP 8 convention for reserved keywords).
-2. **Rust**:
-   - Forward walk: `.out("relation")`
-   - Reverse walk: `.in_step("relation")` (avoids keyword collision while remaining clear).
-3. **Java & TypeScript / Node.js**:
-   - Forward walk: `.out("relation")`
-   - Reverse walk: `.in("relation")` (`in` is valid as a method name in Java and property name in JS).
-4. **C# (.NET)**:
-   - Forward walk: `.Out("relation")`
-   - Reverse walk: `.In("relation")` (PascalCase avoids keyword collision).
-
----
-
-## 4. Parameter Binding & CEL Expression Conventions
-
-Filter expressions use the industry-standard **Google CEL (Common Expression Language)** grammar.
-
-### Parameter Syntax
-- Named query parameters can be referenced inside CEL strings as `$param` or `@param`.
-- When binding parameters via `.with_param("name", value)` (or `.withParam("name", value)`), the leading `$` or `@` is optional and stripped automatically.
-
-```python
-# Both syntaxes produce identical execution plans:
-snap.traverse(101).out("transfers").filter("edge.amount > $min_val").with_param("min_val", 5000.0)
-snap.traverse(101).out("transfers").filter("edge.amount > @min_val").with_param("@min_val", 5000.0)
-```
-
-### Supported CEL Identifiers on Traversals
-- `src.<attr>`: Source node attributes on the active frontier.
-- `edge.<attr>`: Relationship attributes along traversed edges.
-- `tgt.<attr>`: Target candidate node attributes.
-- Mathematical functions: `min(a, b)`, `max(a, b)`, `abs(x)`, `sqrt(x)`, `log(x)`, `clamp(x, low, high)`.
-
----
-
-## 5. Input Frontier Flexibility: Single Seed vs. Batch Seeds & Domain Scoping
-
-In Impulse Graph Engine, **dense node IDs are strictly per-domain ($0 \dots N_d-1$)**. In a multi-domain snapshot, traversal pipelines bind to a specific domain:
-
-```python
-# 1. Single Seed Node within a Domain:
-snap.domain("User").traverse(42).out("knows").count()
-
-# 2. Batch Sparse Node Array / List within a Domain:
-snap.domain("User").traverse([45, 46, 47, 58]).out("knows").count()
-
-# 3. Frontier Attribute Filtering (Evaluates against the active domain's attribute table):
-snap.domain("User").traverse([1, 2, 3, 4]).filter("age > 5").to_list()
-
-# 4. Zero-Hop Cardinality (Count of Initial Seed Frontier):
-snap.domain("User").traverse([45, 46, 47, 58]).count()  # Returns 4
-```
-
-*(Note: On single-domain snapshots, `snap.traverse(...)` defaults directly to domain 0).*
-
-### Execution Mechanics of Batch Frontiers:
-1. **Domain-Bound Attribute Evaluation**: Calling `.filter("age > 5")` evaluates the `age` attribute array belonging specifically to the active domain (`User.age`) across candidate dense IDs $\{1, 2, 3, 4\}$ via SIMD predicates and prunes non-matching nodes before (or without) walking edges.
-2. **Multi-Seed Parallel Walk & Relation Domain Transition**: When followed by traversal steps (`.out("PURCHASED")`), the relation descriptor's `SrcDomainID` and `TgtDomainID` map the surviving `User` dense IDs to the target domain's dense ID space (e.g. `WineInventory`), running vectorized SIMD chunks in parallel without loop overhead.
-
----
-
-## 6. End-to-End Idiomatic Examples
-
-### 5.1 Python Example
-```python
-import impulse_graph as imp
-
-# Zero-copy memory-map snapshot
-snapshot = imp.Snapshot.open("hetionet.imps")
-
-# High-Level Fluent Traversal: Compound -> Gene -> Disease
-treatments = (
-    snapshot.traverse(start_node=1053)      # Aspirin
-    .out("Compound::binds::Gene")            # Targets
-    .in_("Disease::associates::Gene")        # Associated Diseases
-    .filter("tgt.severity > $min_sev")       # CEL filter
-    .with_param("min_sev", 3.5)
-    .to_set()
-)
-
-print(f"Reachable disease indications: {len(treatments)}")
-```
-
-### 5.2 Java 25 Example
 ```java
-import org.impulsegraph.api.*;
-import org.impulsegraph.storage.csr.BinarySnapshotLoader;
-
-var snapshot = BinarySnapshotLoader.load("social_graph.imps");
-
-// High-Level Fluent ReBAC Access Check
-boolean hasAccess = snapshot.traverse(userId)
-    .out("memberOf")                         // User -> Group
-    .outFiltered("hasPermission", "edge.scope == @scope") // Group -> Perm
-    .withParam("scope", "admin:write")
-    .contains(targetResourceId);
-
-System.out.println("Access granted: " + hasAccess);
-```
-
-### 5.3 Rust Example
-```rust
-use impulse_graph::reader::SnapshotReader;
-
-let reader = SnapshotReader::open("security_graph.imps")?;
-
-// Fluent multi-hop traversal with candidate count
-let reachable_hosts = reader.traverse(seed_user_id)
-    .out("member_of")
-    .out("assigned_role")
-    .out_filtered("can_ssh", "edge.port == 22")
-    .to_vec()?;
-
-println!("Total reachable hosts: {}", reachable_hosts.len());
-```
-
-### 5.4 Node.js / TypeScript Example
-```typescript
-import { Snapshot } from 'impulse-graph';
-
-const snapshot = Snapshot.open('e_commerce.imps');
-
-// Multi-hop product recommendation
-const recommendations = snapshot.traverse(customerNodeId)
-  .out('PURCHASED')
-  .in('PURCHASED')
-  .outFiltered('CONTAINS', 'edge.rating >= 4.5')
-  .toArray();
-
-console.log(`Recommended product IDs: ${recommendations.length}`);
-```
-
-### 5.5 C# (.NET) Example
-```csharp
-using ImpulseGraph;
-
-using var snapshot = Snapshot.Open("powergrid.imps");
-
-// 2-hop grid contingency walk
-var islandedBuses = snapshot.Traverse(seedBusId)
-    .Out("Branch")
-    .Filter("edge.status == 1 && edge.kv >= @minKv")
-    .WithParam("minKv", 115.0)
-    .ToHashSet();
-
-Console.WriteLine($"Active energized buses: {islandedBuses.Count}");
+long qualifiedPurchases = snap.domain("User")
+    .fromKeys("usr_alice", "usr_bob")
+    .withParam("minScore", 700.0)
+    .filter("node.credit_score >= $minScore && node.active == true")
+    .out("PURCHASED", "edge.amount > 250.0 && tgt.in_stock == true")
+    .count();
 ```
 
 ---
 
-## 6. Execution Lifecycle & Performance Guidelines
+## 4. Off-Heap BitSet Set Algebra (`OR`, `AND`, `AND NOT`)
 
-1. **Lazy Bytecode Compilation**:
-   - Calling `.out()`, `.in_()`, `.filter()` records AST step descriptors without executing traversals.
-   - Calling terminal collectors (`.to_list()`, `.count()`, `.contains()`) triggers bytecode emission and execution in **one fused zero-allocation pass**.
-2. **Re-Usable Query Objects**:
-   - For high-frequency query endpoints (e.g. 100,000 requests/sec), call `.compile()` to produce an immutable `CompiledQuery`.
-   - Re-execute the compiled query across worker threads by passing different seed node IDs into `.execute(seed)` with **0ns recompilation overhead**.
+Because every domain's nodes are dense integers $0 \dots N_d - 1$, any frontier can be materialized into an off-heap **`ImpulseBitSet`** (`OffHeapBitSet`) and combined using word-level / SIMD bitwise operations—**provided both bitsets belong to the same domain**:
+
+```java
+var users = snap.domain("User");
+
+try (Arena arena = Arena.ofConfined()) {
+    ImpulseBitSet aliceFriends = users.fromKey("usr_alice").out("FOLLOWS").toBitSet();
+    ImpulseBitSet bobFriends   = users.fromKey("usr_bob").out("FOLLOWS").toBitSet();
+
+    // 1. Intersection (AND): Mutual friends of Alice and Bob
+    ImpulseBitSet mutual = new OffHeapBitSet(arena, (int) users.nodeCount());
+    mutual.or(aliceFriends);
+    mutual.and(bobFriends);
+
+    // 2. Difference (AND NOT): Friends of Alice who are NOT friends of Bob
+    ImpulseBitSet exclusiveAlice = new OffHeapBitSet(arena, (int) users.nodeCount());
+    exclusiveAlice.or(aliceFriends);
+    exclusiveAlice.andNot(bobFriends);
+
+    // 3. Re-seed a new traversal directly from the computed bitset
+    List<String> recommendedProducts = users.from(mutual)
+        .out("PURCHASED")
+        .toKeyList();
+}
+```
+
+---
+
+## 5. Multi-Language End-to-End Examples
+
+=== "Java 25"
+    ```java
+    var users = snap.domain("User");
+
+    boolean hasAccess = users.fromKey("usr_alice")
+        .out("MEMBER_OF")
+        .repeatUntilStable("PARENT_GROUP")
+        .out("HAS_PERMISSION", "edge.scope == $scope")
+        .withParam("scope", "doc:write")
+        .contains(targetDocumentDenseId);
+    ```
+
+=== "Python"
+    ```python
+    from impulse_graph import Snapshot
+
+    with Snapshot("hetionet.imps") as snap:
+        # Compound -> Gene <- Disease with CEL filter
+        indications = (
+            snap.domain("Compound")
+                .from_key("DB00945")  # Aspirin
+                .out("Compound::binds::Gene")
+                .in_("Disease::associates::Gene")
+                .filter("node.severity > $min_sev")
+                .with_param("min_sev", 3.5)
+                .to_keys()
+        )
+    ```
+
+=== "Rust"
+    ```rust
+    use impulse_graph::reader::SnapshotReader;
+
+    let snap = SnapshotReader::open("security.imps")?;
+    let reachable_hosts = snap.domain("User")
+        .from_key("usr_alice")
+        .out("MEMBER_OF")
+        .out_filtered("CAN_SSH", "edge.port == 22")
+        .to_keys()?;
+    ```
+
+=== "Node.js / TypeScript"
+    ```typescript
+    import { Snapshot } from 'impulse-graph';
+
+    const snap = Snapshot.open('ecommerce.imps');
+    const recommendations = snap.domain('User')
+      .fromKey('usr_alice')
+      .out('PURCHASED')
+      .in('PURCHASED')
+      .outFiltered('PURCHASED', 'edge.rating >= 4.5')
+      .toKeys();
+    ```
+
+=== "C# (.NET)"
+    ```csharp
+    using ImpulseGraph;
+
+    using var snap = Snapshot.Open("powergrid.imps");
+    var energizedBuses = snap.Domain("Bus")
+        .FromKey("BUS_101")
+        .OutFiltered("CONNECTED_BRANCH", "edge.status == 1 && edge.kv >= @minKv")
+        .WithParam("minKv", 115.0)
+        .ToKeyList();
+    ```
+
+---
+
+## Next Steps
+
+* **[State Projections, Reducers & Loops](advanced-querying.md)**: Carry computed weights/distances across hops with `.outWithState(...)`, `:MIN`/`:MAX`/`:SUM`/`:ARGMIN` reducers, and `.project(...)`.
+* **[Google CEL (Filters & Math)](../dsl/cel.md)**: Full operator table and the 46 built-in SIMD math functions.

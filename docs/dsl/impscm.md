@@ -119,13 +119,13 @@ Using the `impulse-graph` CLI:
 
 ```bash
 # 1. Compile .impscm source to canonical .impas assembly text
-impulse compiler compile reachability.impscm -o reachability.impas
+impulse compile reachability.impscm -o reachability.impas
 
 # 2. Inspect intermediate AST S-Expressions
-impulse compiler compile reachability.impscm --emit-ir
+impulse compile reachability.impscm --emit-ir
 
 # 3. Assemble .impas text into binary bytecode (.impb)
-impulse compiler assemble reachability.impas -o reachability.impb
+impulse assemble reachability.impas -o reachability.impb
 
 # 4. Execute query program against snapshot
 impulse run --snapshot production.imps --bytecode reachability.impb --input-val 1042

@@ -1,164 +1,106 @@
 # CLI Reference (`impulse` / `impulse-graph`)
 
-Official CLI documentation for the Impulse Graph Engine developer utilities and compiler suite.
+Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-tooling`). Every release binary statically embeds `libimpulse_graph_static.a`.
 
-!!! note "Canonical Executable"
-    The primary executable name is `impulse-graph`, symlinked as `impulse`.
-
-## Command Naming Directive
-
-* **`compile` ONLY applies to Code**: Compiling DSL scripts (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` bytecode (`impulse compiler compile` / `impulse compile`).
-* **`build` ONLY applies to Snapshots**: Building binary `.imps` snapshot files from dataset manifests (`impulse snapshot build` / `impulse build`).
+> [!IMPORTANT]
+> **Command Naming Convention**:
+> - **`impulse build`** (`impulse snapshot build`) **ONLY builds `.imps` data snapshots** from CSV/Parquet/TSV manifests.
+> - **`impulse compile`** (`impulse compiler compile`) **ONLY compiles query code** (`.impscm`, `.impk`, `.implog`, `.cypher`) into `.impas` assembly or `.impb` bytecode.
 
 ---
 
-## Global Command Structure
+## 1. Command Hierarchy
 
 ```text
-impulse-graph CLI
-
-├── impulse run                           <-- Top-level execution entrypoint (runs bytecode or source against .imps)
+impulse-graph (symlinked as `impulse`)
+├── impulse run                  # Execute a query or .impb bytecode against an .imps snapshot
+├── impulse build                # Shorthand for `impulse snapshot build`
+├── impulse compile              # Shorthand for `impulse compiler compile`
 │
-├── impulse compiler                      <-- Compiler & Bytecode Toolchain Subcommands (Code Only)
-│   ├── compile                           <-- Compiles DSL scripts (.impscm / .impk / .implog) -> .impas or .impb
-│   ├── assemble                          <-- Assembles .impas text -> .impb bytecode
-│   ├── disassemble                       <-- Disassembles .impb bytecode -> .impas text
-│   └── inspect                           <-- Inspects .impb bytecode headers & opcode stats
+├── impulse snapshot             # Binary Snapshot (.imps) Data Lifecycle
+│   ├── build                    # Stream-compile Parquet/CSV/TSV manifest -> .imps
+│   ├── inspect                  # Print header, domain/relation catalog, and section offsets
+│   ├── validate                 # Verify 128B alignment, CRC-16 header, and SHA-256 footer
+│   ├── optimize                 # Offline RCM node reordering, degree sort, and CSC generation
+│   ├── merge                    # Merge base .imps with delta log files (.impdelta)
+│   ├── diff                     # Compare structural diffs between two .imps snapshots
+│   └── export                   # Export .imps domains/relations to Parquet/CSV/JSONL
 │
-├── impulse snapshot                      <-- Binary Snapshot (.imps) Data Tooling (Snapshots Only)
-│   ├── build                             <-- Builds .imps from Parquet/CSV/TSV manifests
-│   ├── merge                             <-- Builds a new snapshot by integrating WAL delta log files
-│   ├── inspect                           <-- Inspects .imps headers, catalogs & sections
-│   ├── validate                          <-- Validates spec compliance & 128B alignment
-│   ├── optimize                          <-- Applies RCM reordering & CSC generation
-│   ├── diff                              <-- Compares structural diffs between 2 snapshots
-│   ├── export                            <-- Exports .imps snapshot to CSV/TSV/JSONL
-│   └── convert-tensors                   <-- Ingests HuggingFace .safetensors weights
+├── impulse compiler             # Query Compiler & Bytecode Toolchain
+│   ├── compile                  # Compile DSL (.impscm/.impk/.implog/.cypher) -> .impas or .impb
+│   ├── assemble                 # Assemble .impas text -> .impb binary bytecode
+│   ├── disassemble              # Disassemble .impb binary bytecode -> annotated .impas
+│   └── inspect                  # Inspect .impb instruction counts, registers, and scratch size
 │
-└── impulse crypto                        <-- Cryptographic Attestation & Signatures
-    ├── keygen                            <-- Generates Ed25519 keypairs
-    ├── sign                              <-- Signs binary snapshot with private key
-    └── verify                            <-- Verifies Ed25519 signature
+└── impulse crypto               # Ed25519 Cryptographic Attestation
+    ├── keygen                   # Generate Ed25519 keypair (.priv / .pub)
+    ├── sign                     # Sign an .imps snapshot footer with Ed25519 private key
+    └── verify                   # Verify Ed25519 signature and SHA-256 digest of an .imps file
 ```
 
 ---
 
-## Primary Subcommands
+## 2. Snapshot Data Commands (`impulse snapshot`)
 
-### Top-Level Commands
-
-#### `impulse run`
-Execute compiled bytecode query (`.impb`) or script against a binary snapshot (`.imps`).
+### `impulse snapshot build` (or `impulse build`)
+Compiles CSV, TSV, or Apache Parquet files into a 4KB-page-aligned, 128-byte-section-aligned `.imps` snapshot using a declarative `manifest.json` (see [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)):
 
 ```bash
-impulse run --snapshot production.imps --bytecode reachability.impb --input-val 1042
+impulse snapshot build --manifest manifest.json -o production.imps
 ```
 
-#### `impulse compile` (Code Only)
-Shorthand for `impulse compiler compile`. Compiles DSL scripts (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` binary bytecode.
+### `impulse snapshot inspect` & `validate`
+Inspects domain/relation catalogs or verifies strict spec compliance and checksum integrity:
 
 ```bash
-impulse compile query.impscm -o query.impas
-```
-
-#### `impulse build` (Snapshots Only)
-Shorthand for `impulse snapshot build`. Builds zero-copy binary snapshot (`.imps`) from dataset manifest.
-
-```bash
-impulse build --manifest dataset.json -o graph.imps
-```
-
----
-
-### `impulse compiler` Namespace
-
-#### `impulse compiler compile`
-Compile DSL source script (`.impscm`, `.impk`, `.implog`) into `.impas` assembly text or `.impb` bytecode.
-
-```bash
-impulse compiler compile reachability.impscm -o reachability.impas
-```
-
-| Option | Description |
-| :--- | :--- |
-| `<INPUT>` | Path to DSL script file (`.impscm`, `.impk`, `.implog`) |
-| `-o, --output` | Destination `.impas` or `.impb` file path |
-| `--emit-ir` | Emit Intermediate Representation (S-Expressions) to stdout |
-
-#### `impulse compiler assemble`
-Assemble textual assembly (`.impas`) into binary bytecode program (`.impb`).
-
-```bash
-impulse compiler assemble query.impas -o query.impb
-```
-
-#### `impulse compiler disassemble`
-Disassemble binary bytecode program (`.impb`) into annotated text assembly (`.impas`).
-
-```bash
-impulse compiler disassemble query.impb
-```
-
----
-
-### `impulse snapshot` Namespace
-
-#### `impulse snapshot build`
-Build zero-copy binary snapshot (`.imps`) from Parquet/CSV/TSV dataset manifest.
-
-```bash
-impulse snapshot build --manifest dataset.json -o production.imps
-```
-
-#### `impulse snapshot merge`
-Build a new binary snapshot by integrating WAL delta log files (`.impdelta`).
-
-```bash
-impulse snapshot merge --base production.imps --deltas wal1.impdelta wal2.impdelta -o updated.imps
-```
-
-#### `impulse snapshot inspect`
-Inspect binary snapshot header, section directory, domain catalogs, and topology metadata.
-
-```bash
+# Print human-readable or JSON catalog summary
 impulse snapshot inspect production.imps --format json
-```
 
-#### `impulse snapshot validate`
-Validate binary snapshot file against Spec normative requirements and 128-byte hardware alignment.
-
-```bash
+# Verify 128-byte section alignment, CRC-16 header, and SHA-256 payload digest
 impulse snapshot validate production.imps --strict-alignment
 ```
 
-#### `impulse snapshot optimize`
-Apply offline layout optimizations (Reverse Cuthill-McKee graph reordering, degree sort, CSC generation).
+### `impulse snapshot optimize`
+Applies offline layout transformations—such as **Reverse Cuthill-McKee (RCM)** bandwidth reduction to cluster connected neighbors into adjacent dense IDs (maximizing L1/L2 cache hits) or adding reverse **CSC** indices:
 
 ```bash
-impulse snapshot optimize -i raw.imps -o opt.imps --rcm --csc
+impulse snapshot optimize -i raw.imps -o optimized.imps --rcm --csc
+```
+
+### `impulse snapshot merge`, `diff` & `export`
+```bash
+# Integrate delta logs into a fresh immutable snapshot
+impulse snapshot merge --base production.imps --deltas batch1.impdelta -o next.imps
+
+# Compare domain/edge count deltas between two snapshots
+impulse snapshot diff v1.imps v2.imps
+
+# Export snapshot back to Parquet or CSV
+impulse snapshot export production.imps --output-dir ./exported_csv/
 ```
 
 ---
 
-### `impulse crypto` Namespace
-
-#### `impulse crypto keygen`
-Generate Ed25519 keypair for snapshot signatures.
+## 3. Query Execution & Compiler Commands (`impulse run` & `impulse compiler`)
 
 ```bash
-impulse crypto keygen -o impulse_key
+# 1. Compile openCypher, ImpLog, ImpK, or ImpScheme to annotated .impas assembly
+impulse compile query.impscm --snapshot production.imps -o query.impas
+
+# 2. Assemble .impas text into binary .impb bytecode
+impulse compiler assemble query.impas -o query.impb
+
+# 3. Execute compiled bytecode or source script against a snapshot
+impulse run --snapshot production.imps --bytecode query.impb --input-val 42
 ```
 
-#### `impulse crypto sign`
-Sign binary snapshot file using Ed25519 private key.
+---
+
+## 4. Cryptographic Signing (`impulse crypto`)
 
 ```bash
-impulse crypto sign production.imps -k impulse_key.priv
-```
-
-#### `impulse crypto verify`
-Verify Ed25519 cryptographic signature on binary snapshot.
-
-```bash
-impulse crypto verify production.imps -k impulse_key.pub
+# Generate Ed25519 keypair, sign snapshot, and verify signature before mmap
+impulse crypto keygen -o release_key
+impulse crypto sign production.imps -k release_key.priv
+impulse crypto verify production.imps -k release_key.pub
 ```

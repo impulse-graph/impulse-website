@@ -6,7 +6,11 @@ This document formalizes the multi-tier testing process, PR gate requirements, a
 
 ## 1. Executive Summary & Testing Philosophy
 
-Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanning from language-agnostic binary layout specifications up to cloud infrastructure and empirical performance verification.
+> **Our Aspirational North Star: SQLite**
+>
+> **SQLite** is widely recognized as the gold standard of software engineering quality—combining a zero-dependency embedded C architecture and a bytecode virtual machine (VDBE) with exhaustive boundary testing, anomaly injection, and **MC/DC (Modified Condition/Decision Coverage)** test discipline. While we would never claim to be anywhere near the legendary quality and maturity SQLite has achieved over decades, SQLite serves as our aspirational target for what Impulse Graph strives to become.
+
+Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanning from language-agnostic binary layout specifications and 100% opcode-covered VM test vectors up to four-way polyglot oracle consensus and empirical performance verification.
 
 ```
                     ┌──────────────────────────────────────────┐

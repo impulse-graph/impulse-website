@@ -6,6 +6,9 @@ We'll assume zero starting knowledge and build up a snapshot step-by-step for a 
 
 If you haven't already, read the [Core Concepts](core-concepts.md) page first—it covers the binary format, CSR/CSC layouts, and domain model at a high level.
 
+> [!TIP]
+> **Using Python, PyTorch, C/C++, or have data in Parquet / CSV files?** You don't need a JVM to build `.imps` snapshots. See **[Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)](snapshot-builder-reference.md)** to compile `.imps` files directly from Apache Parquet and CSV files using the standalone `impulse` CLI.
+
 ---
 
 ## What Are We Building?

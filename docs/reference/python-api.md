@@ -1,63 +1,117 @@
-# Impulse Graph Python SDK & Bytecode VM API Reference
+# Python & PyTorch SDK Reference (`impulse-graph`)
 
-The `impulse-graph` Python SDK provides high-performance zero-copy access to binary graph snapshots (`.imps`) and embeds the native **Impulse C++ Bytecode Virtual Machine Engine** via pybind11 bindings.
+The `impulse-graph` Python SDK embeds the native C++20 `ImpulseVM` kernel via `pybind11` and exposes zero-copy `mmap` access to `.imps` binary snapshots, NumPy array views, and PyTorch `torch.from_dlpack` tensor descriptors.
 
 ---
 
-## Installation
-
-Install `impulse-graph` from PyPI:
+## 1. Installation
 
 ```bash
 pip install impulse-graph
 ```
 
-Requires Python `>= 3.8` and a C++20 compliant compiler environment if building from source distribution (`sdist`).
+Pre-built wheels (`manylinux_2_28_x86_64`, `manylinux_2_28_aarch64`, `macosx_11_0_arm64`) statically embed `libimpulse_graph_static.a` with zero external runtime dependencies.
 
 ---
 
-## Core Snapshot & Writer API
-
-### `Snapshot`
-
-Represents an immutable, zero-copy memory-mapped graph snapshot file (`.imps`).
+## 2. Opening Snapshots & Domain-Anchored Traversals
 
 ```python
 from impulse_graph import Snapshot
 
-with Snapshot("power_grid.imps") as snap:
-    print("Domains:", snap.domain_count())
-    print("Relations:", snap.relation_count())
-    print("Is edge (rel 0, src 42, tgt 100) reachable?", snap.is_reachable(0, 42, 100))
+with Snapshot("commerce.imps") as snap:
+    print("Domains:", snap.domain_count(), "Relations:", snap.relation_count())
 
-    # Inspect CSR topology buffers zero-copy as NumPy arrays
-    row_offsets = snap.get_row_offsets_array(relation_index=0)
-    col_indices = snap.get_col_indices_array(relation_index=0)
+    # 1. Domain-anchored fluent traversal with inline CEL filtering
+    recommended_skus = (
+        snap.domain("User")
+            .from_keys(["usr_alice"])
+            .out("PURCHASED", filter="edge.amount >= 50.0")
+            .in_("PURCHASED")
+            .out("PURCHASED")
+            .filter("node.in_stock == true")
+            .to_keys()
+    )
+
+    # 2. Unbounded fixed-point reachability (transitive closure, zero lambdas)
+    ancestors = (
+        snap.domain("Group")
+            .from_key("grp_engineering_west")
+            .repeat_until_stable("PARENT_GROUP")
+            .to_keys()
+    )
 ```
 
-#### Methods
+### `Snapshot` Methods
 
-- **`Snapshot(path: str)`**: Open `.imps` snapshot file via `mmap`.
-- **`close()`**: Unmap physical memory and release file descriptors.
-- **`domain_count() -> int`**: Return total count of registered domains in snapshot catalog.
-- **`relation_count() -> int`**: Return total count of relations.
-- **`get_relation(index: int) -> dict`**: Get metadata dictionary for relation entry (node count, edge count, offsets).
-- **`is_reachable(relation_index: int, src_id: int, tgt_id: int) -> bool`**: Sub-microsecond edge existence query.
-- **`get_row_offsets_array(relation_index: int) -> np.ndarray`**: Zero-copy NumPy view of CSR row offsets.
-- **`get_col_indices_array(relation_index: int) -> np.ndarray`**: Zero-copy NumPy view of CSR column indices.
-- **`sample_neighbors(relation_index: int, nodes: list | np.ndarray, k_samples: int, seed: int = 42) -> tuple[np.ndarray, np.ndarray]`**: Zero-copy SIMD neighborhood sampler for GNN training.
-- **`execute_query(query: vm.CompiledQuery, input_param: int = 0) -> vm.QueryResult`**: Execute a compiled C++ VM bytecode query directly against the snapshot.
+| Method | Description |
+| :--- | :--- |
+| **`Snapshot(path: str)`** | Memory-map `.imps` file read-only (`MAP_SHARED`). Supports `with` context manager. |
+| **`domain(name: str) -> DomainView`** | Bind traversal anchor to the named domain's $0 \dots N_d-1$ dense ID space. |
+| **`domain_count() -> int`** | Total node domains in Section 2 catalog. |
+| **`relation_count() -> int`** | Total edge relations in Section 2 directory. |
+| **`is_reachable(rel_idx: int, src_id: int, tgt_id: int) -> bool`** | Direct $O(\log d)$ / $O(1)$ CSR adjacency check. |
+| **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned CSR `row_offsets`. |
+| **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned CSR `col_indices`. |
+| **`get_attribute_dlpack(domain: str, attr: str)`** | Export 128-byte-aligned SoA attribute or vector column via zero-copy DLPack. |
+| **`sample_neighbors(rel_idx: int, nodes, k: int, seed: int = 42)`** | Native SIMD $K$-hop neighborhood sampler returning `(row_ptr, col_idx)` NumPy/tensor views. |
+| **`prepare(query: str) -> Statement`** | Compile a parameterized `openCypher`, `ImpLog`, `ImpK`, or `ImpScheme` query. |
 
 ---
 
-### `Writer`
+## 3. Zero-Copy PyTorch & NumPy Integration
 
-Streaming compiler for constructing C-ABI binary snapshots.
+Because `.imps` aligns all CSR topology arrays and Structure-of-Arrays (SoA) attribute columns to **128-byte boundaries**, PyTorch and NumPy read them directly from the OS page cache with **0 bytes of heap serialization**:
 
 ```python
+import torch
+from impulse_graph import Snapshot
+
+snap = Snapshot("ogbn_papers100M.imps")
+
+# 1. Zero-copy 128-D float32 node embeddings (N x 128) via DLPack
+x_embeddings = torch.from_dlpack(snap.get_attribute_dlpack("Paper", "feat_128"))
+
+# 2. Zero-copy CSR topology arrays
+row_ptr = torch.from_numpy(snap.get_row_offsets_array(0))
+col_idx = torch.from_numpy(snap.get_col_indices_array(0))
+
+# 3. Native SIMD neighborhood sampling for GNN mini-batches (25,000+ batches/sec)
+seed_nodes = torch.tensor([10, 42, 105, 891], dtype=torch.int64)
+sub_row_ptr, sub_col_idx = snap.sample_neighbors(
+    relation_index=0, nodes=seed_nodes, k_samples=15, seed=42
+)
+```
+
+---
+
+## 4. Parameterized Prepared Statements (`snap.prepare`)
+
+```python
+with snap.prepare("""
+    MATCH (u:User)-[:PURCHASED]->(p:Product)
+    WHERE u._key = $userKey AND p.price <= $maxPrice
+    RETURN p._id, p.price
+""") as stmt:
+    stmt.bind_str("userKey", "usr_alice")
+    stmt.bind_float("maxPrice", 99.95)
+
+    result = stmt.execute()
+    product_ids = result.column_array(0)   # Zero-copy NumPy uint64 array
+    prices      = result.column_array(1)   # Zero-copy NumPy float64 array
+```
+
+---
+
+## 5. Streaming Snapshot Writer (`Writer`)
+
+For programmatic `.imps` construction in Python (see also `impulse snapshot build` in [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)):
+
+```python
+import numpy as np
 from impulse_graph import Writer
 
-with Writer("my_graph.imps") as writer:
+with Writer("graph.imps") as writer:
     writer.add_domain(domain_id=0, key_type=4, name="User")
     writer.add_relation(
         src_domain_id=0,
@@ -66,131 +120,8 @@ with Writer("my_graph.imps") as writer:
         node_count=4,
         edge_count=4,
         section_features=0,
-        row_offsets=[0, 2, 3, 3, 4],
-        col_indices=[1, 2, 3, 0]
+        row_offsets=np.array([0, 2, 3, 3, 4], dtype=np.uint32),
+        col_indices=np.array([1, 2, 3, 0], dtype=np.uint32),
     )
     writer.finalize()
 ```
-
----
-
-## Bytecode Virtual Machine API (`impulse_graph.vm`)
-
-The `impulse_graph.vm` module exposes the native C++ Virtual Machine Engine and its fluent query builder pipeline.
-
-### `QueryBuilder`
-
-Fluent API for emitting raw 64-bit opcode instructions (`impulse_instruction_t`).
-
-```python
-from impulse_graph import vm
-
-# Construct a 2-hop traversal query
-qb = vm.QueryBuilder()
-query = (
-    qb
-    .input_node(dst_reg=0)
-    .walk_edge(relation_id=0)
-    .walk_edge(relation_id=1)
-    .collect_array()
-    .compile()
-)
-```
-
-#### Method Categories
-
-##### Inputs & Constants
-- **`input_node(dst_reg: int = 0)`**: Load seed node ID from `input_param` into `dst_reg`.
-- **`input_set(dst_reg: int = 0)`**: Load input bitset handle into `dst_reg`.
-- **`load_const_int(value: int, dst_reg: int = 0)`**: Load 64-bit integer constant.
-- **`load_const_float(value: float, dst_reg: int = 0)`**: Load float constant.
-- **`load_keys(keys: List[str], dst_reg: int = 0)`**: Load string key list for dense mapping.
-
-##### Graph Walks & Filters
-- **`walk_edge(relation_id: int, flags: int = 0)`**: Perform CSR forward traversal along relation.
-- **`walk_edge_filtered(relation_id: int, filter_id: int)`**: Walk edges matching attribute predicate.
-- **`walk_degree(relation_id: int)`**: Compute node out-degree along relation.
-- **`walk_csc(relation_id: int)`**: Reverse incoming edge traversal using CSC topology.
-- **`filter_node(filter_id: int)`**: Filter node bitset by property predicate.
-
-##### Set & Vector Operations
-- **`union_with(src_reg: int)`**: Bitset union operation.
-- **`intersect_with(src_reg: int)`**: Bitset intersection operation.
-- **`difference_with(src_reg: int)`**: Bitset difference operation.
-- **`cardinality()`**: Count set bits in bitset register.
-- **`vector_mul_attr(attr_reg: int)`**: Element-wise vector multiplication with attribute array.
-- **`vector_reduce_sum()`**: Sum reduce float vector into scalar register.
-
-##### Analytics & GraphBLAS
-- **`matrix_vector_mul(matrix_reg: int, semiring_id: int = 0)`**: GraphBLAS matrix-vector product.
-- **`afforest()`**: Afforest connected components algorithm opcode.
-- **`brandes_forward()` / `brandes_backward()`**: Brandes betweenness centrality sweeps.
-- **`sample_neighbors(relation_id: int, k_samples: int, seed: int = 0)`**: SIMD neighborhood sampling opcode.
-- **`rebac_check(permission_id: int)`**: Zanzibar Relationship-Based Access Control check opcode.
-
-##### Control Flow & Iteration
-- **`repeat(count: int, body: Callable[[QueryBuilder], None])`**: Unroll fixed iteration loop (e.g. PageRank / K-hop).
-- **`repeat_until_stable(body: Callable[[QueryBuilder], None])`**: Iterate until set generation converges (FLAGS STABLE bit).
-- **`jmp(instruction_offset: int)`**: Unconditional jump.
-- **`jz(instruction_offset: int)`** / **`jnz(instruction_offset: int)`**: Conditional jump on Zero Flag.
-
-##### Terminal Collection
-- **`collect_bitset()`**: Terminate query returning output BitSet handle.
-- **`collect_array()`**: Terminate query returning contiguous node index array.
-- **`compile() -> CompiledQuery`**: Finalize bytecode emission into an executable `CompiledQuery`.
-
----
-
-### `CompiledQuery`
-
-Immutable compiled query program ready for execution.
-
-```python
-result = compiled_query.execute(snapshot=snap, input_param=42)
-```
-
-- **`execute(snapshot: Snapshot, input_param: int = 0) -> QueryResult`**: Execute query with new thread-local context lifecycle.
-- **`execute_with_context(ctx: VmContext, state: VmState, input_param: int = 0) -> QueryResult`**: Execute query using pre-allocated off-heap context and state frame.
-- **`instruction_count() -> int`**: Return total emitted 64-bit opcode count.
-- **`result_register() -> int`**: Target output register index.
-
----
-
-### `QueryResult`
-
-Execution output wrapper.
-
-- **`is_ok() -> bool`**: Returns `True` if execution status is `IMPULSE_VM_OK`.
-- **`status -> int`**: Return `VmStatus` integer code.
-- **`result_register -> int`**: Register ID holding output value.
-- **`result_type -> int`**: `RegisterType` enum tag (`TYPE_NODE_VECTOR`, `TYPE_BITSET_HANDLE`, etc.).
-- **`as_int() -> int`**: Extract 64-bit integer payload.
-- **`as_float() -> float`**: Extract 32-bit float payload.
-- **`as_double() -> float`**: Extract 64-bit double payload.
-- **`test_bitset(ctx: VmContext, node_id: int) -> bool`**: Test membership of `node_id` in output bitset handle.
-
----
-
-### `VmContext`
-
-Off-heap context pool managing handles for bitsets, float vectors, double vectors, and value maps.
-
-```python
-with vm.VmContext() as ctx:
-    bs_handle = ctx.acquire_bitset()
-    ctx.bitset_add(bs_handle, node_id=42)
-    assert ctx.bitset_test(bs_handle, node_id=42) is True
-    ctx.release_bitset(bs_handle)
-```
-
----
-
-## PyPI Package Artifacts
-
-`impulse-graph` binary wheels contain static-linked C++20 core engine binaries and SIMD kernels.
-
-| Artifact Type | Package Format | Target Platform |
-| :--- | :--- | :--- |
-| **Source Distribution** | `impulse-graph.tar.gz` | Universal (`sdist`) |
-| **macOS ARM64 Wheel** | `impulse_graph-cp312-cp312-macosx_11_0_arm64.whl` | macOS 11.0+ (Apple Silicon) |
-| **Linux Wheel** | `impulse_graph-cp312-cp312-manylinux_2_28_x86_64.whl` | glibc 2.28+ x86_64 |
