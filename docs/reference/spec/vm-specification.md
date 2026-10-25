@@ -477,3 +477,38 @@ Any implementation of the ImpulseVM query interpreter **MUST** conform to the fo
 - **FFM Zero-Copy Collection**: Output materialization opcodes (`OP_COLLECT_BITSET`, `OP_COLLECT_ARRAY`, `OP_COLLECT_VALUE_MAP`) **MUST NOT** allocate memory buffers to return results to the client.
 - **In-Place Writes**: The caller **MUST** pre-allocate and pass the target memory destination buffers (such as Java FFM off-heap `MemorySegment` pointers or C array pointers) to the VM. The interpreter **MUST** write elements directly into these caller-assigned buffers in-place.
 
+---
+
+## 8. ImpAs (`.impas`) Assembly Text Format Specification
+
+`ImpAs` (`.impas`) is the human-readable assembly language and polyglot compliance test-vector format for `ImpulseVM`. An `.impas` file consists of two sections (`.data` and `.text`) plus optional `; {{EXPECT: ...}}` post-execution assertions:
+
+### 8.1 `.data` Section Directives
+* **`.rel <NAME> = <ID>`** / **`.vrel <NAME> = <ID>`**: Binds a physical or virtual relation ID.
+* **`.fuel <AMOUNT>`**: Sets the instruction execution gas/fuel limit (e.g., `.fuel 1000`).
+* **`.csr_inline <NAME> = { <src>: [<tgt>, ...], ... }`**: Defines an inline mock CSR adjacency matrix for isolated opcode testing without an external `.imps` file.
+* **`.array_float` / `.array_int` / `.array_node <NAME> = [...]`**: Defines inline typed arrays in the VM context.
+* **`.set` / `.set_roaring` / `.set_dense <NAME> = [<id>, ...]`**: Defines inline polymorphic BitSet fixtures.
+
+### 8.2 `.text` Section & `{{EXPECT: ...}}` Directives
+Instructions follow `[address]: <OPCODE_MNEMONIC> <ARG1>, <ARG2>, ...` using registers `R0`..`R63`. Polyglot test runners (`four_way_validation.py`) verify identical post-halt state across C++ (O3/O0), Java 25, and the OCaml Reference Oracle using comment assertions:
+
+```nasm
+; {{EXPECT: STATUS = IMPULSE_VM_OK}}
+; {{EXPECT: FLAG = ZF}}
+; {{EXPECT: REG[R4] = 0}}
+
+.data
+.array_float MOCK_PRICES = [1.5, 0.0, 3.14, 0.0]
+.set_roaring FRONTIER = [0, 2]
+
+.text
+0x00: OP_LOAD_INLINE_ARRAY R0, MOCK_PRICES
+0x01: OP_INIT_MOCK_NODE_ATTR 0, R0, R255
+0x02: OP_LOAD_INLINE_SET_ROARING R3, FRONTIER
+0x03: OP_NODE_FILTER R4, R3, R0, 0
+0x04: OP_SET_CARDINALITY R0, R4
+0x05: OP_HALT
+```
+
+

@@ -1,250 +1,115 @@
-# Impulse Graph Engine — Snapshot Schema Specification (`.imps.schema.yaml`)
+# Schema & Manifest Specification (`.imps.schema.yaml`)
 
-This document defines the normative specification for **Impulse Graph Snapshot Schemas** (`.imps.schema.yaml`). 
+This document defines the declarative YAML/JSON schema and multi-tablespace manifest format (`.imps.schema.yaml` / `manifest.yaml`) used across the Impulse Graph Engine ecosystem.
 
-The schema provides a declarative, language-agnostic representation of graph domain catalogs, property attributes, relational cardinalities, and virtual relations. It powers **compile-time type checking**, **automated DTO code generation** (Java, Kotlin, C#, Rust, TypeScript), and **bidirectional CLI validation** across the Impulse Graph Engine ecosystem.
-
----
-
-## 1. File Naming & Format Conventions
-
-* **File Extension**: `.imps.schema.yaml` or `.imps.schema.json`
-* **Encoding**: UTF-8 without BOM.
-* **Specification Version**: `"0.9.0"`
+A schema file serves four roles:
+1. **Snapshot Compilation (`impulse snapshot build` & `SnapshotBuilder`)**: Configures per-domain integer widths (`uint16`, `uint32`, `uint64`), key catalogs, CSR/CSC indices, relation multiplicities, and 128-byte-aligned Structure-of-Arrays (SoA) attributes.
+2. **Compile-Time Query Validation**: Verifies domain names, relation endpoints (`SrcDomainID` $\to$ `TgtDomainID`), and attribute types before emitting `impOps` bytecode.
+3. **Code Generation (`impulse-codegen`, Maven/Gradle plugins)**: Generates strongly-typed domain views and POJOs.
+4. **Multi-Tablespace Composite Loading**: Maps logical domains and relations across multiple `.imps` files.
 
 ---
 
-## 2. Top-Level Schema Structure
-
-An `.imps.schema.yaml` document consists of four primary sections:
-
-1. **`schema_version`**: String version identifier matching specification (e.g., `"0.9.0"`).
-2. **`metadata`**: Namespace, package targets, authoring details, and documentation.
-3. **`domains`**: List of vertex/entity domain type definitions.
-4. **`relations`**: List of physical edge relation definitions (CSR/CSC).
-5. **`virtual_relations`**: List of computed/derived relation definitions (`ImpK`/`ImpLog`).
+## 1. Complete Schema Example
 
 ```yaml
-schema_version: "0.9.0"
-metadata:
-  name: "EnterpriseKnowledgeGraph"
-  namespace: "com.mycompany.graph.model"
-  description: "Organizational graph with users, groups, permissions, and derived reachability."
+graphName: "EnterpriseKnowledgeGraph"
 
-domains: [...]
-relations: [...]
-virtual_relations: [...]
-```
+tablespaces:
+  core_identity:
+    file: "chunks/core_identity.imps"
+  commerce_events:
+    file: "chunks/commerce_events.imps"
 
----
-
-## 3. Domains & Key Types
-
-A **Domain** represents a distinct node/entity classification in the graph catalog (e.g., `User`, `Group`, `Device`).
-
-### 3.1 Domain Attributes
-* **`id`**: 16-bit unsigned integer (`0`..`65535`) domain catalog identifier.
-* **`name`**: Unique string name (ASCII alphanumeric + underscores).
-* **`key_type`**: Primary key data format used for node identity lookup.
-
-### 3.2 Supported Key Types
-| Key Type | Binary Format | Description |
-| :--- | :--- | :--- |
-| `Int32` | 32-bit signed int | Compact integer keys (up to 2 billion nodes). |
-| `Int64` | 64-bit signed int | High-range 64-bit integer keys. |
-| `UUID128` | 128-bit raw bytes | Standard 16-byte UUID / GUID identifiers. |
-| `String` | Variable-length UTF-8 | String keys resolved via Section 2 Global String Table. |
-
----
-
-## 4. Property Attributes & Data Types
-
-Both **Domains** and **Relations** can contain Structure-of-Arrays (SoA) property attributes.
-
-### 4.1 Attribute Specification Fields
-* **`name`**: Attribute string identifier (e.g., `email`, `embedding`).
-* **`type`**: Primitive or string data type (see §4.2).
-* **`dimension`**: Positive integer indicating array/vector dimension (`1` = scalar, `N` = fixed vector).
-* **`nullable`**: Boolean (`true`/`false`), defaults to `false`.
-
-### 4.2 Supported Attribute Data Types
-
-| Data Type | Memory Size | Description |
-| :--- | :--- | :--- |
-| `Int8` | 1 byte | Signed 8-bit integer. |
-| `Int16` | 2 bytes | Signed 16-bit integer. |
-| `Int32` | 4 bytes | Signed 32-bit integer. |
-| `Int64` | 8 bytes | Signed 64-bit integer. |
-| `Float32` | 4 bytes | Single-precision IEEE 754 float. |
-| `Float64` | 8 bytes | Double-precision IEEE 754 float. |
-| `Bool` | 1 byte | Boolean flag (`0x00` or `0x01`). |
-| `TimestampMicro` | 8 bytes | 64-bit microsecond Unix epoch timestamp. |
-| `FixedString(N)` | `N` bytes | **Fixed-Length String**: Zero-padded ASCII/UTF-8 string of exact length `N` bytes (e.g. `FixedString(16)` for ISO codes, hashes, currency). Fast fixed-stride scanning. |
-| `VarString` | Variable | **Variable-Length String**: Indirect string pool reference pointing to UTF-8 null-terminated bytes in global string table. |
-
-```yaml
 domains:
-  - id: 0
-    name: "User"
-    key_type: "UUID128"
+  User:
+    tablespace: core_identity
+    denseId: uint32            # 0..N_d-1 addressing width (uint16 | uint32 | uint64)
+    key: uuid                  # External primary key type (int32 | int64 | uuid | string | bytes)
     attributes:
-      - name: "account_status"
-        type: "FixedString(8)"   # e.g., "ACTIVE  ", "SUSPEND "
-        dimension: 1
-      - name: "display_name"
-        type: "VarString"        # Variable length UTF-8
-        dimension: 1
-      - name: "embedding"
-        type: "Float32"          # 128-dimension vector
-        dimension: 128
-      - name: "last_login"
-        type: "TimestampMicro"
-        dimension: 1
-        nullable: true
-```
+      account_status: { type: "FixedString(8)", nullable: false }
+      display_name:   { type: "VarString",      nullable: false }
+      embedding:      { type: "Float32",        dimension: 128 }
 
----
+  Product:
+    tablespace: core_identity
+    denseId: uint32
+    key: string
+    attributes:
+      price:          { type: "Float32",        nullable: false }
+      category_code:  { type: "Int16",          nullable: true }
 
-## 5. Physical Relations & Cardinalities
-
-A **Relation** defines a physical adjacency matrix stored in Compressed Sparse Row (CSR) or Compressed Sparse Column (CSC) format.
-
-### 5.1 Relation Specification Fields
-* **`id`**: 16-bit unsigned integer relation catalog identifier.
-* **`name`**: Relation string name (e.g., `MEMBER_OF`, `FOLLOWS`).
-* **`src_domain`**: Name of source domain.
-* **`tgt_domain`**: Name of target domain.
-* **`cardinality`**: Relational constraint (see §5.2).
-* **`encoding`**: Physical index compression format (`RawUint16`, `RawUint32`, `RawUint64`, `DeltaVByte`, `SIMDComp`).
-* **`attributes`**: Optional edge property attribute list (e.g., edge weight, role).
-
-### 5.2 Supported Relation Cardinalities
-
-| Cardinality | Expression | Codegen & VM Constraint Rules |
-| :--- | :--- | :--- |
-| `one_to_one` | $1:1$ | Out-degree $\le 1$, In-degree $\le 1$. Generated DTOs bind directly to scalar single entity references (`User getManager()`). |
-| `one_to_many` | $1:N$ | Source has multiple target neighbors; Target has at most 1 source (`List<Order> getOrders()`). |
-| `many_to_one` | $N:1$ | Source has at most 1 target neighbor; Target has multiple sources (`Department getDepartment()`). |
-| `many_to_many` | $N:M$ | Standard multi-graph relation (`List<Group> getGroups()`). |
-
-```yaml
 relations:
-  - id: 0
-    name: "REPORTS_TO"
-    src_domain: "User"
-    tgt_domain: "User"
-    cardinality: "many_to_one"    # Each user has at most 1 direct manager
-    encoding: "RawUint32"
-
-  - id: 1
-    name: "MEMBER_OF"
-    src_domain: "User"
-    tgt_domain: "Group"
-    cardinality: "many_to_many"   # Users belong to multiple groups
-    encoding: "SIMDComp"
+  PURCHASED:
+    source: User
+    target: Product
+    tablespace: commerce_events
+    direction: [out, in]       # Generates both CSR (forward) and CSC (reverse)
+    cardinality: many_to_many  # many_to_many | many_to_one | one_to_many | one_to_one
     attributes:
-      - name: "role"
-        type: "VarString"
-        dimension: 1
-      - name: "assigned_at"
-        type: "TimestampMicro"
-        dimension: 1
-```
+      timestamp: { type: "TimestampMs" }
+      amount:    { type: "Float32" }
 
----
-
-## 6. Virtual Relations (Computed & Derived Graphs)
-
-A **Virtual Relation** defines an on-the-fly or cached relation computed dynamically via an **ImpK** (matrix algebra) or **ImpLog** (Datalog rule) expression. Virtual relations consume **zero physical disk space** in `.imps` snapshot files.
-
-### 6.1 Virtual Relation Specification Fields
-* **`name`**: Virtual relation name.
-* **`src_domain`**: Source domain name.
-* **`tgt_domain`**: Target domain name.
-* **`cardinality`**: Computed cardinality (`one_to_many`, `many_to_many`).
-* **`language`**: Compiler frontend language (`ImpK`, `ImpLog`, or `ImpScheme`).
-* **`query`**: Inline query expression or rule defining the edge computation.
-* **`caching`**: Execution cache strategy (`none`, `transient`, `materialized`).
-
-```yaml
 virtual_relations:
-  - name: "TRANSITIVE_MEMBER_OF"
-    src_domain: "User"
-    tgt_domain: "Group"
-    cardinality: "many_to_many"
-    language: "ImpLog"
-    query: |
-      TRANSITIVE_MEMBER_OF(u, g) :- MEMBER_OF(u, g).
-      TRANSITIVE_MEMBER_OF(u, g2) :- MEMBER_OF(u, g1), PARENT_GROUP(g1, g2).
-    caching: "transient"
-
-  - name: "CO_WORKER"
-    src_domain: "User"
-    tgt_domain: "User"
-    cardinality: "many_to_many"
-    language: "ImpK"
-    query: |
-      MATCH (u1:User)-[:MEMBER_OF]->(g:Group)<-[:MEMBER_OF]-(u2:User)
-      WHERE u1 != u2
-      RETURN u1, u2
-    caching: "none"
+  ENGAGED_WITH:
+    components:
+      - PURCHASED
+      - VIEWED
+      - WISHLISTED
 ```
 
 ---
 
-## 7. Codegen & Annotations Specification
+## 2. Node Domains (`domains`)
 
-The schema serves as the primary metadata source for strongly-typed DTO generation and compile-time `@ImpKQuery` validation.
+Every Node Domain owns an **independent 0-indexed dense integer space $0 \dots N_d-1$**. Dense ID `0` in `User` is distinct from Dense ID `0` in `Product`.
 
-### 7.1 Java / Kotlin Repository Codegen Example
-
-Given `schema.imps.schema.yaml` with Java codegen target configuration:
-
-```yaml
-metadata:
-  namespace: "com.mycompany.graph.model"
-  codegen:
-    java:
-      dto_style: "value_class" # Options: "value_class" (Project Valhalla), "record", "pojo"
-```
-
-1. `impulse-codegen` generates Java 25+ Project Valhalla `value class` (naked struct) DTOs:
-   ```java
-   // Project Valhalla Value Class (Zero object header overhead, flattened memory)
-   public value class UserDto {
-       public final long key;
-       public final float score;
-       public final double latitude;
-       public final double longitude;
-   }
-   ```
-2. Build-time plugins validate `@ImpKQuery` methods against the schema:
-   ```java
-   @ImpulseRepository
-   public interface UserGraphRepository {
-
-       // Verified at build time against schema.imps.schema.yaml
-       @ImpKQuery("""
-           MATCH (u:User {key: $user.key})-[:TRANSITIVE_MEMBER_OF]->(g:Group)
-           RETURN g.title
-           """)
-       List<String> getTransitiveGroupTitles(UserDto user);
-   }
-   ```
+| Property | Allowed Values | Description |
+| :--- | :--- | :--- |
+| **`denseId` / `idWidth`** | `uint16`, `uint32` *(default)*, `uint64` | Physical integer width used to store dense node IDs for this domain (`uint16`: up to `65,536` nodes; `uint32`: up to `4,294,967,296` nodes; `uint64`: up to $1.84 \times 10^{19}$ nodes). |
+| **`key`** | `int32`, `int64`, `uuid`, `string`, `bytes` | External business identifier format indexed in Section 4 (MPHF for `string`/`uuid`; sorted array for integers). |
+| **`tablespace`** | `<tablespace_name>` *(optional)* | Physical `.imps` chunk file hosting this domain in multi-file deployments. |
+| **`attributes`** | Map of attribute definitions | Contiguous 128-byte-aligned SoA columns attached to nodes in this domain. |
 
 ---
 
-## 8. CLI Tooling Integration (`impulse-cli`)
+## 3. Edge Relations (`relations`) & Multiplicity Layouts
 
-* **Schema Export (Reversal)**: Reconstruct a `.imps.schema.yaml` file from any physical `.imps` snapshot:
-  ```bash
-  impulse schema export production.imps -o schema.imps.yaml
-  ```
-* **Schema Validation**: Validate a YAML schema file for structural syntax and topological consistency:
-  ```bash
-  impulse schema validate schema.imps.yaml
-  ```
-* **Schema-Enforced Snapshot Build**: Enforce schema constraints when building `.imps` snapshots from CSV or Parquet files:
-  ```bash
-  impulse compile --schema schema.imps.yaml dataset/ -o output.imps
-  ```
+Every directed relation explicitly binds a `source` domain and `target` domain:
+
+| Property | Allowed Values | Physical Storage & Optimizer Impact |
+| :--- | :--- | :--- |
+| **`source` / `target`** | Domain names | Maps source dense IDs ($0 \dots N_{\text{src}}-1$) to target dense IDs ($0 \dots N_{\text{tgt}}-1$). |
+| **`direction`** | `[out]`, `[in]`, `[out, in]` | `out` builds forward **CSR**; `in` builds reverse **CSC** transpose. |
+| **`cardinality`** | `many_to_many` *(default)*<br>`many_to_one`<br>`one_to_many`<br>`one_to_one` | - **`many_to_many` (`M:N`)**: Standard CSR/CSC (`row_offsets` + `col_indices`).<br>- **`many_to_one` (`M:1`)**: Omits `csrRowOffsets`; stores flat target array `col_indices[N]` ($O(1)$ lookup, no deduplication needed).<br>- **`one_to_many` (`1:M`)**: Forward CSR; reverse CSC omits offsets.<br>- **`one_to_one` (`1:1`)**: Bi-directional flat direct arrays ($O(1)$ lookup). |
+| **`virtual_relations`** | List of `1..65,536` physical relations | Zero-storage super-relation; expands across constituent relations and unions bitsets at query time. |
+
+---
+
+## 4. Attribute Data Types & Physical Limits
+
+| Schema Type | C-ABI Code | Element Size | Physical Storage & Maximum Limits |
+| :--- | :--- | :--- | :--- |
+| **`Int8` / `UInt8` / `Bool`** | `0x01` | $1 \times D$ bytes | Contiguous 128B-aligned array |
+| **`Int16` / `UInt16` / `Float16`** | `0x02` / `0x05` | $2 \times D$ bytes | Contiguous 128B-aligned array |
+| **`Int32` / `UInt32` / `Float32`** | `0x03` / `0x06` | $4 \times D$ bytes | Contiguous 128B-aligned array |
+| **`Int64` / `UInt64` / `Float64`** | `0x04` / `0x07` | $8 \times D$ bytes | Contiguous 128B-aligned array |
+| **`TimestampMs` / `TimestampNs`** | `0x08` / `0x09` | $8 \times D$ bytes | 64-bit Unix epoch timestamp |
+| **`FixedString(D)` / `FixedBytes(D)`**| `0x0A` | $D$ bytes | Fixed-stride array ($D = 16$ for UUID; max $D = 2^{32}-1$) |
+| **`VarString` / `VarBytes`** | `0x0B` / `0x0C` | Variable | `uint32_t offsets[K+1]` + payload blob (up to **4 GB** per column) |
+
+* **Nullable Columns (`nullable: true`)**: Prepends a 128-byte-aligned Arrow-compatible validity bitmap (`1` = valid, `0` = null) before the data array; non-nullable columns (`nullable: false`) have **0 bits** of bitmap overhead.
+
+---
+
+## 5. Schema Evolution Rules: Name is Identity
+
+In Impulse Graph, the **String Name** of a domain, relation, or attribute (stored in the Section 2 Shared String Table) is the semantic contract; the numeric `DomainID` or `RelationID` (`0..65,535`) is an internal per-snapshot detail resolved when a query is prepared or rebound.
+
+| Schema Change Across Snapshot Rebuilds | Impact on Queries | Safe? |
+| :--- | :--- | :--- |
+| **Add a new domain, relation, or attribute** | Ignored by existing queries | ✅ **Safe** |
+| **Add/remove nodes or edges** | Handled automatically via catalog cardinalities | ✅ **Safe** |
+| **Reorder `RelationID` or apply RCM node reordering** | Resolved by name during `prepare` / `rebind` | ✅ **Safe** |
+| **Rename or delete a referenced relation/attribute** | Fails fast at query `prepare` time | ❌ **Breaking** |
+| **Change a relation's `source` or `target` domain** | Fails domain type-check at `prepare` time | ❌ **Breaking** |

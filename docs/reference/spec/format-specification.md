@@ -1,6 +1,5 @@
 # Formal Specification: Impulse-Graph C-ABI Binary Snapshot Format
 
-* **Specification Version**: 0.9.0 (SemVer, pre-1.0 stabilization release)
 * **Document Status**: Standard Reference Specification
 * **Byte Order**: Little-Endian (`LE`, IEEE 754 & x86-64 / ARM64 Native)
 * **Memory Alignment**: 128-Byte SIMD / GPU Boundary (`(len + 127) & ~127`) & 4KB OS Page Boundary (`(offset + 4095) & ~4095`)
@@ -346,48 +345,4 @@ typedef struct impulse_footer_trailer {
 // 4KB Page Alignment for OS Virtual Memory Area (VMA) Isolation
 #define IMPULSE_ALIGN_4K(offset) (((offset) + 4095ULL) & ~4095ULL)
 ```
-
----
-
-## 8. Future Research & Architectural Explorations
-
-### 8.1 Multi-Snapshot Query Execution & Cross-Snapshot Relation Namespacing
-
-Future specification iterations explore allowing single queries (`ImpulseVM` execution pipelines) to bind and traverse across multiple `.imps` binary snapshots (e.g., Snapshot `A` containing relations `rel0..10`, and Snapshot `B` containing relations `rel11..13`).
-
-#### Core Design & Research Directives:
-
-1. **Relation Namespacing & Virtual Directory Table**:
-   - **Syntax & Disambiguation**: Enforce namespace resolution (`SnapshotAlias::RelationName`, e.g., `A::userToGroup`) to prevent relation collisions across snapshots.
-   - **Composite Relation Handles**: Expand 16-bit relation handles in `impOps` to 32-bit composite handles `(SnapshotID << 16) | LocalRelID` or construct a thread-safe `VirtualRelationDirectory` at query compilation time.
-
-2. **Node ID Space Alignment & Key Compatibility**:
-   - **Identity Verification**: Enforce snapshot bind-time verification comparing node domain names, entity counts, primary key schemas, and domain identity hashes.
-   - **Zero-Copy Pass-Through**: For snapshots generated against identical baseline node ID catalogs (e.g., base snapshot + delta snapshots), preserve sub-microsecond direct $O(1)$ node indexing.
-   - **Dense Translation Vectors (`OP_REMAP_ID_SPACE`)**: For mismatched node ID orderings across snapshots, construct or mmap dense remapping vectors (`map_A_to_B[node_id_A] -> node_id_B`) to translate frontier node bitsets between snapshot steps without allocation overhead.
-   - **Bounds Safety**: Enforce domain count bounds checking ($N_A$ vs $N_B$) to prevent out-of-bounds memory access during CSR row offset lookups.
-
-3. **Off-Heap String Table & Attribute Memory Isolation**:
-   - **String Pool Base Pointer Isolation**: Scope variable-length UTF-8 string offsets (`VAR_STRING`) to their originating snapshot's string pool pointer (`string_table_base_A` vs `string_table_base_B`) to avoid cross-snapshot memory corruption in attribute filter opcodes (`OP_FILTER_ATTR_STR`).
-   - **Attribute Schema Unification**: Standardize bitwise primitive types across snapshots to ensure vector operations (`OP_MXV`) run without runtime alignment or type-coercion overhead.
-
-### 8.2 ImpulseVM Register Windowing & 64 KB Off-Heap Scratch Baseline
-
-`ImpulseVM` query execution contexts (`VmQueryContext` / `impulse_vm_context_t`) establish a **64 KB (`65,536` bytes)** default baseline off-heap scratch memory allocation.
-
-#### Specification Constraints & Directives:
-1. **64 KB Default Off-Heap Scratch Baseline**:
-   - Every `VmQueryContext` instance pre-allocates 64 KB of 64-byte aligned off-heap scratch memory upon initialization.
-   - 64 KB is guaranteed to fit 100% inside CPU **L2 Data Cache** (~512 KB to 1 MB per core on x86-64 and ARM64 processors), eliminating DRAM latency during query execution.
-2. **Register Windowing Stride**:
-   - Subroutine calls (`OP_CALL`) shift register windows forward (increasing memory offsets) by a stride of 12 registers (96 bytes per frame step).
-   - The 64 KB default scratch allocation supports up to **680 recursive call steps** out of the box with **zero off-heap dynamic memory allocations** during query execution.
-3. **Upfront Capacity Assertion (`.scratch_bytes`)**:
-   - Queries requiring deeper recursion (e.g. 10,000-step Depth-First Search or complex recursive graph traversals) declare their required capacity upfront in assembly headers via `.scratch_bytes 1048576` (1 MB) or using `OP_ALLOC_SCRATCH R_DST, BYTES` (`0x73`).
-
-4. **Multi-Snapshot Lifecycle & Execution Safety**:
-   - **Atomic Ref-Counting & Thread Safety**: Extend `VmQueryContext` to maintain atomic read-locks and reference counts across all participant snapshot `mmap` handles to prevent OS page faults (`SIGBUS`) during dynamic snapshot unmapping or hot-swapping.
-
-
-
 

@@ -1,390 +1,429 @@
-# Impulse Graph: Snapshot Streaming Writer & Builder (`impulse-builder`)
+# Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)
 
-The `impulse-builder` module provides a zero-dependency, Java 21 LTS-native streaming builder and serialization engine for the **Impulse Binary Snapshot Format (`.imps`) **.
+If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (`impulse-graph-tooling`)** is the fastest way to build, inspect, validate, and optimize snapshots.
 
-It enables creating multi-gigabyte and multi-terabyte graph snapshots with **strict $O(\text{chunk})$ physical memory footprints** and direct-to-cloud **S3 single-pass streaming semantics** (zero backwards seeks on the output channel).
-
----
-
-## 1. Key Architectural Concepts
-
-### 1.1 Strict Single-Pass S3 Semantics
-Cloud object stores (Amazon S3, Google Cloud Storage) and streaming sockets accept data strictly sequentially via `WritableByteChannel` or `OutputStream`.
-- The engine precomputes layout offsets and stages dynamic sections so the 4KB Page 0 header and Section 2 directory tables are streamed in exact physical byte order.
-- Trailing metadata (custom key-value pairs, binary payloads, statistics) and mandatory SHA-256 checksums are streamed into the **Footer Block at End-of-File (EOF)**, followed by a 16-byte `impulse_footer_trailer_t` that points backward to the footer start offset.
-
-### 1.2 Strict Per-Domain Dense ID Independence ($0 \dots N_d - 1$)
-In Impulse Graph, **there is no global or synthetic node ID space**. Every Node Domain (e.g., `User`, `Account`, `Transaction`) owns its own 0-indexed dense integer space $0 \dots N_d - 1$.
-- When defining a domain, the `cardinality` specified is the **exact physical node count**, not a maximum capacity bound.
-- Node IDs are implicit: physical storage is dedicated entirely to attribute arrays and relation topologies indexed directly by dense node ID.
-
-### 1.3 Mandatory CSR & Optional Topologies
-Every relation in an Impulse snapshot requires a **CSR (Compressed Sparse Row)** topology to enable instantaneous outgoing edge traversals.
-- **CSR (Compressed Sparse Row)**: Mandatory. Edges are sorted primarily by **Source ID**. The builder automatically defaults to CSR if not explicitly specified.
-- **CSC (Compressed Sparse Column)**: Optional. Edges are sorted primarily by **Target ID** for instant incoming/reverse edge lookups (`OP_CSC_WALK`).
-- **COO (Coordinate List)**: Optional. Raw `(src, tgt)` edge coordinate pairs.
-- **Per-Topology Compression**: Configured per topology via `CompressionScheme` (`RAW` for standard C-ABI contiguous arrays, `SIMD_COMP` for vectorized compression, `TPU_BCOO` for blocked coordinate formats).
-
-### 1.4 Zero-Allocation Java 21 LTS FFM Streaming
-Data is supplied through chunk iterators using Java 21 LTS Foreign Function & Memory (FFM) `MemorySegment` buffers. No `List<Edge>` or per-node Java heap objects are allocated, preventing GC pauses during massive graph ingestion.
-
-### 1.5 Adaptive NVMe Disk Staging
-If the user requests a CSC index but only provides a Source-sorted edge stream, or when large data structures exceed the configured heap threshold, `SnapshotBuilder` spills chunks to a configured `stagingDirectory` using `ExternalSortStaging` to perform an external two-pass inversion before streaming the sorted blocks.
-
-### 1.6 Integrity & Cryptographic Trust Chains
-- **Mandatory SHA-256 Digest**: Calculated on the fly over the snapshot payload and embedded directly in the Footer Block.
-- **Optional Cryptographic Signing**: With `.withSignature(PrivateKey, List<Certificate>)`, the engine signs the payload digest and embeds the cryptographic signature and certificate chain into the footer for tamper resistance (SLSA Level 3 compliance).
+> [!TIP]
+> **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
 
 ---
 
-## 2. Quickstart Example
+## 1. How `impulse build` Works
 
-```java
-import org.impulsegraph.builder.api.*;
-import org.impulsegraph.builder.spi.*;
-
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
-import java.nio.channels.FileChannel;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-
-public class SnapshotExportExample {
-
-    public static void main(String[] args) throws Exception {
-        // 1. Define the 'User' domain (1,000,000 users)
-        DomainDefinition userDomain = DomainDefinition.builder(1_000_000L)
-            .idWidth(PrimitiveWidth.UINT32)
-            .addAttribute("age", new UserAgeSource())
-            .build();
-
-        // 2. Define the 'Account' domain (500,000 accounts)
-        DomainDefinition accountDomain = DomainDefinition.builder(500_000L)
-            .idWidth(PrimitiveWidth.UINT32)
-            .build();
-
-        // 3. Define the 'OWNS' relationship from User to Account
-        RelationDefinition ownsRelation = RelationDefinition.builder("User", "Account")
-            .addTopology(Topology.CSR, CompressionScheme.RAW)
-            .addTopology(Topology.CSC, CompressionScheme.RAW)
-            .dataSource(new UserAccountEdgeSource()) // Provides source-sorted edges
-            .build();
-
-        // 4. Stream snapshot direct-to-disk or cloud channel
-        Path outputPath = Path.of("banking_graph.imps");
-        SnapshotBuilder.create()
-            .withStagingDirectory(Path.of("/tmp/impulse-staging"))
-            .withStagingMemoryLimit(512 * 1024 * 1024L) // 512 MB staging limit
-            .addDomain("User", userDomain)
-            .addDomain("Account", accountDomain)
-            .addRelation("OWNS", ownsRelation)
-            .addFooterMetadata("environment", "production")
-            .addFooterMetadata("generator", "org.impulsegraph.builder")
-            .writeTo(outputPath);
-    }
-}
-```
-
-### 2.1 Implementing `UserAgeSource`
-```java
-public class UserAgeSource implements AttributeDataSource {
-    private static final int TOTAL_USERS = 1_000_000;
-
-    @Override
-    public DataType dataType() {
-        return DataType.I32;
-    }
-
-    @Override
-    public Nullability nullability() {
-        return Nullability.NULLABLE;
-    }
-
-    @Override
-    public AttributeChunkIterator iterator() {
-        return new AttributeChunkIterator() {
-            private int current = 0;
-
-            @Override
-            public boolean hasNext() {
-                return current < TOTAL_USERS;
-            }
-
-            @Override
-            public int nextChunk(MemorySegment destination, int limit) {
-                int count = 0;
-                while (current < TOTAL_USERS && count < limit) {
-                    destination.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, 20 + (current % 60));
-                    current++;
-                    count++;
-                }
-                return count;
-            }
-        };
-    }
-}
-```
-
-### 2.2 Implementing `UserAccountEdgeSource`
-```java
-public class UserAccountEdgeSource implements RelationDataSource {
-    private final long edgeCount = 2_000_000L;
-
-    @Override
-    public long getEdgeCount() {
-        return edgeCount;
-    }
-
-    @Override
-    public EdgeChunkIterator getEdges() {
-        return new EdgeChunkIterator() {
-            private long index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < edgeCount;
-            }
-
-            @Override
-            public int nextChunk(MemorySegment srcIds, MemorySegment tgtIds, int limit) {
-                int count = 0;
-                while (index < edgeCount && count < limit) {
-                    // User 0..999,999 owns Account 0..499,999
-                    srcIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) (index / 2));
-                    tgtIds.setAtIndex(ValueLayout.JAVA_INT_UNALIGNED, count, (int) (index % 500_000));
-                    index++;
-                    count++;
-                }
-                return count;
-            }
-        };
-    }
-}
-```
-
----
-
-## 3. Data Provider SPI Contracts
-
-### 3.1 Attribute Data Source (`AttributeDataSource`)
-An attribute source streams values for exactly $N$ entities in ascending order of their implicit dense ID ($0, 1, 2, \dots, N-1$):
-
-```java
-public interface AttributeDataSource {
-    /**
-     * Primitive or vector data type of the attribute.
-     */
-    DataType dataType();
-
-    /**
-     * Declares whether the attribute is nullable or non-null.
-     */
-    Nullability nullability();
-
-    /**
-     * Iterator yielding chunks of values directly into off-heap memory.
-     */
-    AttributeChunkIterator iterator();
-
-    /**
-     * Optional statistics collector hook for computing distribution metrics into the footer.
-     */
-    default Optional<StatCollector> statCollector() {
-        return Optional.empty();
-    }
-}
-```
-
-The chunk iterator writes directly to an off-heap `MemorySegment`:
-
-```java
-public interface AttributeChunkIterator {
-    boolean hasNext();
-
-    /**
-     * Fills the segment with up to `limit` values.
-     * @param destination off-heap memory segment aligned to the attribute type width
-     * @param limit maximum number of items to write
-     * @return count of items written in this chunk
-     */
-    int nextChunk(MemorySegment destination, int limit);
-}
-```
-
-#### Running Statistics Hook (`StatCollector`)
-```java
-public interface StatCollector {
-    /**
-     * Called for each chunk of attribute values written to the stream.
-     */
-    void observeChunk(MemorySegment segment, int count);
-
-    /**
-     * Finalizes and serializes the statistics metadata payload to be stored in the footer.
-     */
-    byte[] finalizeMetadataPayload();
-}
-```
-
-### 3.2 Relation Data Source (`RelationDataSource`)
-```java
-public interface RelationDataSource {
-    /**
-     * Total exact number of directed edges in this relation.
-     */
-    long getEdgeCount();
-
-    /**
-     * Primary edge stream, strictly sorted by Source ID (mandatory for building CSR).
-     */
-    EdgeChunkIterator getEdges();
-
-    /**
-     * Optional secondary edge stream, strictly sorted by Target ID (for building CSC).
-     * If empty and CSC is requested, the builder will use the staging directory to
-     * external-sort the primary stream into CSC layout.
-     */
-    default Optional<EdgeChunkIterator> getTargetSortedEdges() {
-        return Optional.empty();
-    }
-}
-```
-
-The edge chunk iterator writes parallel `(src, tgt)` pairs directly into off-heap buffers:
-
-```java
-public interface EdgeChunkIterator extends AutoCloseable {
-    boolean hasNext();
-
-    /**
-     * Populates the provided parallel off-heap memory segments with edge pairs.
-     *
-     * @param srcIds segment receiving source node IDs formatted to the source domain's primitive width
-     * @param tgtIds segment receiving target node IDs formatted to the target domain's primitive width
-     * @param limit maximum number of edges to populate
-     * @return count of edges actually populated
-     */
-    int nextChunk(MemorySegment srcIds, MemorySegment tgtIds, int limit);
-
-    @Override
-    default void close() throws Exception {}
-}
-```
-
----
-
-## 4. API Reference Summary
-
-### 4.1 `SnapshotBuilder`
-| Method | Description |
-| :--- | :--- |
-| `SnapshotBuilder.create()` | Factory method creating a `StreamingSnapshotWriter` instance. |
-| `withStagingDirectory(Path tempDir)` | Configures local directory for disk-backed staging (e.g. CSR $\to$ CSC external sorts). |
-| `withStagingMemoryLimit(long bytes)` | Configures maximum RAM limit before spilling chunks to staging directory (default: 64MB). |
-| `withSignature(PrivateKey, List<Certificate>)` | Cryptographically signs the SHA-256 payload checksum and embeds signature & certificates into the footer. |
-| `addDomain(String name, DomainDefinition domain)` | Registers a node domain schema and its data sources. |
-| `addRelation(String name, RelationDefinition rel)` | Registers a relation schema and its topology sources. |
-| `addFooterMetadata(String key, String value)` | Adds custom key-value string metadata to the trailing footer. |
-| `addFooterMetadata(String key, byte[] payload)` | Adds raw binary metadata payload to the trailing footer. |
-| `writeTo(WritableByteChannel channel)` | Sequentially streams the snapshot binary in a strict single pass (e.g. S3 uploads). |
-| `writeTo(OutputStream out)` | Convenience method streaming the snapshot binary to an `OutputStream`. |
-| `writeTo(Path path)` | Convenience method writing the snapshot directly to a file on disk. |
-| `toByteArray()` | Collects snapshot binary into an in-memory `byte[]` (convenient for testing). |
-
-### 4.2 Schema Definitions & Enums
-- **`DomainDefinition.builder(long cardinality)`**:
-  - `.idWidth(PrimitiveWidth)`: `UINT16`, `UINT32` (default), or `UINT64`.
-  - `.withPrimaryKeyIndex(boolean)`: Enables reverse lookup index generation.
-  - `.addAttribute(String name, AttributeDataSource source)`: Registers an attribute data source.
-- **`RelationDefinition.builder(String srcDomain, String tgtDomain)`**:
-  - `.addTopology(Topology, CompressionScheme)`: Topologies `CSR` (mandatory, default `RAW`), `CSC` (optional), `COO` (optional). Compression: `RAW`, `SIMD_COMP`, `TPU_BCOO`.
-  - `.addAttribute(String name, AttributeDataSource source)`: Registers an edge attribute source.
-  - `.dataSource(RelationDataSource)`: Edge stream source.
-- **`DataType`**: Primitive types (`I8`, `I16`, `I32`, `I64`, `F16`, `F32`, `F64`, `TIMESTAMP_MS`, `TIMESTAMP_NS`, `STRING`, `BYTES`), fixed vectors (`DataType.vector(base, dim)`), and fixed bytes (`DataType.fixedBytes(dim)`).
-- **`Nullability`**: `NON_NULL` (`0x00`) or `NULLABLE` (`0x80`, generating a 128-byte aligned validity bitmap).
-
----
-
-## 5. Verification and Testing
-
-Snapshots generated by `impulse-builder` can be verified using three distinct validation layers:
-
-### 5.1 In-Memory Verification (Java)
-Load snapshot bytes or files via `BinarySnapshotLoader` using a Java 21 LTS `Arena`:
-
-```java
-byte[] snapshotBytes = builder.toByteArray();
-
-try (Arena arena = Arena.ofConfined()) {
-    BinarySnapshotLoader.LoadedSnapshot loaded = BinarySnapshotLoader.loadSnapshot(snapshotBytes, arena);
-    assertNotNull(loaded);
-
-    // Verify catalog domains and counts
-    assertEquals(2, loaded.domainCount());
-    assertEquals("User", loaded.domainsById().get(0).name());
-    assertEquals("Account", loaded.domainsById().get(1).name());
-
-    // Verify graph and relation snapshots
-    GraphSnapshot graph = loaded.graph();
-    RelationSnapshot rel = graph.getRelationSnapshot("OWNS");
-    assertNotNull(rel);
-    assertEquals(1_000_000L, rel.getNodeCount());
-    assertEquals(2_000_000L, rel.getEdgeCount());
-
-    // Verify forward CSR adjacency
-    int[] user0Accounts = rel.getTargets(0);
-    assertNotNull(user0Accounts);
-
-    // Verify reverse CSC adjacency (if CSC requested)
-    if (rel.hasCsc()) {
-        int[] account0Owners = rel.getInTargets(0);
-        assertNotNull(account0Owners);
-    }
-
-    // Verify footer metadata
-    assertEquals("production", loaded.getMetadata("environment"));
-}
-```
-
-Loading from a file on disk with mandatory SHA-256 checksum verification:
-
-```java
-Path snapshotPath = Path.of("banking_graph.imps");
-try (Arena arena = Arena.ofShared()) {
-    BinarySnapshotLoader.LoadedSnapshot loaded = 
-        BinarySnapshotLoader.loadSnapshot(snapshotPath, arena, true /* verifyChecksum */);
-    GraphSnapshot graph = loaded.graph();
-    assertNotNull(graph);
-}
-```
-
-### 5.2 Query Execution Verification (ImpulseVM)
-Mount the snapshot file into an off-heap `GraphSnapshot` (implementing `ImpulseGraphSnapshot`) and execute compiled bytecode traversals (`OP_CSR_WALK`, `OP_MXV`):
-
-```java
-try (Arena arena = Arena.ofShared()) {
-    BinarySnapshotLoader.LoadedSnapshot loaded = BinarySnapshotLoader.loadSnapshot(snapshotPath, arena);
-    GraphSnapshot graph = loaded.graph();
-
-    try (VmQueryContext ctx = new VmQueryContext(graph, arena)) {
-        MemorySegment state = ctx.allocateStateSegment();
-        // Execute compiled bytecode traversal over off-heap memory
-        Object result = ImpulseVmInterpreter.execute(bytecodeSegment, instructionCount, graph, inputNode, arena);
-    }
-}
-```
-
-### 5.3 Native CLI Tooling Verification
-Verify compliance using the official `impulse-graph` CLI toolchain:
+Instead of writing imperative ingestion code, you export your node and edge tables from **DuckDB, Pandas, Polars, PyArrow, Spark, Snowflake, or PostgreSQL** to **Apache Parquet (`.parquet`)** or **CSV/TSV (`.csv`, `.tsv`)**, describe your domains and relations in a declarative `manifest.json`, and run:
 
 ```bash
-# 1. Inspect headers, domains, and topology tables
-impulse-graph inspect banking_graph.imps
-
-# 2. Strict C-ABI validation with 128-byte hardware alignment check
-impulse-graph snapshot validate --strict-alignment banking_graph.imps
-
-# 3. View structural degree statistics & distribution metrics
-impulse-graph stats banking_graph.imps
+impulse build --manifest manifest.json -o graph.imps
 ```
 
+Under the hood, `impulse build` automatically:
+
+1. **Assigns Contiguous Dense IDs ($0 \dots N_d-1$) per Domain**: Scans your node files (or derives unique node keys directly from your edge files) and builds an embedded Minimal Perfect Hash (`_domain_index`) table for $O(1)$ key-to-dense-ID resolution at query time.
+2. **Sorts Edges into Forward CSR & Reorders Edge Attributes**: Sorts edges by `(src_dense_id, tgt_dense_id)` to build the Compressed Sparse Row (`row_offsets[]`, `col_indices[]`) arrays and reorders all edge attribute columns in lockstep so `edge_attr[k]` aligns with `col_indices[k]`.
+3. **Optionally Builds Reverse CSC (`"include_csc": true`)**: Transposes the CSR matrix into Compressed Sparse Column arrays so reverse traversals (`.in(...)` and `<-[]-` in openCypher) run at the exact same speed as forward traversals.
+4. **Aligns All Sections to 128 Bytes**: Pads every CSR/CSC array, Structure-of-Arrays (SoA) attribute column, and fixed-width vector embedding to 128-byte boundaries (2 CPU cache lines / AVX-512 / GPU `cuFile` warp alignment) and seals the snapshot with a Page 0 header and SHA-256 footer.
+
+### Installing the `impulse` CLI
+
+```bash
+# macOS / Linux (Homebrew)
+brew install impulse-graph/tap/impulse-cli
+
+# Or build directly from source (Rust 1.80+)
+cargo install --git https://github.com/impulse-graph/impulse-graph-tooling.git
+```
+
+---
+
+## 2. Walkthrough 1: From CSV Files to Python Queries
+
+Let's build the exact same **banking graph** (`User -[:OWNS]-> Account -[:TRANSFERRED_TO {amount}]-> Account`) from the [Java Builder Guide](building-snapshots.md), using CSV files and querying it in Python.
+
+```
+ (User: "usr_101") ──[:OWNS]──> (Account: "acc_5001") ──[:TRANSFERRED_TO {amount: 2500.00}]──> (Account: "acc_7008")
+```
+
+### Step 1: Prepare the CSV Files
+
+Create four CSV files in a `bank_data/` directory:
+
+=== "`bank_data/users.csv`"
+
+    ```csv
+    user_id,name,age,risk_score
+    usr_101,Alice,34,0.12
+    usr_102,Bob,29,0.05
+    usr_103,Charlie,52,0.88
+    ```
+
+=== "`bank_data/accounts.csv`"
+
+    ```csv
+    account_id,balance
+    acc_5001,14200.50
+    acc_6004,890.00
+    acc_7008,53100.00
+    ```
+
+=== "`bank_data/owns.csv`"
+
+    ```csv
+    user_id,account_id
+    usr_101,acc_5001
+    usr_102,acc_6004
+    usr_103,acc_7008
+    ```
+
+=== "`bank_data/transfers.csv`"
+
+    ```csv
+    from_account,to_account,amount,timestamp_ms
+    acc_5001,acc_6004,450.00,1711929600000
+    acc_5001,acc_7008,2500.00,1711933200000
+    acc_6004,acc_7008,1200.00,1711936800000
+    ```
+
+### Step 2: Create `manifest.json`
+
+Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account` = `1`), their node attributes, and the two directed relations (`OWNS` and `TRANSFERRED_TO`):
+
+```json
+{
+  "domains": [
+    {
+      "id": 0,
+      "name": "User",
+      "key_type": "string",
+      "file": "bank_data/users.csv",
+      "id_column": "user_id",
+      "attributes": [
+        { "name": "name", "column": "name", "type": "string" },
+        { "name": "age", "column": "age", "type": "int32" },
+        { "name": "risk_score", "column": "risk_score", "type": "float32" }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Account",
+      "key_type": "string",
+      "file": "bank_data/accounts.csv",
+      "id_column": "account_id",
+      "attributes": [
+        { "name": "balance", "column": "balance", "type": "float64" }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "name": "OWNS",
+      "src_domain": 0,
+      "tgt_domain": 1,
+      "file": "bank_data/owns.csv",
+      "src_column": "user_id",
+      "tgt_column": "account_id",
+      "include_csc": true
+    },
+    {
+      "name": "TRANSFERRED_TO",
+      "src_domain": 1,
+      "tgt_domain": 1,
+      "file": "bank_data/transfers.csv",
+      "src_column": "from_account",
+      "tgt_column": "to_account",
+      "include_csc": true,
+      "attributes": [
+        { "name": "amount", "column": "amount", "type": "float64" },
+        { "name": "timestamp_ms", "column": "timestamp_ms", "type": "int64" }
+      ]
+    }
+  ]
+}
+```
+
+### Step 3: Build, Inspect & Validate
+
+Run `impulse build` to compile `banking.imps`, then verify its 128-byte hardware alignment and schema metadata:
+
+```bash
+# 1. Compile CSVs into a zero-copy .imps binary snapshot
+impulse build --manifest bank_data/manifest.json -o banking.imps
+
+# 2. Inspect domains, relations, attribute columns, and section offsets
+impulse snapshot inspect banking.imps --verbose
+
+# 3. Verify 128-byte alignment, monotonic CSR offsets, and SHA-256 checksum
+impulse snapshot validate banking.imps --strict-alignment
+```
+
+### Step 4: Memory-Map and Query in Python
+
+Now open `banking.imps` in Python (`pip install impulse-graph`). The file is memory-mapped in `< 1 ms` with zero parsing:
+
+```python
+from impulse_graph import Snapshot
+
+with Snapshot("banking.imps") as snap:
+    print(f"Domains: {snap.domains()}")  # ['User', 'Account']
+
+    # 1. Fluent Domain-to-Domain Traversal:
+    # Start in User ("usr_101") -> walk OWNS -> walk TRANSFERRED_TO (amount >= 1000) -> return Account keys
+    high_value_recipients = (
+        snap.domain("User")
+            .from_keys(["usr_101"])
+            .out("OWNS")
+            .out("TRANSFERRED_TO", filter="edge.amount >= 1000.0")
+            .to_keys()
+    )
+    print("Accounts receiving >= $1,000 from usr_101:", high_value_recipients)
+    # Output: ['acc_7008']
+
+    # 2. Parameterized openCypher Query over the same memory-mapped snapshot:
+    rows = snap.query(
+        """
+        MATCH (u:User)-[:OWNS]->(src:Account)-[t:TRANSFERRED_TO]->(dst:Account)
+        WHERE u._key = $user_key AND t.amount >= $min_amount
+        RETURN dst._key AS recipient_account, dst.balance AS recipient_balance, t.amount AS transfer_amount
+        """,
+        params={"user_key": "usr_101", "min_amount": 1000.0},
+    )
+    for row in rows:
+        print(row)
+        # {'recipient_account': 'acc_7008', 'recipient_balance': 53100.0, 'transfer_amount': 2500.0}
+```
+
+---
+
+## 3. Walkthrough 2: From Apache Parquet to Zero-Copy PyTorch & GNNs
+
+If your data lives in **Apache Parquet** (exported from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyTorch Geometric (PyG)**, `impulse build` reads `.parquet` files natively—including **fixed-size vector embeddings (`FixedSizeListArray`)** and **nullable Arrow validity bitmaps**.
+
+Once compiled into an `.imps` file, your PyTorch training script memory-maps the graph in `< 1 ms` via `torch.from_dlpack()`, sharing a single physical OS page cache across all `DataLoader` workers with **zero RAM duplication**—even on graphs larger than physical system RAM.
+
+### Step 1: Export Node & Edge Tables to Parquet (Python / PyArrow)
+
+Here we generate a synthetic citation graph (`papers.parquet` with 128-dimensional `float32` feature vectors and `citations.parquet` with edge weights):
+
+```python
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+num_papers = 10_000
+num_edges = 80_000
+feat_dim = 128
+
+# 1. Build papers.parquet with scalar attributes + 128-D float32 embedding column
+rng = np.random.default_rng(42)
+flat_features = rng.standard_normal(num_papers * feat_dim, dtype=np.float32)
+feature_list_array = pa.FixedSizeListArray.from_arrays(pa.array(flat_features), feat_dim)
+
+papers_table = pa.table({
+    "paper_id": pa.array([f"paper_{i}" for i in range(num_papers)], type=pa.string()),
+    "year": pa.array(rng.integers(2015, 2026, size=num_papers, dtype=np.int32)),
+    "label": pa.array(rng.integers(0, 10, size=num_papers, dtype=np.int32)),
+    "features": feature_list_array,
+})
+pq.write_table(papers_table, "papers.parquet")
+
+# 2. Build citations.parquet (directed edges: citing_id -> cited_id)
+src_idx = rng.integers(0, num_papers, size=num_edges)
+tgt_idx = rng.integers(0, num_papers, size=num_edges)
+citations_table = pa.table({
+    "citing_id": pa.array([f"paper_{i}" for i in src_idx], type=pa.string()),
+    "cited_id": pa.array([f"paper_{i}" for i in tgt_idx], type=pa.string()),
+    "weight": pa.array(rng.uniform(0.1, 1.0, size=num_edges).astype(np.float32)),
+})
+pq.write_table(citations_table, "citations.parquet")
+```
+
+### Step 2: Create `citation_manifest.json`
+
+Point `domains` and `relations` directly at the `.parquet` files. Notice `"dimension": 128` on the `features` attribute—`impulse build` writes the 128-dimensional `float32` vectors as a contiguous, 128-byte-aligned `[N, 128]` tensor block inside the `.imps` file:
+
+```json
+{
+  "domains": [
+    {
+      "id": 0,
+      "name": "Paper",
+      "key_type": "string",
+      "file": "papers.parquet",
+      "format": "parquet",
+      "id_column": "paper_id",
+      "attributes": [
+        { "name": "year", "column": "year", "type": "int32" },
+        { "name": "label", "column": "label", "type": "int32" },
+        { "name": "features", "column": "features", "type": "float32", "dimension": 128 }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "name": "CITES",
+      "src_domain": 0,
+      "tgt_domain": 0,
+      "file": "citations.parquet",
+      "format": "parquet",
+      "src_column": "citing_id",
+      "tgt_column": "cited_id",
+      "include_csc": true,
+      "attributes": [
+        { "name": "weight", "column": "weight", "type": "float32" }
+      ]
+    }
+  ]
+}
+```
+
+### Step 3: Compile & Optimize CSR Locality (`--rcm`)
+
+Compile the Parquet files into an `.imps` snapshot, and optionally run `impulse snapshot optimize --rcm` (Reverse Cuthill-McKee bandwidth reduction) so that densely connected nodes are placed adjacent to one another in memory for higher L2/L3 cache hit rates during GNN message passing:
+
+```bash
+# 1. Compile Parquet files into raw .imps snapshot
+impulse build --manifest citation_manifest.json -o citations_raw.imps
+
+# 2. Reorder dense IDs with Reverse Cuthill-McKee (RCM) to minimize CSR cache misses
+impulse snapshot optimize -i citations_raw.imps -o citations.imps --rcm --csc
+
+# 3. Inspect degree distribution & supernodes
+impulse snapshot stats citations.imps --supernode-threshold 500
+```
+
+### Step 4: Mount Zero-Copy in PyTorch (`impulse-gnn`)
+
+Now load `citations.imps` in PyTorch. The CSR topology (`row_offsets`, `col_indices`) and node attributes are exposed directly as read-only `torch.Tensor` views over the `mmap` region—no `pd.read_parquet()`, no COO-to-CSR sorting, and zero multi-worker RAM blowup:
+
+```python
+import torch
+from impulse_gnn import ImpulseGnnDataset, ImpulseNeighborSampler
+
+# 1. Memory-map citations.imps (< 1 ms cold start, 0 bytes of heap allocation)
+dataset = ImpulseGnnDataset("citations.imps")
+print(f"Nodes: {dataset.num_nodes:,}, Edges: {dataset.num_edges:,}")
+
+# 2. Zero-copy DLPack tensor views pointing directly into the .imps mmap pages
+row_offsets: torch.Tensor = dataset.row_offsets   # torch.int64 [num_nodes + 1]
+col_indices: torch.Tensor = dataset.col_indices   # torch.int32 [num_edges]
+
+# 3. Sample 2-hop GraphSAGE mini-batches (25 neighbors at hop 1, 10 at hop 2)
+#     directly from the C-ABI CSR arrays without building a full-graph PyG Data object
+sampler = ImpulseNeighborSampler(dataset, fanouts=[25, 10])
+seed_nodes = torch.arange(0, 1024, dtype=torch.int32)
+batch = sampler.sample_from_nodes(seed_nodes)
+
+print(f"Sampled subgraph: {batch.num_sampled_nodes} nodes, {batch.edge_index.shape[1]} edges")
+
+# 4. Also interoperates zero-copy with SciPy / NetworkX / GraphBLAS:
+csr_mat = dataset.to_scipy_csr()
+```
+
+> [!TIP]
+> **Want to learn more about PyTorch & GNN training over `.imps` snapshots larger than RAM?** See the **[PyTorch & Graph Neural Networks Showcase](../showcase/gnn.md)**.
+
+---
+
+## 4. `manifest.json` Complete Reference
+
+A `manifest.json` file contains two top-level arrays: `"domains"` and `"relations"`.
+
+### 4.1 `domains[]` Schema
+
+Each object in `"domains"` defines an independent node domain with its own contiguous dense ID space ($0 \dots N_d-1$):
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `u16` | **Yes** | Unique numeric domain ID (`0`, `1`, `2`, ...). Referenced by `src_domain` and `tgt_domain` in `relations[]`. |
+| `name` | `string` | **Yes** | Logical domain name used in queries (e.g., `"User"`, `"Account"`, `"Paper"`). |
+| `key_type` | `string` | **Yes** | Data type of the external primary key: `"string"`, `"int64"`, `"uint64"`, `"uuid"`, `"int32"`, or `"uint16"`. |
+| `file` | `string` | No | Path to the node table file (`.parquet`, `.pq`, `.csv`, `.tsv`). If omitted, the domain's unique keys and node count are inferred automatically from the edge files that reference this domain. |
+| `format` | `string` | No | `"parquet"`, `"csv"`, or `"tsv"`. Auto-detected from the file extension if omitted. |
+| `id_column` | `string` | No | Column name containing the primary key in `file`. Defaults to `"id"` (or column `0` in headerless CSVs). |
+| `attributes` | `AttributeDef[]` | No | List of node attribute columns to extract from `file` into 128-byte-aligned SoA columns. |
+
+### 4.2 `relations[]` Schema
+
+Each object in `"relations"` defines a directed edge relation from `src_domain` to `tgt_domain`:
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `name` | `string` | No | Relation name used in `.out("NAME")` / `.in("NAME")` and openCypher `[:NAME]`. Defaults to `"REL_{src}_{tgt}"` if omitted. |
+| `src_domain` | `u16` | **Yes** | Numeric `id` of the source domain. |
+| `tgt_domain` | `u16` | **Yes** | Numeric `id` of the target domain. |
+| `file` | `string` | **Yes** | Path to the edge table file (`.parquet`, `.pq`, `.csv`, `.tsv`, `.txt`). |
+| `format` | `string` | No | `"parquet"`, `"csv"`, or `"tsv"`. Auto-detected from the file extension if omitted. |
+| `src_column` | `string` | No | Column name for the source node key. Defaults to `"src"` (or column `0` in CSV/TSV). |
+| `tgt_column` | `string` | No | Column name for the target node key. Defaults to `"tgt"` (or column `1` in CSV/TSV). |
+| `include_csc` | `bool` | No | When `true`, builds both forward **CSR** and reverse **CSC** topologies so `.in(...)` reverse walks execute in $O(1)$ offset lookup time. Defaults to `false`. |
+| `encoding` | `string` | No | Target adjacency list encoding: `"raw"` (default uncompressed arrays), `"elias_fano"` (monotone gap compression), or `"bic"` (Binary Interpolative Coding). |
+| `attributes` | `AttributeDef[]` | No | List of edge attribute columns to extract from `file` and reorder alongside the CSR edges. |
+
+### 4.3 `attributes[]` Schema & Supported Data Types
+
+Both domains and relations accept an `"attributes"` array where each element has:
+
+```json
+{
+  "name": "amount",
+  "column": "transfer_amount_usd",
+  "type": "float64",
+  "dimension": 1
+}
+```
+
+* **`name`** *(required)*: Attribute name exposed to queries (`node.amount`, `edge.amount`).
+* **`column`** *(required)*: Source column name in the Parquet or CSV/TSV file.
+* **`type`** *(optional for Parquet, recommended for CSV)*: Explicit storage type. For Parquet inputs, `impulse build` automatically infers the Impulse type from the Arrow column schema if `"type"` is omitted.
+* **`dimension`** *(optional)*: Defaults to `1` (scalar). Set `"dimension": D` (e.g., `128`, `384`, `768`) for fixed-width vector embeddings stored in Parquet `FixedSizeListArray` columns.
+
+| Type String in `manifest.json` | Physical Layout in `.imps` | Parquet / Arrow Source Types |
+| :--- | :--- | :--- |
+| `"int8"`, `"int16"`, `"int32"`, `"int64"` | Signed 8 / 16 / 32 / 64-bit integer array | `Int8`, `Int16`, `Int32`, `Int64` |
+| `"uint8"`, `"uint16"`, `"uint32"`, `"uint64"` | Unsigned 8 / 16 / 32 / 64-bit integer array | `UInt8`, `UInt16`, `UInt32`, `UInt64` |
+| `"float16"`, `"float32"`, `"float64"` | IEEE-754 16 / 32 / 64-bit float array | `Float16`, `Float32`, `Float64` |
+| `"bool"` / `"boolean"` | Bit-packed boolean array (`1 bit` per element) | `Boolean` |
+| `"timestamp_ms"`, `"timestamp_ns"`, `"date32"` | 64-bit epoch timestamp (`ms` / `ns`) or 32-bit days | `Timestamp(Millisecond/Second/Microsecond/Nanosecond)`, `Date32`, `Date64` |
+| `"string"` | 32-bit string ID array indexing the Section 2 Shared String Pool | `Utf8`, `LargeUtf8` |
+| `"uuid"` | 128-bit (`16-byte`) fixed-width binary UUID | `FixedSizeBinary(16)` or UUID string |
+| **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Appends a 128-byte-aligned Arrow validity bitmap (`1` = valid, `0` = null) | Any nullable Parquet column or CSV column with empty cells |
+
+---
+
+## 5. Snapshot CLI Lifecycle Cheat Sheet
+
+Beyond `impulse build`, the `impulse` CLI provides a complete toolkit for inspecting, validating, optimizing, diffing, and exporting `.imps` snapshots:
+
+| Command | Example | Purpose |
+| :--- | :--- | :--- |
+| **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into a 128-byte-aligned `.imps` snapshot. Pass `-o -` to stream directly to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
+| **`snapshot inspect`** | `impulse snapshot inspect graph.imps --verbose` | Prints Page 0 header flags, domain cardinalities, relation encodings, attribute schemas, and byte offsets (supports `--format json`). |
+| **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment` | Verifies magic bytes, 128-byte section alignment, monotonic CSR/CSC offset bounds, and the footer SHA-256 checksum. |
+| **`snapshot stats`** | `impulse snapshot stats graph.imps --supernode-threshold 10000` | Computes min/max/mean/p99 out-degree distributions, density, and lists high-degree supernodes per relation. |
+| **`snapshot optimize`** | `impulse snapshot optimize -i raw.imps -o opt.imps --rcm --csc` | Reorders domain dense IDs via **Reverse Cuthill-McKee (`--rcm`)** or **Degree Sorting (`--degree-sort`)** to maximize CPU cache locality, and optionally generates missing CSC reverse indices (`--csc`). |
+| **`snapshot diff`** | `impulse snapshot diff v1.imps v2.imps` | Compares two `.imps` snapshots and reports added/removed domains, relations, node/edge count deltas, and attribute layout changes. |
+| **`snapshot export`** | `impulse snapshot export graph.imps -o out_dir/ --format csv` | Exports the topology and attributes of an `.imps` snapshot back to `csv`, `tsv`, or `jsonl` files. |
+| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` or `.npy` tensor archives into 128-byte-aligned `.imps` vector attribute columns. |
+
+---
+
+## 6. Writing a Custom Snapshot Generator (Open `.imps` Binary Specification)
+
+While the `impulse` CLI and the Java `SnapshotBuilder` cover almost all standard pipelines, **the `.imps` Binary Snapshot Format is an open, fully documented C-ABI specification**.
+
+Because an `.imps` file is simply a sequence of 128-byte-aligned little-endian structs and contiguous primitive arrays (`row_offsets[]`, `col_indices[]`, and Structure-of-Arrays attribute columns) with no proprietary compression or complex pointer tables, **it is straightforward to write your own `.imps` generator directly in Python (using `struct`, `numpy`, or `pyarrow`), Rust, C++, or Go**:
+
+1. **Follow the Normative Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x0009`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
+2. **Validate with the CLI**: Any custom generator can be immediately verified against the normative compliance rules using:
+   ```bash
+   impulse snapshot validate custom_output.imps --strict-alignment
+   impulse snapshot inspect custom_output.imps --verbose
+   ```
+3. **Cross-Check Against Compliance Vectors**: The specification repository includes 36 canonical binary test vectors (`tc01`..`tc36`) covering positive and negative structural invariants.
+
+---
+
+## Next Steps
+
+* **[Changing Data & Live Updates](handling-mutations.md)** — Near-real-time (`< 5 min`) rebuild pipelines, S3/GCS distribution, and atomic Blue/Green memory-map swaps.
+* **[Building Snapshots in Java](building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource` API.
+* **[Python SDK Reference](../reference/python-api.md)** & **[PyTorch / GNN Showcase](../showcase/gnn.md)** — Complete Python API and zero-copy PyTorch tensor integration.
+* **[CLI Reference](../reference/cli.md)** — Full command-line reference including `impulse query`, `impulse compile`, and `impulse run`.

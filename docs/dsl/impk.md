@@ -69,13 +69,13 @@ Using the `impulse-graph` CLI toolchain:
 
 ```bash
 # 1. Compile .impk source directly into canonical .impas assembly text
-impulse compiler compile algorithm.impk -o algorithm.impas
+impulse compile algorithm.impk -o algorithm.impas
 
 # 2. Inspect intermediate ImpScheme AST S-Expressions
-impulse compiler compile algorithm.impk --emit-ir
+impulse compile algorithm.impk --emit-ir
 
 # 3. Assemble text assembly into binary bytecode (.impb)
-impulse compiler assemble algorithm.impas -o algorithm.impb
+impulse assemble algorithm.impas -o algorithm.impb
 
 # 4. Execute compiled bytecode program against a snapshot
 impulse run --snapshot production.imps --bytecode algorithm.impb

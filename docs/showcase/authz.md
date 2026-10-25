@@ -1,43 +1,66 @@
 # Showcase: ReBAC Authorization (Zanzibar)
 
-The **impulse-authz** module demonstrates how Impulse Graph powers sub-microsecond fine-grained authorization, directly inspired by Google's Zanzibar paper.
+The **`impulse-authz`** showcase demonstrates how Impulse Graph powers sub-microsecond, fine-grained **Relationship-Based Access Control (ReBAC)**—modeled after Google's Zanzibar architecture—directly inside your application process.
 
-Relationship-Based Access Control (ReBAC) models permissions as a graph. Checking if a user has access to a document means executing a graph traversal to find a path from the `User` to the `Document` through various `Group`, `Role`, and `Folder` nodes.
+---
 
-## The Challenge
+## 1. The Real-World Problem
 
-Authorization checks happen on every single API request. They must be incredibly fast (sub-millisecond) and completely consistent with the live state of the system.
+In modern enterprise software, permissions aren't just simple role strings—they form a deep hierarchy of relationships:
+* A `User` belongs to a `Group` (which may be nested inside parent `Group`s).
+* A `Group` is assigned a `Role`.
+* A `Role` grants `Permission` over a `Folder` or `Resource` (which itself has child `Document`s).
 
-## Permission Check Pipelines
+Answering *"Can User $U$ edit Document $D$?"*—or worse, *"Which of these 10,000 search results is User $U$ allowed to see?"*—requires walking a multi-hop graph on **every single API request**. Traditional SQL recursive CTEs or external authorization microservices add milliseconds of network and join latency to every call.
 
-Impulse Graph excels at this by compiling permission checks into flat opcode plans executed with zero allocations.
+---
 
-=== "Java"
+## 2. How Impulse Graph Solves It
+
+Because authorization policies are read-heavy and change at a human/administrative cadence, they fit Impulse Graph's **"mmap and go"** model naturally:
+
+1. **Multi-Domain Set Traversal**: Starting from a `User`, the query steps across `MEMBER_OF` (with transitive group nesting via `repeatUntilStable`), `HAS_ROLE`, and `GRANTS_ACCESS_TO` to reach the `Resource` domain.
+2. **Set Squishing Eliminates Redundant Paths**: If a user belongs to 5 overlapping groups that all grant access to the same parent folder, Impulse squishes those converging paths into a single bit at each step—never walking the folder's children multiple times.
+3. **Sub-Microsecond Early Exit**: When checking access to a single resource, the VM checks whether the target `Resource` Dense ID bit is set and short-circuits immediately (`FLAG_HALT_ON_EMPTY`).
+
+=== "Java 25 (Fluent API)"
     ```java
-    // Build the permission query once at startup
-    ImpulseQuery<Boolean> canEditQuery = ImpulseQuery.builder()
-        .input(EntityType.USER, ArgType.SINGLE_NODE)
-        // User belongs to Group
-        .walkEdge("userToGroup")
-        // Group has Role
-        .walkEdge("groupToRole")
-        // Role grants Permission over Resource
-        .walkEdge("roleToPermission")
-        // Terminal: Does the resulting set contain our target resource?
-        .collect(ReturnType.EXISTS);
+    // 1. Check if 'usr_alice' has transitive access to 'doc_quarterly_report'
+    boolean isAllowed = snap.domain("User")
+        .fromKey("usr_alice")
+        // Walk direct and nested group memberships until fixed-point
+        .out("MEMBER_OF")
+        .repeatUntilStable("PARENT_GROUP")
+        .out("HAS_ROLE")
+        .out("GRANTS_ACCESS_TO")
+        .toKeyList()
+        .contains("doc_quarterly_report");
 
-    // Execute on the hot path (e.g., inside an interceptor)
-    boolean allowed = canEditQuery.execute(ctx, view, requestingUserId);
+    // 2. Or retrieve the full BitSet of all accessible resources in one pass
+    //    to filter a search result list in-process in nanoseconds:
+    ImpulseBitSet accessibleResources = snap.domain("User")
+        .fromKey("usr_alice")
+        .out("MEMBER_OF")
+        .repeatUntilStable("PARENT_GROUP")
+        .out("HAS_ROLE")
+        .out("GRANTS_ACCESS_TO")
+        .toBitSet();
     ```
 
-## Sub-Microsecond `contains()`
+=== "ImpLog (Declarative Datalog)"
+    ```prolog
+    // Transitive group membership and resource authorization in ImpLog (.implog)
+    in_group(U, G) :- member_of(U, G).
+    in_group(U, ParentG) :- in_group(U, ChildG), group_parent(ChildG, ParentG).
 
-Notice the `ReturnType.EXISTS` terminal. Instead of materializing a full `RoaringBitmap` of all permissions the user has, the engine optimizes the execution plan to return `true` the moment it encounters the target resource ID, pruning unnecessary branches early.
+    can_access(U, R) :- in_group(U, G), has_role(G, Role), grants_access(Role, R).
+    ```
 
-## Live Debezium CDC Sync & Atomic Snapshot Swap
+---
 
-To keep the authorization graph synchronized with the source-of-truth relational database (e.g., Postgres) without introducing read/write locks on the query path, `impulse-authz` uses Debezium Change Data Capture (CDC) and out-of-band snapshot compilation:
+## 3. Keeping Permissions Fresh: Periodic Rebuild & Atomic Swap
 
-1. Postgres mutations (insert `user_group_membership`) are captured by Debezium and placed on a Kafka topic.
-2. The `impulse-platform` streaming builder consumes these events, writes a new immutable `.imps` snapshot, and triggers an atomic A/B pointer swap (`SnapshotSwapManager`).
-3. Authorization checks always execute over 100% lock-free, read-only `.imps` snapshots at full SIMD speed.
+How do permission changes propagate without introducing reader locks?
+1. Administrative permission updates write to your system-of-record database (e.g., PostgreSQL).
+2. A background worker compiles a fresh `.imps` authorization snapshot in seconds (or consumes Debezium CDC events) and publishes it to blob storage / local NVMe.
+3. Application pods `mmap` the new `.imps` file in `< 1 ms` and perform a **zero-downtime Blue/Green atomic pointer swap** (see [Changing Data & Live Updates](../getting-started/handling-mutations.md)). Active API requests continue running with **zero locks** and **zero GC pauses**.

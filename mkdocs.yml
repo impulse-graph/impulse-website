@@ -45,12 +45,7 @@ extra_javascript:
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 not_in_nav: |
-  design-notes/bugs.md
-  design-notes/cleanup-for-v0.9.0.md
-  design-notes/code-protections-github-pr-todo.md
-  design-notes/java-walkthru.md
-  design-notes/v0.9.0-TODO.md
-  design-notes/walkthru-cpp.md
+  design-notes/*
 
 validation:
   links:
@@ -71,87 +66,44 @@ nav:
     - Quickstart: getting-started/quickstart.md
     - Core Concepts & Glossary: getting-started/core-concepts.md
     - Building Snapshots (Java): getting-started/building-snapshots.md
-    - Snapshot Builder Reference: getting-started/snapshot-builder-reference.md
-    - Ingestion Strategies: getting-started/ingestion-strategies.md
+    - Building Snapshots (CLI & Python): getting-started/snapshot-builder-reference.md
+    - Changing Data & Live Updates: getting-started/handling-mutations.md
     - Showcase Applications:
+      - Overview: showcase/index.md
       - Authorization (ReBAC): showcase/authz.md
       - Anti-Money Laundering: showcase/aml.md
       - Power Grid Stability: showcase/powergrid.md
       - Graph Neural Networks: showcase/gnn.md
 
   - Concepts & Architecture:
-    - Core Architecture:
-      - Data-Oriented Design: concepts/data-oriented-design.md
-      - Snapshots: concepts/snapshots.md
-      - Graph Model: concepts/graph-model.md
-      - Key Mapping & Projections: concepts/key-mapping-and-projections.md
-      - GraphView: concepts/graph-view.md
-      - Schema: concepts/schema.md
-      - Compiler Architecture: concepts/compiler-architecture.md
-      - VM Parallel Execution: concepts/vm-parallel-execution.md
-    - Deep Dives & Design Notes:
-      - Academic Foundations: academic.md
-      - Category Theory & FP Foundations: design-notes/fp-perspective.md
-      - Academic Critique (MLIR vs ImpScheme): design-notes/academic-critique.md
-      - CEL AST Optimization: design-notes/cel-ast-optimize.md
-      - openCypher Query Support: design-notes/cypher-query-support.md
-      - Vector Attribute Specification: design-notes/vector-attribute-spec.md
-      - ImpulseVM Architecture Critique: design-notes/vm-critique.md
-      - Comparison vs. NornicDB: design-notes/nornic-db-comparison.md
-      - Comparison vs. TuringDB: design-notes/turing-db-comparison.md
+    - Why Impulse Graph?: concepts/why-impulse.md
+    - Data-Oriented Design: concepts/data-oriented-design.md
+    - Snapshots, Domains & Schema (.imps): concepts/snapshots.md
+    - Zero-Allocation Execution & Buffers: concepts/key-mapping-and-projections.md
+    - Compiler Pipeline & ImpulseVM: concepts/compiler-architecture.md
+    - Mathematical & GraphBLAS Foundations: academic.md
 
   - Querying & DSLs:
-    - Fluent Query API:
-      - Overview: query-api/index.md
-      - Fluent API Specification: query-api/fluent-api.md
-      - Building Queries: query-api/building-queries.md
-      - Advanced Querying: query-api/advanced-querying.md
-      - Query Context: query-api/query-context.md
-      - Bytecode Virtual Machine (ImpOps): query-api/bytecode-vm.md
-      - Walk Edge: query-api/operations/walk-edge.md
-      - Set Algebra: query-api/operations/set-algebra.md
-      - Iteration: query-api/operations/iteration.md
-      - Terminals: query-api/operations/terminals.md
-      - Schema Binding: query-api/schema-binding.md
-      - Execution Context: query-api/execution-context.md
-      - Memory Layout: query-api/memory-layout.md
-      - GraphView & Execution: query-api/graph-view-execution.md
-    - Query Languages & DSLs:
-      - Overview: dsl/index.md
-      - openCypher Reference: dsl/opencypher.md
-      - Google CEL (Filters & Projections): dsl/cel.md
-      - ImpK (.impk): dsl/impk.md
-      - ImpLog (.implog): dsl/implog.md
-      - ImpScheme (.impscm): dsl/impscm.md
+    - Overview & Query Modes: query-api/index.md
+    - Fluent Traversal API: query-api/fluent-api.md
+    - State Projections, Reducers & Loops: query-api/advanced-querying.md
+    - openCypher Guide: dsl/opencypher.md
+    - Google CEL (Filters & Math): dsl/cel.md
+    - ImpLog (Datalog & ReBAC): dsl/implog.md
+    - ImpK (GraphBLAS & Vectors): dsl/impk.md
+    - ImpScheme IR (.impscm): dsl/impscm.md
 
   - Reference & Specs:
-    - API & SDK Reference:
-      - Java 25 Engine API Reference: reference/java-api.md
-      - C-ABI Kernel & VM Reference: reference/c-abi.md
-      - C++20 API Reference: reference/cpp-api.md
-      - Python SDK Reference: reference/python-api.md
-      - Rust Crate Reference: reference/rust-api.md
-      - Go SDK (CGo) Reference: reference/go-api.md
-      - .NET / C# SDK Reference: reference/dotnet-api.md
-      - Node.js / TypeScript Reference: reference/node-api.md
-      - Kotlin API Reference: reference/kotlin-api.md
-      - Scala 3 API Reference: reference/scala-api.md
-      - CLI Reference: reference/cli.md
-      - Tooling Architecture: reference/tooling-architecture.md
-      - Gradle Plugin Reference: reference/gradle-plugin.md
-      - YAML Configuration: reference/yaml-configuration.md
-      - Schema Code Generation: reference/schema-codegen.md
-      - Operations Cheatsheet: reference/operations-cheatsheet.md
-      - Package Registry: reference/packages.md
-    - Normative Specifications:
-      - Specification Hub: reference/spec/index.md
-      - Binary Snapshot Format (.imps): reference/spec/format-specification.md
-      - ImpulseVM & ImpOps ISA: reference/spec/vm-specification.md
-      - ImpAs Assembly Format (.impas): reference/spec/impas-specification.md
-      - Snapshot Schema (.imps.schema.yaml): reference/spec/schema-specification.md
-      - Generated Protocol Tables: reference/spec/protocol-tables.md
-      - Specification Summary: reference/spec/overview.md
-      - Schema Evolution: reference/schema-evolution.md
+    - Java 25 SDK Reference: reference/java-api.md
+    - Python & PyTorch SDK Reference: reference/python-api.md
+    - C-ABI & C++20 Reference: reference/c-abi.md
+    - Rust Crate Reference: reference/rust-api.md
+    - Go, .NET & Node.js SDKs: reference/polyglot-sdks.md
+    - CLI Reference (impulse): reference/cli.md
+    - Packages & Distribution: reference/packages.md
+    - Binary Snapshot Spec (.imps): reference/spec/format-specification.md
+    - ImpulseVM, ImpOps & ImpAs Spec: reference/spec/vm-specification.md
+    - Schema & Manifest Spec (.yaml): reference/spec/schema-specification.md
 
   - Deployment & Tuning:
     - Deployment & Operations:

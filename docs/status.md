@@ -37,9 +37,9 @@ Artifacts are built inside GitHub Actions CI pipelines with SLSA Level 3 cryptog
 | **[Maven Central](reference/packages.md)** | Java 25 / Kotlin / Scala 3 | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-spec` | RC Ready | [=90% "90%"] | Pure Java 25 modules & aggregated Javadocs built; GPG signing & Central Portal publishing staged for `v1.0` |
 | **[PyPI](reference/python-api.md)** | Python (`>= 3.8`) | `impulse-graph` (`manylinux_2_28_x86_64`, `macosx_11_0_arm64` wheels & `sdist`) | Beta | [=85% "85%"] | Static C++20 `pybind11` wheels with zero-copy NumPy, SciPy CSR, and PyTorch `mmap` tensor views |
 | **[Crates.io](reference/rust-api.md)** | Rust (`2021` Edition) | `impulse-graph`, `impulse-tools` | Beta | [=85% "85%"] | Zero-dependency Rust reader/writer crate & CLI optimizer |
-| **[NuGet.org](reference/dotnet-api.md)** | .NET 8+ / C# / F# | `ImpulseGraph`, `ImpulseGraph.Native`, `ImpulseGraph.FSharp` | Beta | [=80% "80%"] | Managed P/Invoke SDK + cross-platform native runtime packs (`.nupkg`) |
-| **[npm](reference/node-api.md)** | Node.js / TypeScript / Bun | `impulse-graph` | Beta | [=80% "80%"] | N-API native addon + TypeScript `.d.ts` definitions |
-| **[Go Modules](reference/go-api.md)** | Go (`1.22+` CGo) | `github.com/impulse-graph/impulse-graph/go` | Beta | [=80% "80%"] | CGo bindings linked against `libimpulse_graph_static.a` |
+| **[NuGet.org](reference/polyglot-sdks.md)** | .NET 8+ / C# / F# | `ImpulseGraph`, `ImpulseGraph.Native`, `ImpulseGraph.FSharp` | Beta | [=80% "80%"] | Managed P/Invoke SDK + cross-platform native runtime packs (`.nupkg`) |
+| **[npm](reference/polyglot-sdks.md)** | Node.js / TypeScript / Bun | `impulse-graph` | Beta | [=80% "80%"] | N-API native addon + TypeScript `.d.ts` definitions |
+| **[Go Modules](reference/polyglot-sdks.md)** | Go (`1.22+` CGo) | `github.com/impulse-graph/impulse-graph/go` | Beta | [=80% "80%"] | CGo bindings linked against `libimpulse_graph_static.a` |
 | **[Vcpkg / Conan / Homebrew](reference/c-abi.md)** | C / C++20 & macOS/Linux CLI | `impulse-graph` (`libimpulse_graph_static.a`, `.dylib`, `.so`, `.dll`, `.deb`, `.rpm`, `.pkg`, `.msi`) | In Progress | [=75% "75%"] | CMake install targets & static packaging ready; registry port manifests staged for `v1.0` |
 | **[GHCR / Docker](reference/packages.md)** | Containers / Kubernetes | `ghcr.io/impulse-graph/impulse-tools`, `impulse-platform-server` | In Progress | [=75% "75%"] | Static `musl-libc` Alpine/scratch CLI & platform server images |
 
