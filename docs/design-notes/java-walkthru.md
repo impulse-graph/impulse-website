@@ -146,6 +146,7 @@ $$\text{Pipeline} = \text{Anchor}(D_0, F_0, S_0) \gg= T_1 \gg= T_2 \dots \gg= \t
 ### 3-Tier RBAC Graph Traversal Example
 
 In a standard Role-Based Access Control model:
+
 - `USER` nodes link to `GROUP` nodes via relation `userToGroup`.
 - `GROUP` nodes link to `ROLE` nodes via relation `groupToRole`.
 

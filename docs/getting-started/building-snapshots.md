@@ -6,8 +6,8 @@ We'll assume zero starting knowledge and build up a snapshot step-by-step for a 
 
 If you haven't already, read the [Core Concepts](core-concepts.md) page first—it covers the binary format, CSR/CSC layouts, and domain model at a high level.
 
-> [!TIP]
-> **Using Python, PyTorch, C/C++, or have data in Parquet / CSV files?** You don't need a JVM to build `.imps` snapshots. See **[Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)](snapshot-builder-reference.md)** to compile `.imps` files directly from Apache Parquet and CSV files using the standalone `impulse` CLI.
+!!! tip
+    **Using Python, PyTorch, C/C++, or have data in Parquet / CSV files?** You don't need a JVM to build `.imps` snapshots. See **[Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)](snapshot-builder-reference.md)** to compile `.imps` files directly from Apache Parquet and CSV files using the standalone `impulse` CLI.
 
 ---
 
@@ -22,8 +22,8 @@ Our relational database has standard tables:
 | `user_accounts` | `user_id BIGINT`, `account_id BIGINT` |
 | `account_transfers` | `from_account_id BIGINT`, `to_account_id BIGINT`, `amount DOUBLE` |
 
-> [!NOTE]
-> In a production banking database, `account_transfers` would also carry a `timestamp` (`TIMESTAMP_MS`), `currency`, `transfer_type` (ACH, wire), and reference IDs. Each of those columns can be attached to the `TRANSFERRED_TO` relation as its own 128-byte-aligned Structure-of-Arrays (SoA) edge attribute column. Here we attach `amount` (`DataType.F64`) to keep the walkthrough focused.
+!!! note
+    In a production banking database, `account_transfers` would also carry a `timestamp` (`TIMESTAMP_MS`), `currency`, `transfer_type` (ACH, wire), and reference IDs. Each of those columns can be attached to the `TRANSFERRED_TO` relation as its own 128-byte-aligned Structure-of-Arrays (SoA) edge attribute column. Here we attach `amount` (`DataType.F64`) to keep the walkthrough focused.
 
 The graph we want:
 
@@ -107,8 +107,8 @@ Dense IDs are strictly internal. You don't need to modify your database schema.
 
 Impulse provides **`IdMapper<K>`** to bridge external keys to internal dense IDs. As you scan rows from the database, the mapper assigns each key a sequential dense ID:
 
-> [!IMPORTANT]
-> The `ORDER BY` in the domain scan query is critical. Dense IDs are assigned in scan order ($0, 1, 2, \dots$). Later, when loading edges (Step 5), the edge query must use the **same `ORDER BY`** on its source column so that source dense IDs arrive in ascending order. This is a CSR requirement—edges must be grouped by source node in ascending order.
+!!! important
+    The `ORDER BY` in the domain scan query is critical. Dense IDs are assigned in scan order ($0, 1, 2, \dots$). Later, when loading edges (Step 5), the edge query must use the **same `ORDER BY`** on its source column so that source dense IDs arrive in ascending order. This is a CSR requirement—edges must be grouped by source node in ascending order.
 
 ```java
 import org.impulsegraph.api.IdMapper;
@@ -174,8 +174,8 @@ DomainDefinition accountDomain = DomainDefinition.builder(accountMapper.size())
         .build();
 ```
 
-> [!NOTE]
-> **Disjoint ID Spaces**: Dense ID `0` in `User` is completely unrelated to dense ID `0` in `Account`. Each domain has its own independent coordinate space ($0 \dots N_d-1$).
+!!! note
+    **Disjoint ID Spaces**: Dense ID `0` in `User` is completely unrelated to dense ID `0` in `Account`. Each domain has its own independent coordinate space ($0 \dots N_d-1$).
 
 ---
 
@@ -215,8 +215,8 @@ RelationDefinition transferRelation = RelationDefinition.builder("Account", "Acc
         .build();
 ```
 
-> [!TIP]
-> **Real-World Transfer Metadata**: In a production financial graph, you would typically attach additional edge attributes alongside `amount`—such as `.addAttribute("timestamp", transferTimestampSource)` (`DataType.TIMESTAMP_MS`) for temporal window filtering, `channel`, or `status`. Because Impulse stores edge attributes in Structure-of-Arrays (SoA) layout, a query that only filters on `edge.amount > 1000.0` scans only the contiguous `amount[]` column and never touches `timestamp[]` or `channel[]` in memory.
+!!! tip
+    **Real-World Transfer Metadata**: In a production financial graph, you would typically attach additional edge attributes alongside `amount`—such as `.addAttribute("timestamp", transferTimestampSource)` (`DataType.TIMESTAMP_MS`) for temporal window filtering, `channel`, or `status`. Because Impulse stores edge attributes in Structure-of-Arrays (SoA) layout, a query that only filters on `edge.amount > 1000.0` scans only the contiguous `amount[]` column and never touches `timestamp[]` or `channel[]` in memory.
 
 ---
 

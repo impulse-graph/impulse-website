@@ -2,8 +2,8 @@
 
 If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (`impulse-graph-tooling`)** is the fastest way to build, inspect, validate, and optimize snapshots.
 
-> [!TIP]
-> **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
+!!! tip
+    **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
 
 ---
 
@@ -317,8 +317,8 @@ print(f"Sampled subgraph: {batch.num_sampled_nodes} nodes, {batch.edge_index.sha
 csr_mat = dataset.to_scipy_csr()
 ```
 
-> [!TIP]
-> **Want to learn more about PyTorch & GNN training over `.imps` snapshots larger than RAM?** See the **[PyTorch & Graph Neural Networks Showcase](../showcase/gnn.md)**.
+!!! tip
+    **Want to learn more about PyTorch & GNN training over `.imps` snapshots larger than RAM?** See the **[PyTorch & Graph Neural Networks Showcase](../showcase/gnn.md)**.
 
 ---
 

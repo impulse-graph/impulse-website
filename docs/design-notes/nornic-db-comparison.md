@@ -46,12 +46,14 @@ Evaluating the two architectures based on hardware utilization, memory access me
 
 #### NornicDB Storage Engine
 NornicDB relies on BadgerDB (an LSM-tree key-value store in Go) for persistent graph storage:
+
 * **Key Encoding**: Encodes nodes, edges, labels, properties, and MVCC version timestamps into binary KV keys (e.g. `n:{node_id}`, `e:{edge_id}`, `mvcc:{key}:{version}`).
 * **Snapshot Isolation & WAL**: Implements Multi-Version Concurrency Control (`pkg/storage/badger_mvcc.go`) and a Write-Ahead Log (`pkg/storage/wal.go`) to guarantee atomicity and support historical time-travel reads.
 * **Overhead**: Requires key deserialization, Go heap object allocations (`Node`, `Edge`), and garbage collector sweep management during graph traversals.
 
 #### Impulse Binary Snapshot (`.imps`)
 Impulse Graph Engine bypasses key-value stores entirely:
+
 * **Off-Heap Memory Mapping**: Operates directly over 128-byte hardware-aligned binary files (`.imps` ). CSR/CSC topology vectors and SoA attribute matrices are memory-mapped (`mmap`) into process virtual memory.
 * **Zero GC & Zero Deserialization**: `ImpulseVM` reads raw C-pointers directly off-heap. Zero Go/Java garbage collection pauses or key decoding steps take place during query evaluation.
 
@@ -61,11 +63,13 @@ Impulse Graph Engine bypasses key-value stores entirely:
 
 #### NornicDB Query Execution & Shape Fast-Paths
 NornicDB parses Cypher into an AST (`pkg/cypher/ast_builder.go`) and uses a specialized **Query Shape Matcher** (`compound_query_shape_matcher.go`):
+
 * **Hot-Path Fast-Paths**: Instead of executing generic AST iterator trees for every query, NornicDB checks if incoming Cypher queries match known fast-path shapes (e.g., `MATCH (n:Label) RETURN n LIMIT K` or `MATCH (n) WHERE cosine(...) RETURN n`).
 * **Specialized Fast Executors**: If matched, execution routes directly to optimized Go functions like `executor_match_limit_fastpath.go` or `executor_match_vector_cosine_fastpath.go`, bypassing general clause evaluation and yielding massive throughput gains (3–52x speedup over Neo4j).
 
 #### ImpulseVM Register Lowering
 Impulse Graph Engine compiles Cypher into `ImpScheme` S-Expressions (`.impscm`), lowers them to `ImpAsm` register assembly (`.impas`), and executes binary `impOps` opcodes over `ImpulseVM` registers (`R0`..`R63`):
+
 * **Deterministic Opcode Sequences**: Common query shapes map down to tight opcode loops (e.g., `OP_LABEL_SCAN` $\to$ `OP_NODE_FILTER` $\to$ `OP_CSR_WALK` $\to$ `OP_SORT_TOPK`).
 * **Zero-Allocation Hot Path**: Every opcode executes in an allocation-free C++/Rust loop over pre-allocated VM scratch arenas, achieving sub-microsecond query execution.
 

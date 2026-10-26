@@ -32,6 +32,7 @@ This document provides a comparative analysis of the core engine architectures, 
 
 #### TuringDB V3 Execution Pipeline
 TuringDB's query execution engine leverages MLIR (Multi-Level Intermediate Representation) via its custom `db` dialect. 
+
 1. **Compilation Phase**: OpenCypher queries are parsed into AST representations, optimized in physical plans, and converted to MLIR `db` dialect ops (e.g. `db.scan_nodes_by_label`, `db.get_out_edges`, `db.cross_product`, `db.filter`, `db.sort`).
 2. **Lowering & Execution Phase**: The MLIR module is lowered directly into a pipeline of streaming C++ `Processor` nodes (defined under `query/pipeline/processors/`). Data streams between processors in columnar blocks (`PipelineBuffer`), using pull/push streaming interfaces (`PipelineNodeInputInterface`, `PipelineBlockOutputInterface`).
 3. **Strengths**: Highly expressive, modular pipeline for relational/graph operators; natural handling of dynamic query constructs like arbitrary Cypher expressions (`EvalBinaryExpr`), hash joins (`HashJoinProcessor`), un-paged sorting (`OrderByProcessor`), and list unwinding (`UnwindProcessor`).
@@ -39,6 +40,7 @@ TuringDB's query execution engine leverages MLIR (Multi-Level Intermediate Repre
 
 #### Impulse VM Execution Architecture
 Impulse Graph Engine executes queries through a register-based Virtual Machine (`ImpulseVM`) operating over 64 general-purpose registers (`R0`..`R63`).
+
 1. **Compilation Phase**: User queries (authored in `ImpK` matrix DSL, `ImpLog` Datalog DSL, or macro extensions) are compiled into `ImpScheme` homoiconic S-expressions (`.impscm`), converted to human-readable `ImpAsm` text assembly (`.impas`), and assembled into binary `impOps` bytecode (`.impb`).
 2. **Execution Phase**: The `ImpulseVM` interpreter (implemented in native C++20, Rust, and Java 25 FFM with `MethodHandle` JIT combinators) iterates over compact bytecode opcodes (`0x00`..`0x75`, `0x90`..`0x93`). Opcodes operate directly over off-heap memory-mapped arrays in zero-copy `.imps` snapshot files.
 3. **Strengths**: Sub-microsecond query execution, zero physical RAM allocations, zero GC overhead, AVX-512 vectorization, and deterministic off-heap bounds checking.

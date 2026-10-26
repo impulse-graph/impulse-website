@@ -9,6 +9,7 @@ It details how an un-optimized Abstract Syntax Tree (AST) is bound to an immutab
 ## 1. Executive Summary & The Immutable Snapshot Thesis
 
 In traditional relational and graph databases (e.g., PostgreSQL, Neo4j, CockroachDB), query optimizers operate under **probabilistic uncertainty**:
+
 1. **Dynamic Mutation**: The underlying dataset mutates concurrently, forcing optimizers to rely on stale, sampled histograms.
 2. **Conservative Transformations**: Compilers cannot safely apply aggressive algebraic rewrites (e.g., eliminating deduplication or skipping multi-hop scans) because data invariants might be violated at runtime.
 3. **Bag Semantics Explosion**: Intermediate multi-set path expansions require heap allocations and expensive runtime hash deduplication (`DISTINCT`).
@@ -84,6 +85,7 @@ When an expression is bound to a snapshot, the compiler immediately evaluates bo
 
 ### 2.1 Zone Map & Value Range Pruning
 Every numerical, temporal, and lexicographical attribute in `.imps` contains precomputed `[MinVal, MaxVal]` bounds:
+
 * **Rule**: For predicate `attr < C` or `attr > C`:
   $$\text{If } C < \text{attr}.\min \land \text{op} \in \{<, \le, =\} \implies \text{Node} \to \mathbf{False}$$
   $$\text{If } C > \text{attr}.\max \land \text{op} \in \{>, \ge, =\} \implies \text{Node} \to \mathbf{False}$$
@@ -91,12 +93,14 @@ Every numerical, temporal, and lexicographical attribute in `.imps` contains pre
 
 ### 2.2 Nullability Contradiction Pruning
 Attributes in `.imps` have an explicit nullability bitmask and exact `NullCount`:
+
 * **Rule 1 (`NullCount == 0`)**: `attr != null` folds to `true`; `attr == null` folds to `false`.
 * **Rule 2 (`NullCount == NodeCount`)**: `attr != null` folds to `false`; `attr == null` folds to `true`.
 * **Impact**: Eliminates null-checking branch instructions and null-bitmap scans across hot SIMD loops.
 
 ### 2.3 Empty & Degenerate Relation Elimination
 If a query specifies a traversal across relation $\mathcal{E}_R$ (e.g., `(u:User)-[:SUSPENDED_BY]->(a:Admin)`):
+
 * **Rule**: If `RelationDirectoryEntry.EdgeCount == 0`, the traversal result is strictly the empty set $\emptyset$.
 * **Impact**: The compiler replaces the entire traversal pipeline and subsequent downstream joins with an immediate empty vector return (`OP_RET_EMPTY`).
 
@@ -118,6 +122,7 @@ To empower the AST compiler, we formalize the exact statistics and structural in
 ### 3.1 Metadata Granularity & Sizing Budget
 
 Statistics must remain lightweight to preserve $O(1)$ zero-copy cold start and fast memory mapping:
+
 * **Per-Domain Statistics**: Embedded in `DomainCatalogEntry` (fixed 32 bytes).
 * **Per-Relation Statistics**: Embedded in `RelationDirectoryEntry` (fixed 128 bytes) and extended via optional 64-byte structural descriptor blocks.
 * **Per-Attribute Zone Maps**: Embedded in `AttributeDescriptor` (expanded from 44 bytes to fixed 64 bytes).
@@ -311,6 +316,7 @@ During query compilation, the AST is decorated with an **Algebraic Property Vect
 ### 5.1 Pass 1: Algebraic Dead Code Elimination & Interval Arithmetic
 
 The compiler traverses AST expressions bottom-up, synthesizing interval bounds $[L_i, U_i]$:
+
 * **Addition $[a, b] + [c, d]$**: $[a + c, b + d]$
 * **Multiplication $[a, b] \times [c, d]$** (for non-negative ranges): $[a \cdot c, b \cdot d]$
 * **Relational Comparison**: If $[L_{\text{lhs}}, U_{\text{lhs}}] \cap [L_{\text{rhs}}, U_{\text{rhs}}] = \emptyset$, fold comparison node to constant `true` or `false`.
@@ -347,10 +353,12 @@ $$\text{Cardinality Explosion}: \quad |S_k| = O(d^k)$$
 ### 5.3 Pass 3: Semilattice & Reducer Pushdown
 
 When a query computes an aggregation over a traversal (e.g., `MAX(p.rating)` or `COUNT(g)`):
+
 * **Traditional Execution**:
   $$\text{Source Set} \xrightarrow{\text{Expand}} \text{Target Nodes} \xrightarrow{\text{Materialize}} \text{Load Attributes} \xrightarrow{\text{Fold}} \text{Scalar}$$
 * **Semilattice Reduction ($\sqcup$)**:
   Because $(\max, -\infty)$ forms a join-semilattice where $x \sqcup x = x$ (idempotence) and $x \sqcup y = y \sqcup x$ (commutativity):
+
   - The compiler **pushes the reduction directly into the CSR neighborhood inner loop**.
   - **No intermediate node array or target vector is ever materialized**.
   - Register `R_acc` holds the rolling scalar accumulator, updated with SIMD `_mm512_max_epi32`.
@@ -358,6 +366,7 @@ When a query computes an aggregation over a traversal (e.g., `MAX(p.rating)` or 
 ### 5.4 Pass 4: Join Direction & Topology Inversion
 
 Given a traversal query between two node sets $\mathcal{A}$ and $\mathcal{B}$ connected by relation $\mathcal{E}_R$:
+
 * **Forward Cost**: $|\mathcal{A}| \times \text{AvgOutDegree}(R)$
 * **Reverse Cost**: $|\mathcal{B}| \times \text{AvgInDegree}(R)$
 
@@ -365,12 +374,14 @@ Given a traversal query between two node sets $\mathcal{A}$ and $\mathcal{B}$ co
   The compiler inspects `RelationDirectoryEntry` statistics:
   $$\text{If } |\mathcal{B}| \times \text{AvgInDegree}(R) < |\mathcal{A}| \times \text{AvgOutDegree}(R) \land \text{SectionFeatures.has}(\text{CSC}):$$
   $$\text{REWRITE } \mathcal{A} \xrightarrow{R} \mathcal{B} \quad \Longrightarrow \quad \mathcal{B} \xleftarrow{R^T} \mathcal{A}$$
+
   - Switches opcode from `OP_CSR_WALK` (`0x10`) to `OP_CSC_WALK` (`0x18`).
   - Swaps source/target binding registers, cutting CPU cache misses by orders of magnitude.
 
 ### 5.5 Pass 5: Monotonic Range Slicing & Binary Search
 
 For range predicates like `WHERE post.created_at >= 1700000000 AND post.created_at < 1700086400`:
+
 * If `AttributeDescriptor.Monotonicity == MONOTONIC_ASC`:
   - **Do NOT emit** `OP_NODE_FILTER` (linear $O(N)$ SIMD scan).
   - **Emit** `OP_RANGE_SLICE_ASC` ($O(\log N)$ binary search over contiguous SoA array).
@@ -898,6 +909,7 @@ Instead of matching specific function names (e.g. `log`, `sin`, `age`), the comp
 $$\Sigma = \langle \mathcal{C}, \oplus, \varepsilon, \top, \sqsubseteq, \mathcal{A} \rangle$$
 
 Where:
+
 * $\mathcal{C}$: Carrier data type (e.g. `uint32`, `float64`, $\mathcal{V} \times \mathcal{S}$).
 * $\oplus$: Binary composition / reduction operator.
 * $\varepsilon$: Identity (neutral) element.

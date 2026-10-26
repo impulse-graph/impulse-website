@@ -2,14 +2,14 @@
 
 The **`impulse-powergrid`** showcase illustrates how a 100x–300x leap in graph traversal speed doesn't just optimize an existing workflow—it makes an **entirely new operational capability practical in real time**.
 
-> [!IMPORTANT]
-> **LEGAL & OPERATIONAL DISCLAIMER — RESEARCH & ILLUSTRATIVE USE ONLY**:
->
-> `impulse-powergrid` is provided **strictly for academic research, software architecture benchmarking, and performance evaluation purposes**. The Pan-European PEGASE test cases contain synthetic, fictitious data.
->
-> This software is **NOT** certified, designed, or intended for real-time electrical grid operations, physical power dispatch, critical infrastructure control, safety-critical decision making, or live transmission system outage planning.
->
-> The authors and contributors assume **NO LIABILITY OR RESPONSIBILITY** for any direct, indirect, incidental, special, or consequential damages arising from the use of or reliance upon this software.
+!!! important
+    **LEGAL & OPERATIONAL DISCLAIMER — RESEARCH & ILLUSTRATIVE USE ONLY**:
+
+    `impulse-powergrid` is provided **strictly for academic research, software architecture benchmarking, and performance evaluation purposes**. The Pan-European PEGASE test cases contain synthetic, fictitious data.
+
+    This software is **NOT** certified, designed, or intended for real-time electrical grid operations, physical power dispatch, critical infrastructure control, safety-critical decision making, or live transmission system outage planning.
+
+    The authors and contributors assume **NO LIABILITY OR RESPONSIBILITY** for any direct, indirect, incidental, special, or consequential damages arising from the use of or reliance upon this software.
 
 ---
 
@@ -80,6 +80,7 @@ Every simulation output was verified against independent third-party **PYPOWER**
 ## 4. Beyond Power Grids: Where Else Does This Pattern Apply?
 
 The exact same **"fast exhaustive counterfactual simulation over an immutable `.imps` snapshot"** pattern applies directly to:
+
 * **Global Container Shipping & Logistics**: When a port closes or a vessel is delayed, recalculating all valid empty-container repositioning moves and multi-leg transshipment options across thousands of depots in seconds.
 * **Airline Disruption Recovery**: Evaluating millions of aircraft and crew re-pairing combinations after a hub weather event.
 * **Telecommunications & Cloud Routing**: Simulating dual-fiber-cut ($N-2$) reachability and latency impact across backbone BGP/MPLS topologies.

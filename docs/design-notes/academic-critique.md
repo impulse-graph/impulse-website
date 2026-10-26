@@ -132,6 +132,7 @@ These are topics the document fails to address but could, and any of them would 
 ### 4.1 GPU / Accelerator Offload
 
 Section 29.2 mentions MLIR → GPU as a future path, but there is zero treatment of how the algebra maps to GPU execution. Given that:
+
 - CSR/CSC sparse matrix formats are native to cuSPARSE.
 - The semiring vMxV primitive maps directly to GPU SpMV kernels.
 - The `.imps` format's 128-byte alignment (stated in AGENTS.md §3.1) was explicitly designed for GPU warp coalescing.
@@ -212,6 +213,7 @@ The presentation implicitly assumes uniform destination distribution — each th
 In scale-free networks (social graphs, web graphs, citation networks), destination popularity follows a power-law distribution ($P(d_{\text{in}} = k) \propto k^{-\gamma}$). A tiny fraction of "hot" destination nodes (celebrities, hub pages) attract 50%+ of all incoming edges. The thread owning the target range containing those hubs becomes a serial bottleneck while other threads idle.
 
 **Fix**: You need a load-balancing strategy. Options include:
+
 - **Degree-weighted range partitioning**: Assign target ranges such that each thread owns an equal *edge weight* (sum of in-degrees), not equal *node count*. This requires the in-degree histogram from your statistics catalog (§15).
 - **Work-stealing**: Allow idle threads to steal sub-ranges from overloaded threads.
 - **Hybrid hub isolation**: Route edges targeting the top-$k$ highest in-degree hubs to a dedicated reduction path (connecting back to §15.2's hub detection), while the remaining uniform-degree nodes use equal-range sharding.
@@ -280,6 +282,7 @@ Section 47.3.4 claims a 2.77x speedup against the GAP Benchmark Suite (8.15s vs 
 Your 2.77x speedup is a compiler artifact. You compiled your `gapbs_bench_bit_steered.cpp` benchmark in Debug mode (without `-O3` optimization). Unoptimized C++ disproportionately penalizes tight atomic CAS loops because the compiler cannot inline the standard library atomic operations or hoist memory accesses out of the inner loop, causing the atomic baseline to artificially bloat to 8.15 seconds.
 
 When compiled correctly with standard release optimizations (`clang++ -std=c++20 -O3 -Wall`), the empirical reality inverts:
+
 1. **Your Naive Atomic CAS Baseline**: drops from 8,151 ms to **2,056 ms**.
 2. **Your Bit-Steered Sharding**: drops from 2,943 ms to **2,792 ms**.
 3. **The True GAPBS (Direction-Optimized Dense Pull)**: executes in **~1,055 ms**.

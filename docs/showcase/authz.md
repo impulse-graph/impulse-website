@@ -7,6 +7,7 @@ The **`impulse-authz`** showcase demonstrates how Impulse Graph powers sub-micro
 ## 1. The Real-World Problem
 
 In modern enterprise software, permissions aren't just simple role strings—they form a deep hierarchy of relationships:
+
 * A `User` belongs to a `Group` (which may be nested inside parent `Group`s).
 * A `Group` is assigned a `Role`.
 * A `Role` grants `Permission` over a `Folder` or `Resource` (which itself has child `Document`s).
@@ -61,6 +62,7 @@ Because authorization policies are read-heavy and change at a human/administrati
 ## 3. Keeping Permissions Fresh: Periodic Rebuild & Atomic Swap
 
 How do permission changes propagate without introducing reader locks?
+
 1. Administrative permission updates write to your system-of-record database (e.g., PostgreSQL).
 2. A background worker compiles a fresh `.imps` authorization snapshot in seconds (or consumes Debezium CDC events) and publishes it to blob storage / local NVMe.
 3. Application pods `mmap` the new `.imps` file in `< 1 ms` and perform a **zero-downtime Blue/Green atomic pointer swap** (see [Changing Data & Live Updates](../getting-started/handling-mutations.md)). Active API requests continue running with **zero locks** and **zero GC pauses**.

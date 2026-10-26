@@ -112,6 +112,7 @@ To maintain runtime security against invalid branches into the middle of a 128-b
 
 ### 3.3 Instruction Modifier Flags
 The `flags` byte in the instruction structure is a bitmask defined as:
+
 - **`Bit 0` (`0x01` / `IMPULSE_VM_OP_FLAG_MODE_BITSET`)**: Mode BitSet flag. When set, operations operate on or return BitSet handles.
 - **`Bit 1` (`0x02` / `IMPULSE_VM_OP_FLAG_ACCUMULATE`)**: Accumulate flag. Instructs the VM to accumulate results into the destination register rather than overwriting.
 - **`Bit 2` (`0x04` / `IMPULSE_VM_OP_FLAG_INVERT`)**: Invert flag. Negates conditions, filters, or set tests.
@@ -123,6 +124,7 @@ The `flags` byte in the instruction structure is a bitmask defined as:
 ## 4. VM Lifecycle and FFI API Requirements
 
 The native engine library **MUST** export standard C-linkage FFI methods to interact with VM contexts and query states. The FFI boundary **MUST** support the following operations:
+
 1. `impulse_vm_context_create(const impulse_snapshot_t* snapshot)`: Allocates and pre-indexes an execution context.
 2. `impulse_vm_context_destroy(impulse_vm_context_t* ctx)`: Safely deallocates all off-heap arenas.
 3. `impulse_vm_context_acquire_bitset(impulse_vm_context_t* ctx)`: Returns a free BitSet slot handle index.
@@ -136,12 +138,14 @@ The Impulse Graph Engine supports nullable attributes via 128-byte aligned **Val
 
 ### 5.1 Filters and Comparisons
 When evaluating predicate opcodes (e.g., `OP_NODE_FILTER`, `OP_NODE_FILTER_STR_PREFIX`, `OP_CSR_WALK_FILTERED`, `OP_VEC_CMP_EQ`):
+
 - If the attribute validity bit for an element is `0` (null), the comparison **MUST** immediately evaluate to `false`.
 - Nulls are considered unknown states. `NULL == NULL` evaluates to `false`, and `NULL != VALUE` evaluates to `false`.
 - If the `INVERT` flag is set on the instruction, null elements **MUST STILL** evaluate to `false`. An inverted filter returns all *valid* elements that do not match the condition; it **MUST NOT** return null elements.
 
 ### 5.2 Aggregations and Reductions
 When evaluating reduction opcodes (e.g., `OP_CSR_WALK_REDUCE_SUM`, `OP_REDUCE`, `OP_EWISE_REDUCE_MIN`, `OP_EWISE_REDUCE_MAX`):
+
 - **Skip Semantics**: Aggregators **MUST** skip (ignore) elements where the validity bit is `0`.
   - For example, `OP_CSR_WALK_REDUCE_SUM` over weights `[5.0, NULL, 3.0]` yields `8.0`. 
   - `OP_SET_CARDINALITY` or counting reductions over `[A, NULL, B]` yields `2`.
@@ -149,12 +153,14 @@ When evaluating reduction opcodes (e.g., `OP_CSR_WALK_REDUCE_SUM`, `OP_REDUCE`, 
 
 ### 5.3 Element-Wise Vector Algebra
 When evaluating vector math opcodes (e.g., `OP_EWISE_ADD`, `OP_EWISE_MULT`, `OP_VEC_MATH_TERNARY`):
+
 - **Poison / Propagation Semantics**: If any source element in a vector operation is null (validity bit is `0`), the resulting vector element **MUST** also be marked as null.
   - For example, `[5.0, NULL, 2.0] + [1.0, 1.0, 1.0] = [6.0, NULL, 3.0]`.
 - The destination register containing the resulting vector (`TYPE_FLOAT_VECTOR`, etc.) **MUST** have an associated validity bitmap allocated in the VM Context if any source vector was nullable.
 
 ### 5.4 Gather and Indirect Loads
 When evaluating `OP_GATHER_NODE_ATTR`, `OP_GATHER_EDGE_ATTR`, or `OP_LOAD_INDIRECT`:
+
 - If the target attribute is schema-defined as nullable, the VM **MUST** load and bind both the data span and the validity bitmap span to the resulting vector register handle. Any downstream opcodes interacting with that register will then correctly apply the semantics from §5.1, §5.2, or §5.3.
 
 ## 6. ImpOps Instruction Set Reference
@@ -200,6 +206,7 @@ The VM **MUST** execute bytecode instructions matching the opcode values and rul
 ### 6.2 Traversal and Filter Instructions
 
 All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `OP_CSC_WALK`) follow a common execution behavior:
+
 - **Frontier Evaluation & Flag Behavior**: If the source nodes frontier is empty (contains no active node IDs), or if the traversal result set is empty, the VM **MUST** set the Zero Flag (`ZF`) to 1 in the `flags` register. Otherwise, `flags[ZF]` **MUST** be cleared (set to 0).
 - **BitSet Materialization**: By default, Walk opcodes allocate a new off-heap BitSet handle in `dst_reg`. If the `ACCUMULATE` modifier flag is set on the instruction, the result set is unioned directly into the existing BitSet in `dst_reg` without deallocation.
 - **Valid Filters and Reductions**:
@@ -247,6 +254,7 @@ All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `O
 ### 6.3 Set Mathematics and Algebra Instructions
 
 Set math and algebraic instructions are classified based on the number and structure of their operands:
+
 - **Unary Set Operations**: Operations that accept a single source register (e.g. `OP_SET_CARDINALITY`) and write to `dst_reg`.
 - **Binary Set Operations**: Operations that combine two source registers (e.g. `OP_SET_UNION`, `OP_SET_INTERSECT`, `OP_SET_DIFFERENCE`). For these, the first source register (`src1`) is specified in the lower 16 bits of the payload, and the second source register (`src2`) is specified in the upper 16 bits of the payload. The output is written to `dst_reg` (transitioning it to `TYPE_BITSET_HANDLE`).
 - **Vector-to-Vector (EWise) Operations**: Element-wise vector algebra (e.g. `OP_EWISE_ADD`, `OP_EWISE_MULT`) acting on float, double, or integer arrays.

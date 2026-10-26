@@ -83,6 +83,7 @@ Begins at byte offset `DataOffset` (byte 4096). Contains the **Shared String Tab
 
 ### 3.1 Shared String Table (String Pool Heap)
 Begins at byte offset `DataOffset` (4096):
+
 * `StringTableBytes` (`uint32_t`, 4B): Total byte size of string pool blob.
 * `StringPool` (`byte[StringTableBytes]`): Contiguous null-terminated UTF-8 byte stream starting with `\0` at offset `0`.
   - String offset `0` corresponds to empty string `""`.
@@ -128,6 +129,7 @@ Begins immediately after Domain Catalog Array, aligned to a 128-byte boundary. C
 #### 3.3.2 Virtual Super-Relation C-ABI Payload (`Reserved2` Overload & Overflow Rules)
 
 When `IMP_REL_FEATURE_VIRTUAL` (`Bit 2`) is enabled in `SectionFeatures`:
+
 * **Inline Fast Path ($1 \le \text{component\_count} \le 10$)**:
   Bytes `0x006A` – `0x007F` (22 bytes) in the `RelationDirectoryEntry` are overloaded to store the constituent relation payload directly inside the fixed 128-byte entry (zero extra file reads or memory allocations):
 
@@ -140,6 +142,7 @@ struct ImpulseVirtualRelationPayload {
 
 * **Overflow Extended Path ($\text{component\_count} > 10$, up to 65,536)**:
   For large virtual relations composed of more than 10 physical relations:
+
   1. `component_ids[0]` is set to `0xFFFF` (Overflow Sentinel Flag).
   2. `CsrColIdxOffset` (8-byte `uint64_t`) stores a 128B-aligned absolute file offset to an off-heap array of `uint16_t component_ids[component_count]`.
   3. `CsrColIdxBytes` stores the byte size ($= \text{component\_count} \times 2$).
@@ -257,6 +260,7 @@ Begins immediately after Relation Directory Table, aligned to a 128-byte boundar
 ### 4.4 Optional Snapshot Topology & Topology Inspection Opcodes (`0x19` .. `0x1C`)
 
 In accordance with the Impulse Graph Engine physical snapshot format specification, **all structural topology representations (CSR, CSC, COO) and Key Catalogs are fully optional**:
+
 * **CSR (Forward Out-Edges $u \to v$)**: Optional. Opcodes `OP_CSR_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
 * **CSC (Reverse In-Edges $v \leftarrow u$)**: Optional. Opcodes `OP_CSC_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
 * **COO (Coordinate Edge List $[E, 2]$)**: Optional. Opcodes `OP_COO_*` fail-fast with `IMPULSE_VM_ERR_NULL_SNAPSHOT` if absent.
@@ -301,6 +305,7 @@ In accordance with the physical specification, $O(N)$ linear scans or heap alloc
 
 ### 6.1 Dense ID to Key Resolution ($O(1)$ Array Lookup)
 The forward mapping (Dense ID $\to$ External Key) is implemented natively by storing the keys as a standard **Node Domain Attribute** (often implicitly named `_key` or identified via `IndexType = 0xFFFF`).
+
 - For fixed-width keys (e.g. `INT64`), the dense ID is simply used to directly index the 128B-aligned `data_ptr` array ($O(1)$ lookup).
 - For variable-length keys (e.g. `VAR_STRING`, `UUID128`), the dense ID indexes the `offsets_ptr` array to locate the slice within the `data_ptr` blob ($O(1)$ lookup).
 

@@ -20,5 +20,6 @@ When configuring an execution pool across snapshot rotations, a `GrowthPolicy` d
 ## Headroom Monitoring
 
 The engine exposes JMX and Prometheus metrics to monitor current off-heap scratch capacity headroom:
+
 - `impulse_capacity_nodes_headroom_percent`
 - `impulse_capacity_edges_headroom_percent`

@@ -11,6 +11,7 @@ Impulse Graph stores graph topology and attributes completely off-heap via FFM `
 ### 1.1 Off-Heap Segment Hierarchy
 
 When a snapshot is loaded via `BinarySnapshotLoader.loadSnapshot(...)`:
+
 1. **Memory Mapping**: The `.imps` file is mapped via `FileChannel.map(FileChannel.MapMode.READ_ONLY, 0, size, arena)`, producing an off-heap `MemorySegment`.
 2. **Kernel Prefetching (`MADV_WILLNEED`)**: `BinarySnapshotLoader` immediately invokes `segment.load()`. At the OS level, this issues an `madvise(..., MADV_WILLNEED)` call, prefetching pages into the OS page cache asynchronously to eliminate soft page fault stalls during cold start.
 3. **Relation Slices**: The root segment is sliced into zero-copy sub-segments encapsulated inside `RelationSnapshot`:
@@ -79,6 +80,7 @@ To maximize memory subsystem throughput and enable direct vector hardware instru
 
 ### 3.1 128-Byte Hardware SIMD & Direct I/O Boundary
 Every topological array, SoA attribute column, and validity bitmap in `.imps` is aligned to a **128-byte boundary** (`(offset + 127) & ~127`):
+
 * **AVX-512 Vector Registers**: 512-bit registers (`zmm0`..`zmm31`) require 64-byte alignment; 128-byte alignment guarantees two back-to-back 512-bit vector registers or unrolled dual-issue SIMD pipelines never cross a hardware cache-line boundary.
 * **GPU Warp Coalescing**: Aligns with 128-byte memory transaction segments for NVIDIA GPUDirect Storage (`cuFile`) and GPU warp memory access.
 * **TPU Vector Tiles**: Matches Google TPU matrix multiply vector tile buffers.
@@ -222,8 +224,8 @@ Because traversal frontiers propagate through pre-allocated `MemorySegment` buff
 
 ### 7.1 Microbenchmark & GC Verification
 
-> [!NOTE]
-> Modern JVMs (Java 9+) replace the legacy `-XX:+PrintGCDetails` option with unified JVM logging (`-Xlog:gc*`).
+!!! note
+    Modern JVMs (Java 9+) replace the legacy `-XX:+PrintGCDetails` option with unified JVM logging (`-Xlog:gc*`).
 
 To verify zero-GC execution in continuous integration or microbenchmarks:
 ```bash

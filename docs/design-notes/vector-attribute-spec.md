@@ -88,6 +88,7 @@ To execute vector similarity operations without dynamic heap allocations, three 
 ## 4. Architectural Summary
 
 Elevating `vector[]` to a first-class attribute datatype in Impulse Graph Engine seamlessly unifies **Graph Analytics** and **Vector Retrieval** into a single zero-copy execution engine:
+
 1. **Zero Memory Allocation**: Preserves `ImpulseVM`'s allocation-free hot path.
 2. **Unified Data Layout**: Eliminates the need for external vector databases (Qdrant/Faiss) or separate HNSW index files.
 3. **Hardware Maximization**: Exploits AVX-512 FMA vector units and 128-byte alignment for sub-microsecond vector graph traversals.

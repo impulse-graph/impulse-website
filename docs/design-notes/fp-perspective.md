@@ -35,6 +35,7 @@ Because the target state space is strictly indexed by unique target node IDs, in
 ### 2.1 The Category of Typed Schemas $\mathbf{C}_{\text{Schema}}$
 
 A heterogeneous graph schema defines a small category $\mathbf{C}_{\text{Schema}}$ where:
+
 1. **Objects ($\mathrm{Ob}(\mathbf{C})$)**: Strongly typed node domains $\{\mathcal{V}_A, \mathcal{V}_B, \mathcal{V}_C, \dots\}$.
 2. **Morphisms ($\mathrm{Hom}(A, B)$)**: Typed edge relations $\mathcal{E}_R: \mathcal{V}_A \to \mathcal{V}_B$.
 3. **Identity Morphisms ($\mathrm{id}_A$)**: The diagonal relation $\Delta_A = \{ (v, v) \mid v \in \mathcal{V}_A \}$.
@@ -93,6 +94,7 @@ If node $d$ is reached via $1,000$ paths, $\mathcal{M}(X)$ contains $1,000$ copi
 
 ### 3.2 The Semiring-Weighted (Distribution) Monad: $\mathcal{W}_R(X) = X \to R$
 Used by Impulse Graph. For a semiring $(R, \oplus, \otimes, \mathbf{0}, \mathbf{1})$, the functor $\mathcal{W}_R$ assigns to each element in finite set $X$ a scalar weight in $R$:
+
 * **Unit ($\eta$)**: Creates a basis (Dirac indicator) vector:
   $$\eta(x) = \mathbf{1}_x \quad \text{where } \mathbf{1}_x(y) = \begin{cases} \mathbf{1} & \text{if } y = x \\ \mathbf{0} & \text{if } y \neq x \end{cases}$$
 * **Multiplication / Flattening ($\mu$)**: Folds nested weighted spaces using the semiring's addition ($\oplus$) and multiplication ($\otimes$):
@@ -102,6 +104,7 @@ Used by Impulse Graph. For a semiring $(R, \oplus, \otimes, \mathbf{0}, \mathbf{
 ### 3.3 Kleisli Composition is Semiring Matrix Multiplication
 
 The **Kleisli Category** $\mathbf{Kl}(\mathcal{W}_R)$ has:
+
 - **Objects**: Finite node sets $\mathcal{V}_A, \mathcal{V}_B$.
 - **Morphisms**: Transition kernels $f: \mathcal{V}_A \to \mathcal{W}_R(\mathcal{V}_B)$ (equivalent to $|\mathcal{V}_A| \times |\mathcal{V}_B|$ matrices over $R$).
 
@@ -140,6 +143,7 @@ When the frontier arrives at target node $d$, Impulse executes a canonical fold 
 $$\sigma_d = \bigoplus_{(s, e) \in \pi_2^{-1}(d), \, (s, \sigma_s) \in \mathcal{S}_{\text{Src}}} \phi(\sigma_s, s, \mathcal{A}_{\mathcal{E}}(e), d)$$
 
 Because $(\Sigma, \oplus, \varepsilon)$ is an algebraic monoid:
+
 1. **Associativity**: $(\sigma_1 \oplus \sigma_2) \oplus \sigma_3 = \sigma_1 \oplus (\sigma_2 \oplus \sigma_3)$, allowing OpenMP and SIMD threads to partition the fiber into arbitrary chunks without synchronization locks.
 2. **Identity**: $\sigma \oplus \varepsilon = \sigma$, ensuring unvisited nodes require zero computation.
 
@@ -175,6 +179,7 @@ While GraphBLAS elegantly models linear algebra over homogeneous matrices, it st
 ### 5.2 Graphs as Grothendieck Fibrations (Topology vs. Attribute Sheaves)
 
 In Category Theory, a property graph is modeled as a **Fibration** $\mathcal{P}: \mathbf{E} \to \mathbf{B}$:
+
 1. **Base Category $\mathbf{B}$**: Pure structural topology (discrete node indices $\mathcal{V}$ and CSR edge adjacency indices $\mathcal{E}$).
 2. **Total Category $\mathbf{E}$**: Graph elements paired with rich attribute tuples.
 3. **Fiber $\mathcal{P}^{-1}(v)$ / $\mathcal{P}^{-1}(e)$**: The typed attribute record $\mathcal{A}_{\mathcal{V}}(v)$ or $\mathcal{A}_{\mathcal{E}}(e)$.
@@ -400,12 +405,14 @@ The query AST in ImpScheme is a **Free Monad**:
     (reduce monoid-min (lambda (s e d) (+ s (attr e :cost))))))
 ```
 `ImpulseVM` acts as an **Algebraic Effect Handler**. Depending on the execution environment, the handler interprets the effect algebra into:
+
 1. **AVX-512 / NEON SIMD Bytecode (`impOps`)** for native off-heap batch processing.
 2. **Java 25 `MethodHandle` Combinator Trees** for JIT-compiled on-heap server execution.
 3. **GPU Compute Shaders (CUDA / Metal)** for warp-coalesced parallel scans.
 
 ### 10.4 Insight 4: Substructural (Linear) Types for Zero-Copy Guarantees
 In Substructural Type Systems:
+
 - **Exponential Modality ($!A$)**: Represents an immutable resource that can be shared infinitely without copying.
 - **Linear Type ($A \multimap B$)**: Represents a resource that must be consumed exactly once.
 
@@ -416,6 +423,7 @@ In Substructural Type Systems:
 ```
 
 Impulse maps these concepts directly to physical hardware:
+
 - The graph snapshot $\mathcal{G}$ is typed as $!\mathcal{G}$ (backed by immutable, shared memory-mapped pages).
 - Frontier state vectors are typed as **Linear Buffers** ($S \multimap S$). When an edge traversal executes, register `R0` is consumed and transformed into `R1`, allowing the VM to recycle intermediate memory buffers in-place with **zero physical heap allocations**.
 

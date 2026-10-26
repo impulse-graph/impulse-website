@@ -133,5 +133,6 @@ public void copyTargetsSimd(int nodeId, BitSet outBs) {
 
 ### 4. 512k Frontier ST vs. MT Threshold Heuristic
 To eliminate thread pool scheduling overhead on small and medium queries, `VmHandlers.java` dynamically evaluates frontier size against `PARALLEL_FRONTIER_THRESHOLD = 524_288`:
+
 - **Frontier $< 512,000$ active edges**: Executes single-threaded AVX-512 SIMD with zero thread pool locks.
 - **Frontier $\ge 512,000$ active edges**: Automatically switches to multi-threaded parallel execution across physical CPU cores (`ForkJoinPool.commonPool()`).

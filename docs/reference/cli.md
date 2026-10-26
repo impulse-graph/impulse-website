@@ -2,10 +2,11 @@
 
 Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-tooling`). Every release binary statically embeds `libimpulse_graph_static.a`.
 
-> [!IMPORTANT]
-> **Command Naming Convention**:
-> - **`impulse build`** (`impulse snapshot build`) **ONLY builds `.imps` data snapshots** from CSV/Parquet/TSV manifests.
-> - **`impulse compile`** (`impulse compiler compile`) **ONLY compiles query code** (`.impscm`, `.impk`, `.implog`, `.cypher`) into `.impas` assembly or `.impb` bytecode.
+!!! important
+    **Command Naming Convention**:
+
+    - **`impulse build`** (`impulse snapshot build`) **ONLY builds `.imps` data snapshots** from CSV/Parquet/TSV manifests.
+    - **`impulse compile`** (`impulse compiler compile`) **ONLY compiles query code** (`.impscm`, `.impk`, `.implog`, `.cypher`) into `.impas` assembly or `.impb` bytecode.
 
 ---
 
