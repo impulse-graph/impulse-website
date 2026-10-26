@@ -20,7 +20,7 @@ Answering *"Can User $U$ edit Document $D$?"*—or worse, *"Which of these 10,00
 Because authorization policies are read-heavy and change at a human/administrative cadence, they fit Impulse Graph's **"mmap and go"** model naturally:
 
 1. **Multi-Domain Set Traversal**: Starting from a `User`, the query steps across `MEMBER_OF` (with transitive group nesting via `repeatUntilStable`), `HAS_ROLE`, and `GRANTS_ACCESS_TO` to reach the `Resource` domain.
-2. **Set Squishing Eliminates Redundant Paths**: If a user belongs to 5 overlapping groups that all grant access to the same parent folder, Impulse squishes those converging paths into a single bit at each step—never walking the folder's children multiple times.
+2. **Set Semantics Eliminate Redundant Paths**: If a user belongs to 5 overlapping groups that all grant access to the same parent folder, Impulse collapses those converging paths into a single bit at each step—never walking the folder's children multiple times.
 3. **Sub-Microsecond Early Exit**: When checking access to a single resource, the VM checks whether the target `Resource` Dense ID bit is set and short-circuits immediately (`FLAG_HALT_ON_EMPTY`).
 
 === "Java 25 (Fluent API)"

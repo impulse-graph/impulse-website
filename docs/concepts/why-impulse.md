@@ -53,6 +53,28 @@ flowchart LR
 
 Splitting the query stack into a **Frontend**, an **Intermediate Representation (`ImpScheme`)**, **64-bit VM machine code (`impOps`)**, and a **Virtual Machine (`ImpulseVM`)** reduced cross-language compatibility to a single, strictly testable contract: *given the same `.imps` file and the same 64-bit `impOps` instructions, every engine must produce the exact same register values.*
 
+### "Isn't Java Inherently Slower Than C++?" — Memory Bandwidth, JFR, and the JSON Bottleneck
+
+A common assumption in systems engineering is that Java is inherently `10x–50x` slower than C++, or that any fast Java library must secretly wrap C++ via JNI.
+
+Historically, Java graph libraries *were* slow—not because of the JVM's JIT compiler, but because idiomatic Java modeled graphs as millions of heap-allocated `Node`, `Edge`, and `HashMap` objects. Every hop incurred a 64-byte cache-line miss, object header overhead, and eventual Stop-The-World GC pauses.
+
+Impulse Graph's **Pure Java 25 Engine (`impulse-graph-java`)** eliminates those bottlenecks by operating over off-heap `MemorySegment` arenas, `jdk.incubator.vector` SIMD intrinsics, and `MethodHandle` combinator JIT chains. Once both C++20 and Java 25 are scanning the exact same 128-byte-aligned CSR/CSC arrays off-heap:
+
+1. **Memory Bandwidth Dominates Query Speed**: Graph traversal over contiguous integer arrays has low arithmetic intensity; execution time is dominated by **DRAM memory bandwidth and L1/L2/L3 cache-line transfers**, which are identical in C++ and Java.
+2. **The Honest `1.5x–2.0x` (`1.65x`) C++ Edge**: On a full-graph BFS across the **1.47-billion-edge `twitter-2010` snapshot** (10 threads), the Native C++20 kernel executes in **`145.00 ms`** (`91.8x` faster than 1-thread GAPBS C++) while the warmed Pure Java 25 engine executes in **`240.29 ms`** (`55.4x` faster than 1-thread GAPBS C++)—a **`1.65x` ratio**, with **zero heap allocations** inside the traversal loop (confirmed via **JFR allocation profiling**). C++ retains that `1.65x` edge because raw pointers avoid Java's `MemorySegment` bounds checks (~1 cycle/read), JVM loop back-edge safepoint polls, and `ForkJoinPool` task dispatch overhead.
+3. **In Enterprise Services, JSON Serialization Is Slower Than the Graph Query**: When we profiled enterprise ReBAC authorization and navigation queries with **Java Flight Recorder (JFR)** and benchmarked 100,000 requests against Jackson (`ObjectMapper`), we found that **formatting the output as JSON took `3.46x` to `73.4x` more CPU time than the Impulse Graph query took to compute the answer**:
+
+| Operation (100,000-Request Benchmark) | Avg Latency | Relative CPU Cost vs. Graph Query (`large`) |
+| :--- | :---: | :--- |
+| **Impulse Java 25 Multi-Hop Query (`small` profile)** | **`0.026 µs` (`26 ns`)** | `0.047x` (`73.4x` faster than JSON stream) |
+| **Impulse Java 25 Multi-Hop Query (`medium` profile)** | **`0.088 µs` (`88 ns`)** | `0.159x` (`21.7x` faster than JSON stream) |
+| **Impulse Java 25 Multi-Hop Query (`large`, 600k users)** | **`0.552 µs` (`552 ns`)** | **`1.00x` Baseline** |
+| **Jackson Streaming JSON Serialization (`/dev/null`)** | **`1.908 µs` (`1,908 ns`)** | **`3.46x` slower than the graph query** |
+| **Jackson JSON String + UTF-8 Byte Array Output** | **`2.558 µs` (`2,558 ns`)** | **`4.63x` slower than the graph query** |
+
+For enterprise JVM workloads (Spring Boot, gRPC/REST microservices, Kafka processors), the Pure Java 25 engine is wholly suitable: when marshaling the HTTP/JSON response takes several times longer than traversing the graph, you get near-C++ memory-bandwidth speed without native `.so`/`.dll` deployment friction or inherited CVEs.
+
 ---
 
 ## 4. How We Knew the Architecture Was on the Right Track

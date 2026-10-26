@@ -137,7 +137,7 @@ Impulse Graph does not use global IDs. Instead, **each Node Domain possesses its
 
 ---
 
-## 6. How Traversals Execute: Domain Pipelines & "Squishing" Intermediate Results
+## 6. How Traversals Execute: Domain Pipelines & Collapsing Intermediate Results
 
 Understanding how Impulse Graph evaluates a multi-hop query requires knowing two core execution rules that set it apart from SQL `JOIN`s and traditional Cypher/Gremlin engines:
 
@@ -155,10 +155,10 @@ Every traversal in Impulse Graph is a pipeline that steps from one **Node Domain
    * **Target Domain Attributes** (e.g., `product.price`, `product.category`)
    * **Projected State** carried forward along the walk, or a scalar aggregate (`count()`, `sum()`, `max()`).
 
-### Rule 2: Set Semantics (Not Multi-Sets) & Monoidic Reduction ("Squishing")
+### Rule 2: Set Semantics (Not Multi-Sets) & Monoidic Reduction (Collapsing Paths)
 Most query engines (relational SQL `JOIN`s, Neo4j Cypher, Gremlin) use **multi-set (bag-of-paths)** semantics. If User `0` and User `1` both follow User `2`, and User `2` follows 1,000 people, a multi-set engine produces **two duplicate rows** for User `2` at hop 1, and walks all 1,000 of User `2`'s outgoing edges **twice** at hop 2. Over 4 or 5 hops, duplicate paths multiply into millions of redundant intermediate rows.
 
-**Impulse Graph uses Set semantics at every step, "squishing" converging paths together immediately:**
+**Impulse Graph uses Set semantics at every step, collapsing converging paths into a single entry per node immediately:**
 
 ```text
 Multi-Set Engine (SQL JOIN / Standard Cypher) — Duplicate Paths Multiply:
@@ -166,23 +166,23 @@ Multi-Set Engine (SQL JOIN / Standard Cypher) — Duplicate Paths Multiply:
            ├──► User 2  ───► │
   User 1 ──┘                 └──► User 2 (Row 2) ──► walks User 2's 1,000 edges AGAIN!
 
-Impulse Graph (Set Semantics / Monoidic Reduction) — Squished at Every Step:
+Impulse Graph (Set Semantics / Monoidic Reduction) — Collapsed at Every Step:
   User 0 ──┐
            ├──► BitSet[User 2] = 1  ───► walks User 2's 1,000 edges ONCE!
   User 1 ──┘
 ```
 
 * **When Walking Without State (Bitset Union)**: The intermediate frontier is an off-heap **BitSet** with one bit per node in the current domain. Whether 1 edge or 10,000 edges land on `User 2`, bit `2` is simply set to `1` (`OR`). Duplicates are eliminated automatically in $O(1)$ time with zero hash-table overhead.
-* **When Carrying Calculated State Across Hops (Monoidic Reduction)**: What if each path carries a calculated value (such as transaction `amount`, path `distance`, or `score`) and multiple incoming edges converge on the same target node? Impulse **squishes (reduces)** the converging values into a single value for that target node using an associative reduction operator (**a monoid**):
+* **When Carrying Calculated State Across Hops (Monoidic Reduction)**: What if each path carries a calculated value (such as transaction `amount`, path `distance`, or `score`) and multiple incoming edges converge on the same target node? Impulse **collapses (reduces)** the converging values into a single value for that target node using an associative reduction operator (**a monoid**):
 
-| Reduction Rule (Monoid) | How Converging Values $(v_1, v_2, \dots)$ Are Squished | Typical Graph Use Case |
+| Reduction Rule (Monoid) | How Converging Values $(v_1, v_2, \dots)$ Are Collapsed | Typical Graph Use Case |
 | :--- | :--- | :--- |
 | **Bitwise `OR` (Default)** | $\text{true} \lor \text{true} = \text{true}$ (Set Union) | Multi-hop reachability, ReBAC authorization, filtering |
 | **`SUM` (`+`)** | $v_1 + v_2 + \dots$ | Total cash flow, path counting, PageRank / Markov walks |
 | **`MIN`** | $\min(v_1, v_2, \dots)$ | Shortest paths, earliest transaction timestamp |
 | **`MAX`** | $\max(v_1, v_2, \dots)$ | Maximum bottleneck capacity, highest risk/confidence score |
 
-Because every step squishes its output into at most $N_d$ unique entries (one bit—and optionally one state value—per node in the target domain), **intermediate memory never explodes**, even on dense or cyclic graphs.
+Because every step collapses its output into at most $N_d$ unique entries (one bit—and optionally one state value—per node in the target domain), **intermediate memory never explodes**, even on dense or cyclic graphs.
 
 ---
 

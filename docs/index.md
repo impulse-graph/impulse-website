@@ -54,6 +54,15 @@ flowchart TD
 | **Hot-Path Allocations** | **Zero GC pauses** (100% off-heap topology & VM state) | **Zero heap allocations** (caller-allocated scratch + output buffer) |
 | **Ecosystem Target** | **Java 25, Kotlin, Scala 3** | **Python (NumPy/PyTorch), C/C++, Rust, Go, C#/.NET, Node.js** |
 
+!!! tip "Wait — Isn't Java Inherently Slower Than C++?"
+    Traditional Java graph libraries are slow because they allocate millions of `Node` and `Edge` objects on the JVM heap, suffering from pointer chasing and Stop-The-World GC pauses.
+
+    Once Impulse Graph moves the topology off-heap into 128-byte-aligned CSR/CSC arrays (`MemorySegment`) and scans them with the Java 25 Vector API (`jdk.incubator.vector`), **the limiting factor that dominates query speed is physical memory bandwidth and CPU cache-line transfers—not the language runtime:**
+
+    * **Within `1.5x–2.0x` of Native C++20**: On the 1.47-billion-edge `twitter-2010` graph (10 threads), the Native C++20 kernel completes full-graph BFS in **`145.00 ms`** and the warmed Pure Java 25 engine completes it in **`240.29 ms` (`1.65x`)**—with **zero heap allocations** on the hot path (verified via Java Flight Recorder). The remaining `1.65x` delta comes down to JVM safepoint polls, `MemorySegment` bounds checks, and `ForkJoinPool` vs. OpenMP scheduling.
+    * **JSON Serialization Takes Longer Than the Query**: In enterprise microservices, JFR profiling and benchmarks across 600,000 users show that evaluating a multi-hop authorization query takes **`0.026 µs – 0.552 µs`**, whereas **serializing the result into JSON via Jackson takes `1.91 µs – 2.56 µs` (`3.5x to 73x` longer than the graph query itself)**.
+    * Pure Java 25 is wholly suitable for demanding enterprise workloads—delivering sub-microsecond traversals with zero JNI wrappers, zero GC pauses, and zero inherited CVEs. See **[Why Impulse Graph?](concepts/why-impulse.md)** and **[Benchmarks](benchmarks.md)**.
+
 ### One VM, Every Query Style & Language
 Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` bytecode engine, multiple query paradigms and language SDKs snap naturally onto the same core:
 * **Query Frontends**: Idiomatic **Fluent Traversal API**, parameterized **openCypher** (read-only subset), declarative **Datalog (`ImpLog`)**, and **GraphBLAS matrix math (`ImpK`)**, with **Google CEL** for SIMD attribute filtering and projections.

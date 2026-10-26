@@ -18,7 +18,7 @@ In a relational database (`SELECT ... FROM transfers JOIN transfers ...`), every
 
 Impulse Graph makes deep multi-hop cycle detection and flow aggregation fast enough for interactive investigations:
 
-1. **Set-Based Fixed-Point Reachability (`repeatUntilStable`)**: Instead of generating millions of duplicate path rows, `ImpulseVM` represents the active frontier of reachable accounts as an off-heap **BitSet**. Even if accounts $B$ and $C$ transact back and forth 500 times, converging paths are squished into a single bit per account at every step.
+1. **Set-Based Fixed-Point Reachability (`repeatUntilStable`)**: Instead of generating millions of duplicate path rows, `ImpulseVM` represents the active frontier of reachable accounts as an off-heap **BitSet**. Even if accounts $B$ and $C$ transact back and forth 500 times, converging paths are collapsed into a single bit per account at every step.
 2. **Monoidic Flow Reduction (`SUM` / `MIN` / `MAX`)**: When investigators want to track the minimum bottleneck transfer or cumulative flow along a path over the `amount` edge attribute, converging values are reduced in place at each hop.
 
 === "Java 25 (Circular Fraud Ring Detection)"
