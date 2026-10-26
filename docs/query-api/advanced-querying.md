@@ -14,7 +14,7 @@ Repeatedly steps across the specified relation until no new nodes are discovered
 ```java
 var groups = snap.domain("Group");
 
-// Compute full transitive closure of parent groups
+// Compute full reflexive transitive closure (R*, >= 0 hops) of parent groups
 List<String> allAncestorGroups = groups.fromKey("grp_engineering_west")
     .repeatUntilStable("PARENT_GROUP")
     .toKeyList();
@@ -24,6 +24,18 @@ List<String> activeAncestors = groups.fromKey("grp_engineering_west")
     .repeatUntilStable("PARENT_GROUP", "edge.active == true")
     .toKeyList();
 ```
+
+!!! important
+    **Reflexive Closure ($R^*$) vs. Positive Closure ($R^+$) for Cycle Detection**:
+    In `ImpOpsBytecodeEmitter`, `repeatUntilStable(relation)` initializes the accumulator register (`R2`) with the starting seed frontier (`R0`), computing the **reflexive** transitive closure ($R^*$, which includes 0-hop starting nodes). When testing whether a node can reach *itself* via a cycle ($\ge 1$ hop), step one hop first with `.out(relation)` before calling `.repeatUntilStable(relation)`:
+    ```java
+    boolean hasCycle = snap.domain("Account")
+        .from(suspectId)
+        .out("TRANSFERRED_TO")
+        .repeatUntilStable("TRANSFERRED_TO")
+        .toBitSet()
+        .get(suspectId);
+    ```
 
 ### 1.2 Bounded Hop Expansion (`repeat(n, relation)`)
 Applies a domain-preserving relation step up to $N$ hops:
@@ -49,8 +61,10 @@ state.<target_field>:<REDUCER> = <CEL Expression>
 ```
 
 ```java
-snap.domain("City").fromKey("ATL")
+List<String> budgetCities = snap.domain("City").fromKey("ATL")
     .outWithState("FLIGHT_LEG", "state.min_cost:MIN = src.airport_fee + edge.ticket_price")
+    .filter("state.min_cost <= 350.0")
+    .toKeyList();
 ```
 
 ### 2.1 The 10 Hardware SIMD Reducers & Co-Reducers
@@ -77,11 +91,13 @@ snap.domain("City").fromKey("ATL")
 When computing a `:MIN` or `:MAX` metric (such as the lowest shipping cost to each distribution center), you often want to know **which source node produced that winning value**. `:ARGMIN(state.field)` and `:ARGMAX(state.field)` update the witness atomically alongside the winning metric:
 
 ```java
-snap.domain("Warehouse").from(activeWarehouses)
+List<String> qualifyingCenters = snap.domain("Warehouse").from(activeWarehouses)
     .outWithState("TRUCK_ROUTE", """
         state.lowest_cost:MIN = src.handling_cost + edge.freight_fee,
         state.best_warehouse:ARGMIN(state.lowest_cost) = src.id
         """)
+    .filter("state.lowest_cost <= 500.0")
+    .toKeyList();
 ```
 
 ### 2.3 In-Domain State Projections (`.project`)
@@ -94,7 +110,41 @@ snap.domain("Player").fromKey("player_42")
         state.total_at_bats:SUM = edge.at_bats
         """)
     .project("state.batting_avg = state.total_hits / max(1.0, state.total_at_bats)")
+    .filter("state.batting_avg >= 0.300")
+    .toKeyList();
 ```
+
+### 2.4 Consuming & Extracting Projected State at the Terminal Step
+
+There are three ways projected state and numeric attributes are consumed at the end of a query pipeline:
+
+1. **Downstream Frontier Filtering (`Traversal<T>`)**:
+   As shown above, any `state.<field>` computed by `.outWithState(...)` or `.project(...)` can be referenced in subsequent `.filter("state.<field> ...")` or `.outWithState(...)` steps to prune the active node frontier before calling `.toBitSet()`, `.toList()`, `.toKeyList()`, or `.count()`.
+2. **Terminal Scalar & Witness Reductions (`ImpulseQueryBuilder` & `ImpulseGraphQuery`)**:
+   When you want to reduce projected values across the surviving target frontier into a single scalar aggregate (`Double`) or extract the winning target node ID (`Integer`), `org.impulsegraph.api.ImpulseQueryBuilder` provides terminal reduction operators (`reduceMin()`, `reduceMax()`, `reduceSum()`, `reduceAvg()`, `reduceArgMin()`, `reduceArgMax()`):
+   ```java
+   import org.impulsegraph.api.ArgType;
+   import org.impulsegraph.api.ImpulseGraphQuery;
+   import org.impulsegraph.api.ImpulseQueryBuilder;
+
+   // Terminal scalar reduction (OP_REDUCE / OP_VECTOR_REDUCE_SUM -> Double)
+   ImpulseGraphQuery<Double> minCostQuery = new ImpulseQueryBuilder<Double>()
+       .input("Warehouse", ArgType.SINGLE_NODE)
+       .walkEdge("TRUCK_ROUTE")
+       .projectExpression("handling_cost", "+", "freight_fee")
+       .reduceMin();
+   double minCost = minCostQuery.execute(snap, startWarehouseId);
+
+   // Terminal witness reduction (reduceArgMin / reduceArgMax -> winning target Node ID)
+   ImpulseGraphQuery<Integer> bestCenterQuery = new ImpulseQueryBuilder<Integer>()
+       .input("Warehouse", ArgType.SINGLE_NODE)
+       .walkEdge("TRUCK_ROUTE")
+       .projectExpression("handling_cost", "+", "freight_fee")
+       .reduceArgMin();
+   int bestCenterId = bestCenterQuery.execute(snap, startWarehouseId);
+   ```
+3. **Multi-Column Tabular State Extraction (`v1.0.0` Roadmap)**:
+   On the high-level `Traversal<T>` fluent interface, terminal collectors (`collect()`, `toBitSet()`, `toList()`, `toKeyList()`, `count()`) currently return the surviving target node frontier (`ImpulseBitSet` / dense IDs / keys). Direct multi-column tabular extraction of attached `state.*` registers (`Traversal.collectRows()`) is scheduled for the `v1.0.0` release.
 
 ---
 

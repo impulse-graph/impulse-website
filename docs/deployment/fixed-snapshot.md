@@ -12,36 +12,41 @@ In a fixed-snapshot environment, the engine memory-maps the base `.imps` file ex
 - **No Tombstone Masking**: Traversals read directly from the contiguous Compressed Sparse Row (CSR) arrays.
 - **Cache Friendly**: Hardware prefetchers can aggressively stream adjacency lists.
 
-## C++20 Template Chain Execution
+## Pre-Compiled `ImpulseVM` Bytecode Execution
 
-When the schema is known at compile time (`constexpr`), C++20 template metaprogramming can generate a zero-overhead, fully inlined execution plan. 
+When the schema is fixed for an analytical run, queries are compiled once into an immutable `CompiledQuery` (`impulse::vm::CompiledQuery` in C++20 or `MethodHandle` in Java 25) and executed across thousands of simulation seeds with zero per-query compilation overhead:
 
-=== "C++"
+=== "C++20 (`impulse_vm_fluent.hpp`)"
     ```cpp
-    // Schema defined as constexpr
-    namespace schema {
-        constexpr EntityType BUS { .id = 0x01, .name = "Bus" };
-        constexpr Relation BUS_TO_BUS { .id = 0x10, .src = BUS, .dst = BUS };
-    }
+    #include "impulse_graph.h"
+    #include "impulse_vm_fluent.hpp"
 
-    // Type-level query chain
-    using IslandDetector = Collect<RoaringBitmap,
-        RepeatUntilStable<
-            WalkEdge<schema::BUS_TO_BUS,
-                Input<schema::BUS, SingleNodeArg>>>>;
+    using namespace impulse::vm;
 
-    // Execute: fully inlined, zero virtual dispatch
-    RoaringBitmap island = IslandDetector::execute(view, seedBusId);
+    // Compile the island detection pipeline once at startup
+    CompiledQuery islandDetector = QueryBuilder()
+        .inputNode(0)
+        .repeatUntilStable([](QueryBuilder& b) {
+            b.walkEdge(/*BUS_TO_BUS=*/ 0);
+        })
+        .collectBitset()
+        .compile();
     ```
 
-## Stack-Allocated Scratch Buffers
+## Reusable Thread-Local Execution Contexts
 
-Because analytical processes often run parallel simulations (e.g., Monte Carlo or N-1 contingency simulations), avoiding heap allocation is critical. In C++ and Rust, you can allocate the query execution context directly on the stack or reuse pre-allocated thread-local arenas.
+Because analytical processes often run parallel simulations (e.g., Monte Carlo or N-1/N-2 contingency sweeps across OpenMP threads), avoiding per-iteration heap allocation is critical. In C++ and Java, each worker thread reuses its own `impulse_vm_context_t` / `VmQueryContext` and stack-allocated `impulse_vm_state_t` register frame:
 
-=== "C++"
+=== "C++20"
     ```cpp
-    // Context sized exactly for the required intermediate bitsets
-    QueryContext<IslandDetector> ctx; // Stack allocated
+    // Allocated once per worker thread
+    impulse_vm_context_t* ctx = impulse_vm_context_create(snap);
+    impulse_vm_state_t state{};
 
-    RoaringBitmap island = IslandDetector::execute(ctx, view, seedBusId);
+    // Hot simulation loop: 640-byte stack frame + reusable bitset pool
+    for (uint64_t seedBusId : contingencySeeds) {
+        QueryResult res = islandDetector.executeWithContext(ctx, &state, seedBusId);
+    }
+
+    impulse_vm_context_destroy(ctx);
     ```

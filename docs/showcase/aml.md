@@ -23,13 +23,17 @@ Impulse Graph makes deep multi-hop cycle detection and flow aggregation fast eno
 
 === "Java 25 (Circular Fraud Ring Detection)"
     ```java
-    // Find all downstream accounts reachable from suspectAccountId across any number of hops
+    // Step 1 hop out from suspectAccountId first (.out), then compute the transitive closure
+    // (.repeatUntilStable) to obtain the positive closure (R+, >= 1 hop).
+    // Note: calling repeatUntilStable directly on the seed computes the reflexive closure (R*, >= 0 hops),
+    // which always includes the starting node itself.
     ImpulseBitSet reachableAccounts = snap.domain("Account")
         .from(suspectAccountId)
+        .out("TRANSFERRED_TO")
         .repeatUntilStable("TRANSFERRED_TO")
         .toBitSet();
 
-    // If the suspect account is in its own downstream reachable set, a circular ring exists
+    // If the suspect account is in its own >= 1-hop downstream reachable set, a circular ring exists
     boolean isPartOfFraudRing = reachableAccounts.get(suspectAccountId);
     ```
 
@@ -42,12 +46,13 @@ Because a full multi-hop closure runs in sub-milliseconds to milliseconds over m
 * *"If we freeze or exclude Intermediary Account $B$, does the circular path back to Account $A$ break, or do alternate mule paths still complete the ring?"*
 * *"What if we only follow transfers where `edge.amount >= 10000.0`?"*
 
-=== "Java 25 ('What-If' Node Exclusion)"
+=== "Java 25 ('What-If' Node & Edge Exclusion)"
     ```java
-    // Test whether excluding intermediary 'accountB_Id' breaks the circular loop
+    // Test whether excluding intermediary 'accountB_Id' and transfers under $10,000 breaks the loop
     boolean cyclePersists = snap.domain("Account")
         .from(suspectAccountId)
-        .repeatUntilStable("TRANSFERRED_TO", "node.id != $excludedId")
+        .out("TRANSFERRED_TO", "tgt.id != $excludedId && edge.amount >= 10000.0")
+        .repeatUntilStable("TRANSFERRED_TO", "tgt.id != $excludedId && edge.amount >= 10000.0")
         .withParam("excludedId", accountB_Id)
         .toBitSet()
         .get(suspectAccountId);

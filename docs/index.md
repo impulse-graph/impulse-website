@@ -118,10 +118,17 @@ Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` b
     ```python
     from impulse_graph import Snapshot
 
-    with Snapshot.mmap("social.imps") as snap:
-        stmt = snap.prepare("MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f.id")
-        stmt.bind_node("uid", 42)
-        friend_ids = stmt.execute_numpy()  # Zero-copy NumPy view over caller buffer
+    with Snapshot("social.imps") as snap:
+        # 1. Fluent traversal & parameterized openCypher query execution
+        followed = snap.traverse(start_node=42, catalog={"FOLLOWS": 0}).out("FOLLOWS").to_list()
+        friend_ids = snap.cypher(
+            "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f",
+            params={"uid": 42},
+            catalog={"FOLLOWS": 0},
+        )
+        # 2. Zero-copy NumPy CSR array views over the mmap pages
+        row_offsets = snap.get_row_offsets_array(0)
+        col_indices = snap.get_col_indices_array(0)
     ```
 
 ---

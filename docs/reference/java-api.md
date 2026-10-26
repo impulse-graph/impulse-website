@@ -15,7 +15,7 @@ Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **me
 | [**`org.impulsegraph.api.bitset`**](/javadoc/org/impulsegraph/api/bitset/package-summary.html) | `impulse-api` | Zero-copy off-heap bitsets (`ImpulseBitSet`, `OffHeapBitSet`) |
 | [**`org.impulsegraph.storage.csr`**](/javadoc/org/impulsegraph/storage/csr/package-summary.html) | `impulse-storage` | `BinarySnapshotLoader`, `GraphSnapshot`, `SnapshotSwapManager` |
 | [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery` |
-| [**`org.impulsegraph.compiler`**](/javadoc/org/impulsegraph/compiler/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes |
+| [**`org.impulsegraph.compiler.ast`**](/javadoc/org/impulsegraph/compiler/ast/package-summary.html) · [**`cypher`**](/javadoc/org/impulsegraph/compiler/cypher/package-summary.html) · [**`cel`**](/javadoc/org/impulsegraph/compiler/cel/package-summary.html) · [**`passes`**](/javadoc/org/impulsegraph/compiler/passes/package-summary.html) · [**`emitter`**](/javadoc/org/impulsegraph/compiler/emitter/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes, and bytecode emitter |
 | [**`org.impulsegraph.builder.api`**](/javadoc/org/impulsegraph/builder/api/package-summary.html) | `impulse-builder` | Streaming `SnapshotBuilder`, `DomainDefinition`, `RelationDefinition` |
 | [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format FFM memory layouts and protocol constants |
 
@@ -100,10 +100,14 @@ Set<Long> reachableGroups = users.from(42L)
     .toSet();
 
 // 3. Monoidic state projection and reduction
-ImpulseBitSet targetBitSet = users.from(1L, 2L, 3L)
-    .out("PURCHASED", Reducer.OR)
+ImpulseBitSet highSpendProducts = users.from(1L, 2L, 3L)
+    .outWithState("PURCHASED", "state.total_spend:SUM = edge.amount")
+    .project("state.spend_with_tax = state.total_spend * 1.08")
+    .filter("state.spend_with_tax >= 100.0")
     .toBitSet();
 ```
+
+See [State Projections, Reducers & Loops](../query-api/advanced-querying.md) for the full list of monoidic `:MIN`, `:MAX`, `:SUM`, `:AVG`, `:ARGMIN`, and `:ARGMAX` reducers.
 
 | Interface | Core Methods |
 | :--- | :--- |
@@ -120,15 +124,14 @@ ImpulseBitSet targetBitSet = users.from(1L, 2L, 3L)
 try (ImpulseStatement stmt = snap.prepare(
         "MATCH (u:User)-[:PURCHASED]->(p:Product) " +
         "WHERE u._key = $userKey AND p.price <= $maxPrice " +
-        "RETURN p._id, p.price")) {
+        "RETURN p")) {
 
     stmt.bindString("userKey", "usr_alice")
         .bindDouble("maxPrice", 99.95);
 
     try (RowReader rows = stmt.execute()) {
         while (rows.next()) {
-            long productId = rows.getNodeId(0);
-            double price   = rows.getDouble(1);
+            long productDenseId = rows.getNodeId(0);
         }
     }
 }
@@ -158,9 +161,14 @@ Epoch-tracked atomic A/B pointer swap manager for rotating live `.imps` snapshot
 SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialGraph);
 
 // Reader thread: zero-lock epoch acquisition
-try (var holder = swapManager.acquireCurrent()) {
-    GraphSnapshot current = holder.getResource();
-    // Execute lock-free traversal...
+var holder = swapManager.acquireCurrent();
+if (holder != null) {
+    try {
+        GraphSnapshot current = holder.getResource();
+        // Execute lock-free traversal...
+    } finally {
+        holder.release();
+    }
 }
 
 // Background updater thread: atomic pointer swap
@@ -184,11 +192,14 @@ To generate strongly-typed domain views and POJOs from a declarative [`.imps.sch
         <version>${impulse.version}</version>
         <executions>
             <execution>
-                <goals><goal>generate</goal></goals>
+                <goals>
+                    <goal>generate</goal>
+                </goals>
             </execution>
         </executions>
         <configuration>
-            <schemaFile>src/main/resources/schema.yaml</schemaFile>
+            <schemaFile>${project.basedir}/src/main/resources/schema.yaml</schemaFile>
+            <outputDirectory>${project.build.directory}/generated-sources/impulse</outputDirectory>
             <packageName>com.example.graph.generated</packageName>
         </configuration>
     </plugin>
@@ -202,6 +213,7 @@ To generate strongly-typed domain views and POJOs from a declarative [`.imps.sch
 
     impulse {
         schemaFile = file("src/main/resources/schema.yaml")
+        outputDirectory = layout.buildDirectory.dir("generated/sources/impulse").get().asFile
         packageName = "com.example.graph.generated"
     }
     ```

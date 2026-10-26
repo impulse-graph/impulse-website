@@ -84,7 +84,7 @@ An `.imps` file is written sequentially in five hardware-aligned sections:
 | **Nodes per Domain ($N_d$)** | `NodeIDWidth` (`2`, `4`, or `8` bytes) | • `uint16`: **`65,536`**<br>• `uint32`: **`4,294,967,296` (~4.29B)**<br>• `uint64`: **`2^64 - 1` (~1.84 × 10^19)** | Configured independently per domain to minimize cache footprint. |
 | **Edges per Relation ($E$)** | `EdgeIndexWidth` (`4` or `8` bytes) | • `uint32` offsets: **`4,294,967,295` (~4.29B)**<br>• `uint64` offsets: **`2^64 - 1`** | Controls the byte width of `csrRowOffsets[]` and `cscRowOffsets[]`. |
 | **Attributes per Domain / Relation** | `AttrCount` (`uint16_t`) | **`65,536` (`2^16`)** | Applies independently to each domain and each relation. |
-| **Shared String Table (`Section 2`)** | `StringTableBytes` (`uint32_t`) | **`4 GB` (`2^32 - 1` bytes)** | Stores schema identifiers and shared dictionary strings (`NameOffset` is `uint32_t`). |
+| **Shared String Table (`Section 2`)** | `StringTableBytes` (`uint32_t`) | **`4 GB` (`2^32 - 1` bytes)** | Stores schema and catalog identifier names (domain, relation, and attribute names; `NameOffset` is `uint32_t`). |
 | **Total Snapshot File Size** | 64-bit Section Offsets (`uint64_t`) | **Multi-Terabyte (`2^64 - 1` bytes)** | All topology and attribute `DataOffset` and `DataBytes` fields are 64-bit unsigned integers. |
 
 ### 3.2 Attribute & Key Data Types (`impulse_attribute_descriptor_t`)
@@ -106,7 +106,7 @@ Every node or edge attribute is described by a 44-byte descriptor (`TypeCode`, `
 | `0x08` | `TIMESTAMP_MS` | `8 Bytes` | $D \ge 1$ | 64-bit Unix epoch milliseconds (`uint64_t`). |
 | `0x09` | `TIMESTAMP_NS` | `8 Bytes` | $D \ge 1$ | 64-bit Unix epoch nanoseconds (`uint64_t`). |
 | `0x0A` | `FIXED_BYTES` | `D Bytes` | $D \ge 1$ | Fixed-width binary value per row (e.g. `D = 16` for 128-bit `UUID`, `D = 32` for `SHA-256`). |
-| `0x0B` | `VAR_STRING` | Variable | `0` | UTF-8 string column stored as `uint32_t offsets[K + 1]` + contiguous byte blob (up to **`4 GB`** payload per column) or 32-bit string pool IDs. |
+| `0x0B` | `VAR_STRING` | Variable | `0` | Per-column 128-byte-aligned `uint32_t offsets[K + 1]` + contiguous UTF-8 byte blob (up to **`4 GB`** payload per column). |
 | `0x0C` | `VAR_BYTES` | Variable | `0` | Variable-length binary column stored as `uint32_t offsets[K + 1]` + contiguous byte blob (up to **`4 GB`** payload per column). |
 | `0x0D` | `INTERVAL_SEC_32` | `8 Bytes` | $D \ge 1$ | Packed temporal validity interval (`uint32_t start_sec`, `uint32_t duration_sec`). |
 | `0x0E` | `INTERVAL_MS_64` | `16 Bytes` | $D \ge 1$ | Packed temporal validity interval (`uint64_t start_ms`, `uint64_t duration_ms`). |

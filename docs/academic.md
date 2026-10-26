@@ -59,19 +59,19 @@ The frontier $\mathcal{S}_D$ is simply a contiguous off-heap **BitSet** ($\lceil
 
 ## 3. GraphBLAS Semiring Duality ($\mathbf{u}^T = \mathbf{v}^T \otimes \mathbf{A}_R$)
 
-Every domain-to-domain walk in Impulse Graph is isomorphic to sparse **vector-matrix multiplication (`MxV` / `vMxM`)** over an algebraic **Semiring** $(R, \oplus, \otimes, \mathbf{0}, \mathbf{1})$:
+Every domain-to-domain walk in Impulse Graph is isomorphic to sparse **vector-matrix multiplication (`MxV` / `vXM`)** over an algebraic **Semiring** $(R, \oplus, \otimes, \mathbf{0}, \mathbf{1})$:
 
 $$u_d = \bigoplus_{s = 0}^{N_{\text{Src}} - 1} \left( v_s \otimes A_{s, d} \right)$$
 
 | Graph Workload | Frontier State $\mathbf{v}$ | Semiring $(R, \oplus, \otimes, \mathbf{0}, \mathbf{1})$ | Impulse Transition $\phi$ & Monoid $\oplus$ |
 | :--- | :--- | :--- | :--- |
 | **Boolean Reachability / ReBAC** | BitSet ($\lceil N_d/64 \rceil$ words) | $(\mathbb{B}, \lor, \land, \text{false}, \text{true})$ | $\phi = \text{true}, \quad \oplus = \lor$ (Bitwise `OR`) |
-| **Shortest Path (BFS / Dijkstra)** | Distance array (`float32`/`int32`) | $(\mathbb{R}^+ \cup \{\infty\}, \min, +, \infty, 0)$ | $\phi = \sigma_s + e.\text{weight}, \quad \oplus = \min$ |
-| **Widest Path / Max Capacity** | Capacity array (`float64`) | $(\mathbb{R}^+ \cup \{0\}, \max, \min, 0, \infty)$ | $\phi = \min(\sigma_s, e.\text{cap}), \quad \oplus = \max$ |
+| **Shortest Path (BFS / Dijkstra)** | Distance array (`float32`/`int32`) | $(\mathbb{R}_{\ge 0} \cup \{\infty\}, \min, +, \infty, 0)$ | $\phi = \sigma_s + e.\text{weight}, \quad \oplus = \min$ |
+| **Widest Path / Max Capacity** | Capacity array (`float64`) | $(\mathbb{R}_{\ge 0} \cup \{\infty\}, \max, \min, 0, \infty)$ | $\phi = \min(\sigma_s, e.\text{cap}), \quad \oplus = \max$ |
 | **PageRank / Financial Flow** | Score / amount array (`float64`) | $(\mathbb{R}, +, \times, 0, 1)$ | $\phi = \sigma_s \times e.\text{weight}, \quad \oplus = +$ (`SUM`) |
 | **Fixed-Point Reachability ($\tau^*$)** | BitSet / state array | Idempotent Kleene Algebra ($\sigma \oplus \sigma = \sigma$) | $\mu \mathcal{S}'. (\mathcal{S}_0 \oplus \tau(\mathcal{S}'))$ via `repeatUntilStable` |
 
-Because `.imps` stores relations natively as 128-byte-aligned **CSR (`A`)** and **CSC (`A^T`)** matrices, forward walks ($\mathbf{v}^T \otimes \mathbf{A}$) and reverse walks ($\mathbf{A}^T \otimes \mathbf{v}$) execute directly over the memory-mapped arrays with identical $O(\text{active edges})$ memory bandwidth.
+Because `.imps` stores relations natively as 128-byte-aligned **CSR (`A`)** and **CSC (`A^T`)** matrices, forward walks ($\mathbf{v}^T \otimes \mathbf{A}$) and reverse walks ($\mathbf{v}^T \otimes \mathbf{A}^T$) execute directly over the memory-mapped arrays with identical $O(\text{active edges})$ memory bandwidth.
 
 ---
 

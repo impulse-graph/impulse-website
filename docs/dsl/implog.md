@@ -61,6 +61,55 @@ impulse compile authz.implog -o authz.impas
 impulse compile authz.implog --emit-ir
 
 # 3. Assemble into binary impOps bytecode (.impb) and run against a snapshot
-impulse assemble authz.impas -o authz.impb
+impulse assemble -i authz.impas -o authz.impb
 impulse run --snapshot production.imps --bytecode authz.impb --input-val 1042
 ```
+
+---
+
+## 4. Executing `.implog` Rules from Host SDKs
+
+You can compile and execute `.implog` programs directly inside your application using the in-kernel compiler C-ABI (`IMPULSE_LANG_IMPLOG`), the C++20 `DatalogParser`, or by loading pre-assembled `.impb` bytecode in Java and polyglot SDKs:
+
+=== "C / C++20 (`impulse_compile_and_execute`)"
+    ```c
+    #include "impulse_vm.h"
+
+    const char* implog_rules =
+        "member(U, G) :- direct_member(U, G).\n"
+        "member(U, P) :- member(U, C), group_parent(C, P).\n"
+        "?- member(1042, G).\n";
+
+    impulse_vm_state_t state = {0};
+    state.query_context = impulse_vm_context_create(snap);
+
+    // Compile .implog -> ImpScheme -> impOps and execute in a single call
+    impulse_vm_status_t status = impulse_compile_and_execute(
+        snap,
+        implog_rules,
+        IMPULSE_LANG_IMPLOG,
+        &state,
+        /*input_seed=*/ 1042
+    );
+
+    impulse_vm_context_destroy((impulse_vm_context_t*)state.query_context);
+    ```
+
+=== "Java 25 / Polyglot (Pre-Compiled `.impb` Bytecode)"
+    ```java
+    // Pre-compile via CLI:
+    //   impulse compile authz.implog -o authz.impas && impulse assemble -i authz.impas -o authz.impb
+    byte[] bytecodeBytes = Files.readAllBytes(Path.of("authz.impb"));
+
+    try (Arena arena = Arena.ofConfined()) {
+        MemorySegment prog = arena.allocateFrom(ValueLayout.JAVA_BYTE, bytecodeBytes);
+        int instructionCount = (int) (bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES);
+
+        // Compile to fused MethodHandle chain or execute directly in ImpulseVmInterpreter
+        MethodHandle mh = ImpulseMethodHandleCompiler.compile(prog, instructionCount);
+        ImpulseBitSet permittedDocs = (ImpulseBitSet) mh.invoke(graph, 1042, arena);
+    }
+    ```
+
+!!! note
+    **Java `@ImpLogRule` Annotation Roadmap**: Direct in-process Java compilation of `.implog` strings and `@ImpLogRule` annotations is scheduled for `v1.0.0` (currently supported natively in the C/C++20 kernel via `IMPULSE_LANG_IMPLOG` and in the `impulse compile` CLI).

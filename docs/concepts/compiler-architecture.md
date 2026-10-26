@@ -66,7 +66,7 @@ In the Pure Java 25 engine (`impulse-graph-java`), queries do not sit inside a s
    * Each query executes single-threaded (`threads = 1`) in its own isolated 640-byte register frame and caller buffer over the shared `mmap` snapshot.
    * Because `threads == 1` is checked once outside the inner opcode loop, the VM executes non-atomic bitset writes (`w_dst |= mask`), avoiding hardware `LOCK` prefix overhead while allowing thousands of concurrent gRPC/HTTP requests to scale linearly across all CPU cores.
 2. **Intra-Instruction Parallelism (For Massive Batch Analytics & GNNs)**:
-   * For analytical workloads over multi-billion-edge graphs (PageRank, Connected Components, full-graph BFS), setting `impulse_vm_context_set_concurrency(ctx, num_threads)` parallelizes individual `impOps` kernels across cores using OpenMP (`#pragma omp parallel for`) in C++20 and parallel vector partitions in Java 25.
+   * For analytical workloads over multi-billion-edge graphs (PageRank, Connected Components, full-graph BFS), configuring `OP_SET_MAX_DOP` (`0x75`) or the `IMPULSE_MAX_DOP` environment variable parallelizes individual `impOps` kernels across cores using OpenMP (`#pragma omp parallel for`) in C++20 and parallel vector partitions in Java 25.
 
 ---
 

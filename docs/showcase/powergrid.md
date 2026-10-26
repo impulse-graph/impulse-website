@@ -57,14 +57,16 @@ By compiling the grid topology (`Bus` domain and `Branch` CSR arrays + electrica
 
 ## 3. Empirical Benchmark Results vs. PYPOWER / NetworkX
 
-### 20,000 $N-2$ Contingency Pairs (10 CPU Cores)
+### $N-2$ Contingency Screening Comparison (`case1354pegase`, 10 CPU Cores)
 
-| Engine Configuration | Wall Time | Simulation Throughput | Latency / $N-2$ Pair | Relative Speedup |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. PYPOWER / NetworkX (Single-Thread)** | 95,073.19 ms (95.1 s) | 210 pairs/sec | 4,753 $\mu\text{s}$ | **1.0x Baseline** |
-| **2. PYPOWER / NetworkX (Multi-Thread 10C)** | 20,231.41 ms (20.2 s) | 989 pairs/sec | 1,011 $\mu\text{s}$ | **4.7x Faster** |
-| **3. Impulse SIMD C++ (Single-Thread)** | 2,236.05 ms (2.2 s) | 169,093 pairs/sec | 5.91 $\mu\text{s}$ | **42.5x Faster** |
-| **4. Impulse SIMD C++ (Multi-Thread 10C)** | **263.06 ms (0.26 s)** | **1,437,286 pairs/sec** | **0.69 $\mu\text{s}$** | **361.4x Faster** |
+| Engine Configuration | Pairs Evaluated | Wall Time | Simulation Throughput | Latency / $N-2$ Pair | Relative Speedup |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. PYPOWER / NetworkX (Single-Thread)** | 20,000 pairs | 95,073.19 ms (95.1 s) | 210 pairs/sec | 4,753 $\mu\text{s}$ | **1.0x Baseline** |
+| **2. PYPOWER / NetworkX (Multi-Thread 10C)** | 20,000 pairs | 20,231.41 ms (20.2 s) | 989 pairs/sec | 1,011 $\mu\text{s}$ | **4.7x Faster** |
+| **3. Impulse SIMD C++20 (Multi-Thread 10C)** | **378,100 pairs** *(Top 200 $\times E$)* | **263.06 ms (0.26 s)** | **1,437,286 pairs/sec** | **0.69 $\mu\text{s}$** (`0.6957 µs`) | **6,833x Throughput** (`361.4x` less wall time for `18.9x` more pairs) |
+
+!!! note "Throughput vs. Wall-Clock Speedup"
+    In the comparison above, the PYPOWER baseline was capped at `20,000` $N-2$ pairs due to execution time (`95.1 s` single-thread, `20.2 s` on 10 cores), whereas the Impulse C++20 10-core run evaluated all `378,100` top-branch $N-2$ pairs in **`263.06 ms`**—completing **`18.9x` more contingency pairs** in **`361.4x` less total wall-clock time**, representing a **`6,833x` per-pair throughput speedup** (`1,437,286 pairs/sec` vs. `210 pairs/sec`, or **`1,453x`** vs. 10-core PYPOWER).
 
 ### 100% Exhaustive $N-2$ Full Grid Sweeps
 

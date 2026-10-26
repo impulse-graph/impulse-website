@@ -37,9 +37,14 @@ Because memory-mapping large `.imps` files is an $O(1)$ OS operation, rotating t
     SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialSnapshot);
 
     // Reader thread: zero-lock acquisition
-    try (var holder = swapManager.acquireCurrent()) {
-        GraphSnapshot active = holder.getResource();
-        // Execute read-only traversal...
+    var holder = swapManager.acquireCurrent();
+    if (holder != null) {
+        try {
+            GraphSnapshot active = holder.getResource();
+            // Execute read-only traversal...
+        } finally {
+            holder.release();
+        }
     }
 
     // Background updater thread: atomic A/B pointer swap

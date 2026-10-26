@@ -106,7 +106,7 @@ To make incoming traversals just as fast, Impulse Graph supports **CSC (Compress
 * **Primary Use**: Incoming traversals (`.in("FOLLOWS")`, reverse reachability, PageRank pull).
 
 !!! tip
-    When building an `.imps` snapshot, CSR is mandatory. You can optionally include CSC with a single method call (`.addTopology(Topology.CSC, CompressionScheme.RAW)`). If your edge stream is sorted by source ID, the Impulse builder automatically stages and inverts the stream into CSC using external sort.
+    When building general-purpose relations with `SnapshotBuilder`, CSR is the standard forward topology required for `.out(...)` walks, and you can optionally include CSC with a single method call (`.addTopology(Topology.CSC, CompressionScheme.RAW)`). If your edge stream is sorted by source ID, the Impulse builder automatically stages and inverts the stream into CSC using external sort. (At the `.imps` binary specification level, all topology sections—`CSR`, `CSC`, and `COO`—are independently optional to support specialized `M:1` / `1:1` direct-lookup arrays, CSC-only relations, or virtual relations, probed at runtime via `OP_HAS_CSR` / `OP_HAS_CSC`.)
 
 ---
 
@@ -156,7 +156,7 @@ Every traversal in Impulse Graph is a pipeline that steps from one **Node Domain
      $$\text{User} \xrightarrow{\text{PLACED}} \text{Order} \xrightarrow{\text{CONTAINS}} \text{Product}$$
    * Any `.filter(...)` or `.project(...)` step along the way operates on the attributes of whichever domain (or edge relation) is currently active at that step.
 3. **Materialize from the Single Final Target Domain**: The query finishes in a single target domain (above, `Product`) and returns results from that domain's surviving frontier:
-   * **Target Node IDs or Business Keys** (`toList()`, `toKeyList()`, `executeBitSet()`)
+   * **Target Node IDs or Business Keys** (`toList()`, `toKeyList()`, `toBitSet()`)
    * **Target Domain Attributes** (e.g., `product.price`, `product.category`)
    * **Projected State** carried forward along the walk, or a scalar aggregate (`count()`, `sum()`, `max()`).
 

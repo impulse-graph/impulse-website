@@ -4,7 +4,7 @@ The Impulse Graph Engine is designed for extreme concurrency, aiming to support 
 
 ## Lock-Free Reads via Mmap
 
-All query traversals operate over `GraphView` objects. A `GraphView` is fundamentally a lightweight struct containing pointers to memory-mapped (`mmap`) regions representing the Compressed Sparse Row (CSR) arrays of the graph.
+All query traversals operate over `ImpulseGraphSnapshot` (`GraphSnapshot` in Java 25, `impulse_snapshot_t` in C-ABI). A snapshot handle is a lightweight descriptor containing slices/pointers into memory-mapped (`mmap`) regions representing the Compressed Sparse Row (CSR) and Structure-of-Arrays (SoA) segments of the `.imps` file.
 
 Because the underlying `.imps` file on disk is immutable, these memory regions are completely read-only. 
 
@@ -12,19 +12,20 @@ Because the underlying `.imps` file on disk is immutable, these memory regions a
 - **Page Cache Driven**: The operating system's page cache handles parallel I/O and memory management transparently.
 - **Hardware Threading**: Scales perfectly linearly with the number of CPU cores.
 
-## Atomic Snapshot Reference Swaps
+## Atomic Snapshot Reference Swaps (`SnapshotSwapManager`)
 
-In a dynamic service environment, new data arrives continuously. Rather than locking the graph to update the base structure, the engine employs a background compaction thread to build a new `.imps` file.
+In a dynamic service environment, new data arrives continuously. Rather than locking the graph to update the base structure, an out-of-band builder writes a new `.imps` file.
 
-When the new file is ready, the engine uses an **atomic pointer swap** (`VarHandle` in Java, `std::atomic` in C++) to redirect the active `GraphView` to the new memory map. 
+When the new file is ready, `SnapshotSwapManager` performs an **atomic pointer swap** (`AtomicReference` in Java, `std::atomic` in C++) to redirect new queries to the new memory map while reference-counting and draining in-flight queries on the previous snapshot:
 
 ```java
-// Atomic, non-blocking pointer swap
-VarHandle.fullFence();
-activeGraphViewReference.setRelease(newSnapshotView);
+SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialSnapshot);
+
+// Atomically swap active snapshot and asynchronously drain/close the old generation
+swapManager.swap(newSnapshot);
 ```
 
-Queries that started before the swap continue reading from the old mapped memory. Once their execution context ends, the old memory mapping is unmapped.
+Queries that started before the swap continue reading from the old mapped memory. Once their `holder.release()` count reaches zero, the old `Arena` is closed and unmapped.
 
 ## Zero-Allocation Hot Path
 
@@ -33,20 +34,28 @@ To prevent Java Garbage Collection (GC) pauses from ruining predictable latency,
 - No objects are allocated per-step.
 - Node arrays and bitsets are updated in place.
 
-## Allocation Budget & `QueryContext`
+## Allocation Budget & `VmQueryContext` / Caller Buffer
 
-Every concurrent query requires temporary scratch space (e.g., bitsets for intermediate unions or intersections). To satisfy the zero-allocation rule, this scratch space must be pre-allocated.
+Every concurrent query requires temporary scratch space (e.g., off-heap bitsets for intermediate unions or intersections). To satisfy the zero-allocation rule, this scratch space is pre-allocated in an off-heap `Arena` (`VmQueryContext` in Java 25, or the caller-provided buffer in C-ABI `impulse_stmt_execute`):
 
-This is handled by the `QueryContext`. A worker thread (or virtual thread) allocates a `QueryContext` **once**, sized exactly to the maximum live intermediates computed statically from the query AST.
-
-=== "Java"
+=== "Java 25"
     ```java
-    // Pre-allocated at startup or worker initialization
-    QueryContext ctx = query.createContext();
+    // Pre-compiled MethodHandle pipeline
+    MethodHandle compiled = ImpulseMethodHandleCompiler.compile(prog, instructionCount);
 
-    // In the hot request loop:
-    // Reuses `ctx` buffers. No `new` keywords.
-    RoaringBitmap result = query.execute(ctx, view, input);
+    // Worker or Virtual Thread reuses an off-heap Arena / VmQueryContext
+    try (Arena workerArena = Arena.ofConfined()) {
+        ImpulseBitSet result = (ImpulseBitSet) compiled.invokeExact(graph, (Object) seedNodeId, workerArena);
+    }
     ```
 
-By explicitly managing the `QueryContext`, the engine avoids the pitfalls of `ThreadLocal` variables in environments utilizing tens of thousands of Project Loom Virtual Threads.
+=== "C-ABI (`impulse_stmt_t`)"
+    ```c
+    // Allocated once per worker thread based on deterministic prepare-time size
+    size_t buf_len = impulse_stmt_buffer_size(stmt);
+    void* thread_buf = malloc(buf_len);
+
+    // Hot request loop: zero internal mallocs
+    impulse_stmt_bind_node(stmt, "$seed", seed_id);
+    impulse_stmt_execute(stmt, thread_buf, buf_len);
+    ```

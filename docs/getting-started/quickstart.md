@@ -67,30 +67,29 @@ You can compile an `.imps` file in two ways:
     ```
 
 === "Java 25 (`SnapshotBuilder`)"
-    For JVM applications or streaming JDBC pipelines, use `SnapshotBuilder` (see the full [Building Snapshots Walkthrough](building-snapshots.md)):
+    For JVM applications or streaming JDBC pipelines, use `org.impulsegraph.builder.api.SnapshotBuilder` (see the full [Building Snapshots Walkthrough](building-snapshots.md)):
 
     ```java
-    import org.impulsegraph.builder.SnapshotBuilder;
-    import org.impulsegraph.spec.DataType;
-    import org.impulsegraph.spec.KeyType;
+    import org.impulsegraph.builder.api.*;
     import java.nio.file.Path;
-    import java.util.Map;
 
-    SnapshotBuilder builder = new SnapshotBuilder()
-        .addDomain("User", KeyType.STRING)
-        .addNodeAttribute("User", "age", DataType.I32)
-        .addNodeAttribute("User", "active", DataType.BOOL)
-        .addRelation("FOLLOWS", "User", "User", true);
+    // 1. Define the User domain (3 nodes: dense IDs 0, 1, 2)
+    DomainDefinition userDomain = DomainDefinition.builder(3)
+        .idWidth(PrimitiveWidth.UINT32)
+        .build();
 
-    builder.addNode("User", "usr_alice", Map.of("age", 30, "active", true));
-    builder.addNode("User", "usr_bob", Map.of("age", 24, "active", true));
-    builder.addNode("User", "usr_charlie", Map.of("age", 19, "active", false));
+    // 2. Define the FOLLOWS relation (User -> User, CSR + CSC)
+    RelationDefinition followsRel = RelationDefinition.builder("User", "User")
+        .addTopology(Topology.CSR, CompressionScheme.RAW)
+        .addTopology(Topology.CSC, CompressionScheme.RAW)
+        .dataSource(followsDataSource) // Streams (0->1), (0->2), (1->2)
+        .build();
 
-    builder.addEdge("FOLLOWS", "usr_alice", "usr_bob");
-    builder.addEdge("FOLLOWS", "usr_alice", "usr_charlie");
-    builder.addEdge("FOLLOWS", "usr_bob", "usr_charlie");
-
-    builder.build(Path.of("social.imps"));
+    // 3. Stream-write the 128-byte-aligned .imps file
+    SnapshotBuilder.create()
+        .addDomain("User", userDomain)
+        .addRelation("FOLLOWS", followsRel)
+        .writeTo(Path.of("social.imps"));
     ```
 
 ---

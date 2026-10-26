@@ -10,39 +10,45 @@ Features like Kafka, Spring Boot, or RocksDB belong in the `impulse-platform` re
 
 ## Building from Source
 
-All projects reside in the `~/impulse/` workspace.
+All repositories reside in the `~/impulse/` multi-repository workspace:
 
-### Java Core (`impulse-graph/impulse-java/`)
-Requires JDK 25+. 
+### Pure Java 25 Engine (`impulse-graph-java/`)
+Requires JDK 25+ (or JDK 21 LTS with `--enable-preview`).
 ```bash
-cd impulse-graph/impulse-java
+cd impulse-graph-java
 mvn clean test
 ```
 
-### C++ Kernel (`impulse-graph/impulse-cpp/`)
+### Native C++20 & C-ABI Kernel (`impulse-graph-core/impulse-cpp/`)
 Requires a C++20 compliant compiler (GCC 11+, Clang 14+, MSVC 19.30+).
 ```bash
-cd impulse-graph/impulse-cpp
+cd impulse-graph-core/impulse-cpp
 cmake -B build
 cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
-### Rust Crate (`impulse-graph/impulse-rust/`)
-Requires latest stable Rust.
+### Rust Crate (`impulse-graph-core/impulse-rust/`)
+Requires stable Rust (`1.80+`).
 ```bash
-cd impulse-graph/impulse-rust
+cd impulse-graph-core/impulse-rust
 cargo test
 ```
 
-### Developer Tools (`impulse-tools/`)
+### Developer CLI & Compiler Suite (`impulse-graph-tooling/`)
 ```bash
-cd impulse-tools
-cmake -B build
-cmake --build build
+cd impulse-graph-tooling
+cargo build --release
 ```
 
-### Documentation (`impulse-website/`)
-Requires Python and MkDocs Material.
+### Specification & Four-Way Polyglot Validation (`impulse-graph-spec/`)
+```bash
+cd impulse-graph-spec
+python3 tools/four_way_validation.py
+```
+
+### Documentation Portal (`impulse-website/`)
+Requires Python 3 and MkDocs Material.
 ```bash
 cd impulse-website
 pip install mkdocs-material
