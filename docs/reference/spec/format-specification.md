@@ -13,7 +13,7 @@ This document defines the formal binary protocol specification for the **Impulse
 
 The format is organized into **4KB OS page-aligned physical blocks**, structured to support **single-pass S3/cloud streaming uploads**, **$O(1)$ zero-copy `mmap` range loading**, and **AVX-512 / GPU SIMD vectorization**.
 
-### Physical File Layout Overview
+### 1.1 Physical File Layout Overview
 
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────────┐
@@ -21,10 +21,10 @@ The format is organized into **4KB OS page-aligned physical blocks**, structured
 │   ├── Magic ("IMPS"), Version (0x0009), DataOffset (4096)                          │
 │   └── GlobalRequiredFeatures, SnapshotUUID, HeaderChecksum                        │
 ├───────────────────────────────────────────────────────────────────────────────────┤
-│ SECTION 2: Catalog & Directory Directory Table (4KB Page 1, Offset 0x1000)         │
+│ SECTION 2: Catalog & Relation Directory Table (4KB Page 1, Offset 0x1000)          │
 │   ├── 1. String Table (Shared Null-Terminated UTF-8 String Pool Blob)              │
 │   ├── 2. Domain Catalog Array (Fixed 16-Byte POD Structs)                         │
-│   └── 3. Sorted Relation Directory Table (Fixed 128B Entries + 40B Attr Descriptors) │
+│   └── 3. Sorted Relation Directory Table (Fixed 128B Entries + 44B Attr Descriptors) │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │ RELATION BLOCK 1 [MANDATORY, 4KB Aligned]                                         │
 │   ├── csrRowOffsets Array (128B Aligned, uint32/uint64)                           │
@@ -58,7 +58,7 @@ The format is organized into **4KB OS page-aligned physical blocks**, structured
 
 The snapshot header occupies byte offset `0x00000000` (Page 0). It contains a **64-byte active baseline** aligned to a single CPU cache line, inside a fixed 4096-byte page (`DataOffset = 4096`).
 
-### Header Byte Offset Table
+### 2.1 Header Byte Offset Table
 
 | Byte Offset | Field Name | C-ABI Type | Size | Default / Constant | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -73,7 +73,8 @@ The snapshot header occupies byte offset `0x00000000` (Page 0). It contains a **
 | `0x0026` – `0x002D` | `FooterDirectoryBytes` | `uint64_t` | 8 Bytes | Byte Size | Byte size of Footer Directory Table (`0` if omitted). |
 | `0x002E` – `0x003D` | `SnapshotUUID` | `uint8_t[16]` | 16 Bytes | Random Binary UUID | Unique 128-bit Binary UUID for this snapshot build artifact. |
 | `0x003E` – `0x003F` | `HeaderChecksum` | `uint16_t` | 2 Bytes | CRC-16-CCITT | Fast CRC-16 checksum calculated over bytes `0x0000..0x003D`. |
-| `0x0040` – `0x0FFF` | `ReservedPadding` | `uint8_t[4032]` | 4032 Bytes | `0x00 ...` | **Reserved Header Expansion Padding** (Aligns Header to 4KB boundary). |
+| `0x0040` – `0x0041` | `IndexCount` | `uint16_t` | 2 Bytes | Variable | Number of secondary index descriptors in Section 2.6. |
+| `0x0042` – `0x0FFF` | `ReservedPadding` | `uint8_t[4030]` | 4030 Bytes | `0x00 ...` | **Reserved Header Expansion Padding** (Aligns Header to 4KB boundary). |
 
 ---
 
@@ -125,8 +126,9 @@ Begins immediately after Domain Catalog Array, aligned to a 128-byte boundary. C
 | `0x0058` – `0x005F` | `CscColIdxOffset` | `uint64_t` | 8 Bytes | Absolute file offset to optional `cscColumnIndices` array (`0` if omitted or Virtual). |
 | `0x0060` – `0x0067` | `CscColIdxBytes` | `uint64_t` | 8 Bytes | Byte size of `cscColumnIndices` array (`0` if omitted or Virtual). |
 | `0x0068` – `0x0069` | `AttrCount` | `uint16_t` | 2 Bytes | Number of edge attributes defined for this relation (`0` if Virtual). |
+| `0x006A` – `0x007F` | `Reserved2` | `uint8_t[22]` | 22 Bytes | Zero-padded for 128-byte cache-line alignment (overloaded with `ImpulseVirtualRelationPayload` when `IMP_REL_FEATURE_VIRTUAL` is set). |
 
-#### 3.3.2 Virtual Super-Relation C-ABI Payload (`Reserved2` Overload & Overflow Rules)
+#### 3.3.1 Virtual Super-Relation C-ABI Payload (`Reserved2` Overload & Overflow Rules)
 
 When `IMP_REL_FEATURE_VIRTUAL` (`Bit 2`) is enabled in `SectionFeatures`:
 
@@ -150,7 +152,7 @@ struct ImpulseVirtualRelationPayload {
 
 ---
 
-#### 3.3.3 Per-Relation Feature Bitmask (`SectionFeatures` 64-bit Layout)
+#### 3.3.2 Per-Relation Feature Bitmask (`SectionFeatures` 64-bit Layout)
 
 The `SectionFeatures` field defines C-ABI flags and structural contracts for topology storage:
 
@@ -187,6 +189,31 @@ Every node attribute and edge attribute is defined by a fixed 44-byte POD struct
 
 ---
 
+### 3.5 Section 2.6: Secondary Index Directory Table (Fixed 64 Bytes per Index)
+Begins immediately after Relation Directory Table, aligned to a 128-byte boundary. Contains `IndexCount` generic secondary index descriptors:
+
+| Byte Offset | Field Name | C-ABI Type | Size | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `0x0000` – `0x0003` | `IndexID` | `uint32_t` | 4 Bytes | Zero-indexed secondary index identifier (`0`..`IndexCount - 1`). |
+| `0x0004` – `0x0005` | `DomainID` | `uint16_t` | 2 Bytes | Target Node Domain ID. |
+| `0x0006` – `0x0007` | `RelationID` | `uint16_t` | 2 Bytes | Target Relation ID (`0xFFFF` for Node Domain attributes). |
+| `0x0008` – `0x0009` | `AttributeIndex` | `uint16_t` | 2 Bytes | 0-indexed Attribute index within target relation or node domain. |
+| `0x000A` | `IndexType` | `uint8_t` | 1 Byte | Generic Index Type enum (`0x01` = Permutation, `0x02` = ZoneMap, `0x03` = InvertedBitSet, `0x04` = MPHF, `0x05` = Trigram, `0x06` = DomainSplit, `0x07` = TemporalInterval). |
+| `0x000B` | `Reserved1` | `uint8_t` | 1 Byte | `0x00` alignment padding. |
+| `0x000C` – `0x000F` | `NameOffset` | `uint32_t` | 4 Bytes | 0-indexed byte offset into String Table (e.g., `"idx_user_email\0"`). |
+| `0x0010` – `0x0017` | `DataOffset` | `uint64_t` | 8 Bytes | Absolute 128B-aligned file offset to index data payload blob. |
+| `0x0018` – `0x001F` | `DataBytes` | `uint64_t` | 8 Bytes | Total byte size of index data payload blob. |
+| `0x0020` – `0x0027` | `PayloadFeatureMask` | `uint64_t` | 8 Bytes | Generic Index Feature Bitmask (e.g. hash seed, metric flags). |
+| `0x0028` – `0x003F` | `ReservedPadding` | `uint8_t[24]` | 24 Bytes | Reserved for future index engine parameters (`0x00`). |
+
+#### 3.5.1 Constructing & Attaching Secondary Indices (`impulse_index.h`)
+
+* **Automatic Primary Key Index (`impulse build`)**: When building an `.imps` snapshot from a `manifest.json` via `impulse build`, the compiler automatically populates the domain key catalog index (`_domain_index`) and attribute min/max metadata.
+* **Programmatic Secondary Index Construction (C-ABI & Rust)**: The 7 secondary index families (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitSet, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval) are constructed in `impulse_index.h` via `impulse_index_build_permutation(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_zone_map(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_minimal_perfect_hash(const char** keys, size_t count, void** out_bytes, size_t* out_size)` (plus `impulse_index_build_inverted_bitset`, `impulse_index_build_trigram`, `impulse_index_build_domain_split`, and `impulse_index_build_temporal_interval`) and attached to the snapshot writer via `impulse_writer_add_index(writer, domain_id, relation_id, attribute_index, index_type, index_name, index_data, index_bytes, payload_feature_mask)` (or Rust `SnapshotWriter::add_index`).
+* **Transient Scratch Indices & `.imps.idx` Sidecars**: Opcodes `OP_CREATE_SCRATCH_INDEX` (`0x1E`) and `OP_DROP_SCRATCH_INDEX` (`0x1F`) allocate and free transient secondary indices in the query scratch workspace; external `.imps.idx` sidecar file persistence is a reserved specification extension.
+
+---
+
 ## 4. Topology & Attribute Specification
 
 ### 4.1 Topology Mechanics & Multiplicity Optimizations
@@ -195,7 +222,7 @@ Every node attribute and edge attribute is defined by a fixed 44-byte POD struct
 * **Many-to-One (`IMP_REL_CARDINALITY_M_1`)**: Every source node has at most 1 target node. `csrRowOffsets` is omitted (`CsrRowOffBytes = 0`). `csrColumnIndices` becomes a flat direct array of length $N$. Target node ID for source node $i$ is read directly at `csrColumnIndices[i]` (where `MAX_UINT` indicates no edge).
 * **One-to-Many (`IMP_REL_CARDINALITY_1_M`)**: Forward CSR is standard (`csrRowOffsets` + `csrColumnIndices`). Reverse CSC transpose omits `cscRowOffsets` (`CscRowOffBytes = 0`), storing a flat direct source node ID array in `cscColumnIndices`.
 * **One-to-One (`IMP_REL_CARDINALITY_1_1`)**: Both `csrRowOffsets` and `cscRowOffsets` are omitted. Forward and reverse traversals use flat direct arrays in $O(1)$ single-hop dereferences.
-* **Virtual Super-Relations (`IMP_REL_FEATURE_VIRTUAL`)**: Contains no physical topology arrays. `ImpulseVM` resolves the relation by expanding traversals over `component_ids[0 .. component_count - 1]` and unioning intermediate bitsets via `OP_SET_UNION` or `OP_CSC_WALK_MULTI`.
+* **Virtual Super-Relations (`IMP_REL_FEATURE_VIRTUAL`)**: Contains no physical topology arrays. `ImpulseVM` resolves the relation by expanding traversals over `component_ids[0 .. component_count - 1]` and unioning intermediate bitsets via `OP_SET_UNION` or `OP_CSC_WALK`.
 * **Optional CSC Transpose**: An incoming transpose index (`cscRowOffsets` + `cscColumnIndices`) may be included for bidirectional traversals.
 * **Explicit Reverse Relations**: Reverse relations (e.g. `MEMBER_OF_REVERSE`) are represented explicitly as first-class catalog relations.
 
@@ -203,7 +230,7 @@ Every node attribute and edge attribute is defined by a fixed 44-byte POD struct
 
 Attributes are partitioned into fixed-length primitives, fixed-width vectors, and variable-length payloads stored in **Structure of Arrays (SoA)** layout.
 
-#### Bitwise Nullability Flag & Base Type Mask
+#### 4.2.1 Bitwise Nullability Flag & Base Type Mask
 Attribute data types are encoded in an 8-bit field (`uint8_t type_code`):
 
 ```c
@@ -218,7 +245,7 @@ bool is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
 * **Non-Nullable (`is_nullable == false`, Bit 7 = 0)**: Zero validity bitmap overhead. 100% of memory is allocated to contiguous data values.
 * **Nullable (`is_nullable == true`, Bit 7 = 1)**: A 128-byte aligned **Validity Bitmap** (`uint64_t validity_bitmap[(K + 63) / 64]`) is placed at `DataOffset`. The validity bitmap MUST be strictly padded with `0x00` to the nearest 128-byte boundary. The actual data payload array begins immediately after the padded bitmap, guaranteeing that the data array remains strictly 128-byte aligned for hardware SIMD load instructions. ($1\text{ bit per entity}$, Bit $i=1 \rightarrow$ valid value, Bit $i=0 \rightarrow$ null).
 
-#### Base Data Type Table (`0x00` .. `0x7F` Base Codes):
+#### 4.2.2 Base Data Type Table (`0x00` .. `0x7F` Base Codes)
 | Base Code (`0x7F`) | Base Type Name | Non-Null Code | Nullable Code (`0x80`) | Dimension (`dim`) | Memory Layout |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `0x01` | `INT8` | `0x01` | `0x81` | $\ge 1$ | $1 \times \text{dim}$ Bytes (`int8_t` / `uint8_t`) |
@@ -238,28 +265,20 @@ bool is_nullable = (descriptor->type_code & IMPULSE_NULLABLE_FLAG) != 0;
 
 ---
 
-### 3.4 Section 2.6: Secondary Index Directory Table (Fixed 64 Bytes per Index)
-Begins immediately after Relation Directory Table, aligned to a 128-byte boundary. Contains `IndexCount` generic secondary index descriptors:
+### 4.3 Detailed Physical Storage Rules for Attributes
 
-| Byte Offset | Field Name | C-ABI Type | Size | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `0x0000` – `0x0003` | `IndexID` | `uint32_t` | 4 Bytes | Zero-indexed secondary index identifier (`0`..`IndexCount - 1`). |
-| `0x0004` – `0x0005` | `DomainID` | `uint16_t` | 2 Bytes | Target Node Domain ID. |
-| `0x0006` – `0x0007` | `RelationID` | `uint16_t` | 2 Bytes | Target Relation ID (`0xFFFF` for Node Domain attributes). |
-| `0x0008` – `0x0009` | `AttributeIndex` | `uint16_t` | 2 Bytes | 0-indexed Attribute index within target relation or node domain. |
-| `0x000A` | `IndexType` | `uint8_t` | 1 Byte | Generic Index Type enum (`0x01` = Permutation, `0x02` = ZoneMap, `0x03` = InvertedBitSet, `0x04` = MPHF, `0x05` = Trigram, `0x06` = DomainSplit, `0x07` = TemporalInterval). |
-| `0x000B` | `Reserved1` | `uint8_t` | 1 Byte | `0x00` alignment padding. |
-| `0x000C` – `0x000F` | `NameOffset` | `uint32_t` | 4 Bytes | 0-indexed byte offset into String Table (e.g., `"idx_user_email\0"`). |
-| `0x0010` – `0x0017` | `DataOffset` | `uint64_t` | 8 Bytes | Absolute 128B-aligned file offset to index data payload blob. |
-| `0x0018` – `0x001F` | `DataBytes` | `uint64_t` | 8 Bytes | Total byte size of index data payload blob. |
-| `0x0020` – `0x0027` | `PayloadFeatureMask` | `uint64_t` | 8 Bytes | Generic Index Feature Bitmask (e.g. hash seed, metric flags). |
-| `0x0028` – `0x003F` | `ReservedPadding` | `uint8_t[24]` | 24 Bytes | Reserved for future index engine parameters (`0x00`). |
+Attribute storage layout depends on whether the attribute is fixed-width (scalar / vector) or variable-length.
 
-#### 3.4.1 Constructing & Attaching Secondary Indices (`impulse_index.h`)
+#### 4.3.1 Fixed-Width Primitives & Vector Attributes ($D \ge 1$)
+* **Location**: Edge attributes sit in the **Relation Block** immediately following topology arrays; Node attributes sit in **Node Domain Blocks**.
+* **Offset & Alignment**: Data array begins at absolute file offset `DataOffset`, aligned to a 128-byte boundary.
+* **Element Indexing**: Element $i$ ($0 \le i < K$, where $K = E$ for edges or $K = N$ for nodes) starts at byte offset:
+  $$\text{ByteOffset}(i) = \text{DataOffset} + (i \times D \times \text{sizeof(BaseType)})$$
 
-* **Automatic Primary Key Index (`impulse build`)**: When building an `.imps` snapshot from a `manifest.json` via `impulse build`, the compiler automatically populates the domain key catalog index (`_domain_index`) and attribute min/max metadata.
-* **Programmatic Secondary Index Construction (C-ABI & Rust)**: The 7 secondary index families (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitSet, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval) are constructed in `impulse_index.h` via `impulse_index_build_permutation(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_zone_map(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_minimal_perfect_hash(const char** keys, size_t count, void** out_bytes, size_t* out_size)` (plus `impulse_index_build_inverted_bitset`, `impulse_index_build_trigram`, `impulse_index_build_domain_split`, and `impulse_index_build_temporal_interval`) and attached to the snapshot writer via `impulse_writer_add_index(writer, domain_id, relation_id, attribute_index, index_type, index_name, index_data, index_bytes, payload_feature_mask)` (or Rust `SnapshotWriter::add_index`).
-* **Transient Scratch Indices & `.imps.idx` Sidecars**: Opcodes `OP_CREATE_SCRATCH_INDEX` (`0x1E`) and `OP_DROP_SCRATCH_INDEX` (`0x1F`) allocate and free transient secondary indices in the query scratch workspace; external `.imps.idx` sidecar file persistence is a reserved specification extension.
+#### 4.3.2 Variable-Length String & Binary Attributes (`VAR_STRING` 0x0B, `VAR_BYTES` 0x0C)
+* **Offsets Array**: Stored at 128B-aligned `OffsetsOffset` containing an array of $K + 1$ 32-bit unsigned integers (`uint32_t offsets[K + 1]`), where `offsets[0] = 0`.
+* **Data Payload Blob**: Stored at 128B-aligned `DataOffset` containing the raw concatenated UTF-8 text or binary bytes.
+* **Slice Extraction**: Payload bytes for element $i$ are extracted from `DataOffset + offsets[i]` with byte length `offsets[i + 1] - offsets[i]`.
 
 ---
 
@@ -287,35 +306,19 @@ To enable dynamic adaptive query execution without runtime exception traps, `Imp
 
 ---
 
-### 4.3 Detailed Physical Storage Rules for Attributes
-
-Attribute storage layout depends on whether the attribute is fixed-width (scalar / vector) or variable-length.
-
-#### 1. Fixed-Width Primitives & Vector Attributes ($D \ge 1$)
-* **Location**: Edge attributes sit in the **Relation Block** immediately following topology arrays; Node attributes sit in **Node Domain Blocks**.
-* **Offset & Alignment**: Data array begins at absolute file offset `DataOffset`, aligned to a 128-byte boundary.
-* **Element Indexing**: Element $i$ ($0 \le i < K$, where $K = E$ for edges or $K = N$ for nodes) starts at byte offset:
-  $$\text{ByteOffset}(i) = \text{DataOffset} + (i \times D \times \text{sizeof(BaseType)})$$
-
-#### 2. Variable-Length String & Binary Attributes (`VAR_STRING` 0x0B, `VAR_BYTES` 0x0C)
-* **Offsets Array**: Stored at 128B-aligned `OffsetsOffset` containing an array of $K + 1$ 32-bit unsigned integers (`uint32_t offsets[K + 1]`), where `offsets[0] = 0`.
-* **Data Payload Blob**: Stored at 128B-aligned `DataOffset` containing the raw concatenated UTF-8 text or binary bytes.
-* **Slice Extraction**: Payload bytes for element $i$ are extracted from `DataOffset + offsets[i]` with byte length `offsets[i + 1] - offsets[i]`.
----
-
 ## 5. Section 4: Key Catalogs & ID Mappings
 
 Section 4 stores the off-heap index structures required to resolve external business keys (Strings, UUIDs, Integers) to internal dense `0` to `N-1` Node IDs, and vice-versa. 
 
 In accordance with the physical specification, $O(N)$ linear scans or heap allocations for key resolution are prohibited. All mappings MUST be performed in $O(1)$ or $O(\log N)$ using 128-byte aligned zero-copy memory mapped structures.
 
-### 6.1 Dense ID to Key Resolution ($O(1)$ Array Lookup)
+### 5.1 Dense ID to Key Resolution ($O(1)$ Array Lookup)
 The forward mapping (Dense ID $\to$ External Key) is implemented natively by storing the keys as a standard **Node Domain Attribute** (often implicitly named `_key` or identified via `IndexType = 0xFFFF`).
 
 - For fixed-width keys (e.g. `INT64`), the dense ID is simply used to directly index the 128B-aligned `data_ptr` array ($O(1)$ lookup).
 - For variable-length keys (e.g. `VAR_STRING`, `UUID128`), the dense ID indexes the `offsets_ptr` array to locate the slice within the `data_ptr` blob ($O(1)$ lookup).
 
-### 6.2 Key to Dense ID Resolution ($O(1) / O(\log N)$ Reverse Index)
+### 5.2 Key to Dense ID Resolution ($O(1) / O(\log N)$ Reverse Index)
 The reverse mapping (External Key $\to$ Dense ID) requires a **Secondary Index Directory Entry** targeting the Node Domain. 
 
 The structural format of the Section 4 index block depends on the `key_type` defined in the Domain Catalog:

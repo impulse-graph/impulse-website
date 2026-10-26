@@ -111,12 +111,14 @@ To maintain runtime security against invalid branches into the middle of a 128-b
 *Note: For operations requiring a 32-bit integer immediate offset in the extension word, the VM backend MAY cast `arg4` and `arg5` (bytes `0x0C`–`0x0F`) as a single perfectly-aligned 32-bit `uint32_t` via an anonymous union.*
 
 ### 3.3 Instruction Modifier Flags
-The `flags` byte in the instruction structure is a bitmask defined as:
+The `flags` byte in the instruction structure (`impulse_vm.h:38-42`) is a bitmask defined as:
 
-- **`Bit 0` (`0x01` / `IMPULSE_VM_OP_FLAG_MODE_BITSET`)**: Mode BitSet flag. When set, operations operate on or return BitSet handles.
-- **`Bit 1` (`0x02` / `IMPULSE_VM_OP_FLAG_ACCUMULATE`)**: Accumulate flag. Instructs the VM to accumulate results into the destination register rather than overwriting.
-- **`Bit 2` (`0x04` / `IMPULSE_VM_OP_FLAG_INVERT`)**: Invert flag. Negates conditions, filters, or set tests.
-- **`Bit 3` (`0x08` / `IMPULSE_VM_OP_FLAG_OFFHEAP`)**: Off-heap flag. Explicitly forces off-heap memory evaluations.
+- **`Bit 0` (`0x01` / `IMPULSE_VM_OP_FLAG_HALT_ON_EMPTY` / `IMPULSE_INST_FLAG_HALT_ON_EMPTY`, `[early-exit]`)**: Early-exit flag. Jump to halt (`IMPULSE_VM_OK`) immediately if the output frontier BitSet is empty.
+- **`Bit 1` (`0x02` / `IMPULSE_VM_OP_FLAG_INPUT_SEED` / `IMPULSE_INST_FLAG_INPUT_SEED`, `[seed-inlined]`)**: Seed-inlined flag. Indicates the traversal source is the query input seed node parameter rather than a register handle.
+- **`Bit 2` (`0x04` / `IMPULSE_VM_OP_FLAG_ACCUMULATE`)**: Accumulate flag. Instructs the VM to accumulate (union) results into the destination register rather than overwriting (`0x04`–`0x80` reserved in baseline traversal disassemblers).
+- **`Bit 3` (`0x08` / `IMPULSE_VM_OP_FLAG_INVERT`)**: Invert flag. Negates conditions, filters, or set tests.
+- **`Bit 4` (`0x10` / `IMPULSE_VM_OP_FLAG_OFFHEAP`)**: Off-heap flag. Explicitly forces off-heap memory evaluations.
+- **`Bits 5..6` (`0x20`–`0x40`)**: Reserved (`0x00`).
 - **`Bit 7` (`0x80` / `IMPULSE_VM_OP_FLAG_EXTENDED`)**: Extended format flag. Instructs the VM to decode the current instruction and the subsequent 64-bit block as a single 128-bit `SafeExtendedInstruction`.
 
 ---
@@ -285,10 +287,12 @@ Set math and algebraic instructions are classified based on the number and struc
 - **`OP_L1_NORM_DIFF`** (`0x39`)
   - **Behavior**: Calculate L1 Norm of differences between vectors.
 
-- **`OP_COALESCE`** (`0x28`)
+- **`OP_PROJECT_STATE`** (`0x3A`)
+  - **Behavior**: Projects or mutates attached node state in-place across the active frontier (`state' = f(state, attr)`).
+- **`OP_COALESCE`** (`0x3B`)
   - **Behavior**: Coalesces a nullable vector into a dense vector by replacing null elements with a fallback value.
   - **Usage**: Expects `dst_reg`, `src_reg` (nullable vector), and a fallback loaded in a third register (specified in the payload). Replaces elements where validity bit is `0` with the fallback value. The resulting `dst_reg` vector **MUST NOT** have a validity bitmap.
-- **`OP_EXTRACT_VALIDITY`** (`0x29`)
+- **`OP_EXTRACT_VALIDITY`** (`0x3C`)
   - **Behavior**: Extracts the validity bitmap of a nullable vector as a BitSet.
   - **Usage**: Expects `dst_reg` and `src_reg` (the nullable vector). If `src_reg` is nullable, creates a BitSet handle in `dst_reg` wrapping the validity bitmap (yielding an $O(1)$ `IS NOT NULL` mask). If `src_reg` is not nullable, returns a BitSet containing all `1`s for the length of the vector.
   - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
@@ -347,12 +351,12 @@ Set math and algebraic instructions are classified based on the number and struc
 - **`OP_THROW`** (`0x5A`)
   - **Behavior**: Stop execution and return custom runtime exception status. Writes the exception payload directly into `R0` as a `TYPE_INT64`.
   - **Outcome**: Returns status `IMPULSE_VM_ERR_USER_THROW` (`7`).
-- `OP_ASSERT` (`0x5B`):
+- **`OP_ASSERT`** (`0x5B`)
   - **Behavior**: Verify invariant condition on register values or flags. If check fails, return `IMPULSE_VM_ERR_ASSERTION_FAILED` (`8`).
-- `OP_TRAP` (`0x5C`):
+- **`OP_TRAP`** (`0x5C`)
   - **Behavior**: Interrupt execution context and invoke registered debugger hooks. Returns `IMPULSE_VM_ERR_TRAP` (`9`).
-- `IMPULSE_VM_ERR_GAS_EXHAUSTED` (`13` / `0x0D`):
-  - **Behavior**: Returned when an execution loop or query exceeds its configured instruction fuel / gas budget in `VmQueryContext`, terminating unbounded loops safely.
+
+> **Instruction Gas / Fuel Enforcement (`IMPULSE_VM_ERR_GAS_EXHAUSTED`)**: Instruction gas exhaustion is a VM runtime status code rather than an instruction opcode. When an execution loop or query exceeds its configured instruction fuel / gas budget in `impulse_vm_context_t` (`impulse_vm_context_set_fuel`), the VM halts execution safely and returns status code `IMPULSE_VM_ERR_GAS_EXHAUSTED` (`13` / `0x0D`).
 
 ### 6.6 Extended Operations
 - **`OP_SAMPLE_NEIGHBORS`** (`0x60`)
@@ -396,7 +400,11 @@ Set math and algebraic instructions are classified based on the number and struc
 - **`OP_SET_MAX_DOP`** (`0x75`)
   - **Behavior**: Set concurrency limits (maximum degree of parallelism) for multi-threaded opcodes.
 
-### 6.8 Materialization and Output Instructions
+### 6.8 Materialization, Columnar Gather, and Multi-Layout Walk Instructions
+- **`OP_LOAD_COLUMN_VECTOR`** (`0x80`), **`OP_GATHER_NODE_ATTR`** (`0x81`), **`OP_GATHER_EDGE_ATTR`** (`0x82`), **`OP_BRIN_ZONE_SKIP`** (`0x83`)
+  - **Behavior**: Direct columnar attribute vector loads, indirect node/edge attribute gathers over active frontiers, and 2-tier BRIN / Zone Map block skipping.
+- **`OP_CSR_WALK_DIRECT_STORE`** (`0x84`), **`OP_CSR_WALK_DENSE_STREAM`** (`0x85`), **`OP_COO_WALK`** (`0x86`), **`OP_CSC_WALK_DIRECT_STORE`** (`0x87`), **`OP_FIXPOINT_KLEENE_STAR`** (`0x88`), **`OP_SWAP_REG`** (`0x89`), **`OP_FRONTIER_DIFF`** (`0x8A`), **`OP_COO_WALK_FILTERED`** (`0x8B`), **`OP_COO_WALK_REDUCE`** (`0x8C`), **`OP_COO_WALK_DIRECT_STORE`** (`0x8D`), **`OP_DENSE_WALK`** (`0x8E`), **`OP_DENSE_WALK_BITMATRIX`** (`0x8F`)
+  - **Behavior**: Multiplicity-specialized direct-store walks ($1:N$, $N:1$, $1:1$), COO/Dense bit-matrix sweeps, in-place register swapping (`OP_SWAP_REG`), frontier delta extraction (`OP_FRONTIER_DIFF`), and fused Kleene-star fixpoint loops.
 - **`OP_COLLECT_BITSET`** (`0x90`)
   - **Behavior**: Materialize target BitSet items into caller array buffer.
 - **`OP_COLLECT_ARRAY`** (`0x91`)
@@ -405,18 +413,22 @@ Set math and algebraic instructions are classified based on the number and struc
   - **Behavior**: Resolve dense offsets into user domain key formats.
 - **`OP_COLLECT_VALUE_MAP`** (`0x93`)
   - **Behavior**: Materialize map keys/values into FFI structs.
+- **`OP_DENSE_WALK_REDUCE`** (`0x94`), **`OP_DENSE_WALK_DIRECT_STORE`** (`0x95`)
+  - **Behavior**: Monoidal reduction and injective direct-store fast paths over dense bit-matrix relations.
 
 ### 6.9 Reserved Opcodes
-- **`OP_RESERVED_0A`** through **`OP_RESERVED_0F`** (`0x0A`–`0x0F`)
-- **`OP_RESERVED_1D`** through **`OP_RESERVED_2F`** (`0x1D`–`0x2F`)
-- **`OP_RESERVED_3A`** through **`OP_RESERVED_3F`** (`0x3A`–`0x3F`)
+The following unallocated opcode ranges in `0x00`–`0xFF` are strictly reserved in `impulse_vm.h`:
+
+- **`OP_RESERVED_0A`** through **`OP_RESERVED_0D`** (`0x0A`–`0x0D`) and **`OP_RESERVED_0F`** (`0x0F`; note `0x0E` is allocated to `OP_CSR_WALK_2HOP`)
+- **`OP_RESERVED_28`** through **`OP_RESERVED_29`** (`0x28`–`0x29`) and **`OP_RESERVED_2B`** through **`OP_RESERVED_2C`** (`0x2B`–`0x2C`)
+- **`OP_RESERVED_3E`** through **`OP_RESERVED_3F`** (`0x3E`–`0x3F`; `0x3A`–`0x3D` are allocated to `OP_PROJECT_STATE`, `OP_COALESCE`, `OP_EXTRACT_VALIDITY`, and `OP_VECTOR_TIME_VALID_AT`)
 - **`OP_RESERVED_4C`** through **`OP_RESERVED_4F`** (`0x4C`–`0x4F`)
 - **`OP_RESERVED_59`** (`0x59`)
 - **`OP_RESERVED_5D`** through **`OP_RESERVED_5F`** (`0x5D`–`0x5F`)
 - **`OP_RESERVED_6D`** through **`OP_RESERVED_6F`** (`0x6D`–`0x6F`)
-- **`OP_RESERVED_76`** through **`OP_RESERVED_8F`** (`0x76`–`0x8F`)
-- **`OP_RESERVED_90_9F`** (`0x90`–`0x9F`)
-- **`OP_RESERVED_BE_FF`** (`0xBE`–`0xFF`)
+- **`OP_RESERVED_76`** through **`OP_RESERVED_7F`** (`0x76`–`0x7F`; `0x80`–`0x8F` are allocated to columnar gather and multiplicity fast-path opcodes)
+- **`OP_RESERVED_96`** through **`OP_RESERVED_9F`** (`0x96`–`0x9F`; `0x90`–`0x95` are allocated to output materialization and dense walk opcodes)
+- **`OP_RESERVED_BE`** through **`OP_RESERVED_FE`** (`0xBE`–`0xFE`, with `0xFF` reserved for the 128-bit `OP_EXTENSION_PAYLOAD` marker per §3.2.1)
   - **Behavior**: Execution of any reserved opcode **MUST** immediately halt virtual machine execution and return the status `IMPULSE_VM_ERR_RESERVED_OPCODE` (`10`).
 
 ### 6.10 Edge Stream Shader Instructions (`0xA0` - `0xBD`)

@@ -61,7 +61,7 @@ impulse compile authz.implog -o authz.impas
 impulse compile authz.implog --emit-ir
 
 # 3. Assemble into binary impOps bytecode (.impb) and run against a snapshot
-impulse assemble authz.impas -o authz.impb
+impulse assemble -i authz.impas -o authz.impb
 impulse run --snapshot production.imps --bytecode authz.impb --input-val 1042
 ```
 
@@ -98,7 +98,7 @@ You can compile and execute `.implog` programs directly inside your application 
 === "Java 25 / Polyglot (Pre-Compiled `.impb` Bytecode)"
     ```java
     // Pre-compile via CLI:
-    //   impulse compile authz.implog -o authz.impas && impulse assemble authz.impas -o authz.impb
+    //   impulse compile authz.implog -o authz.impas && impulse assemble -i authz.impas -o authz.impb
     byte[] bytecodeBytes = Files.readAllBytes(Path.of("authz.impb"));
 
     try (Arena arena = Arena.ofConfined()) {

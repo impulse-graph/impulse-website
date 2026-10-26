@@ -102,8 +102,9 @@ Developer inspection, compilation, and layout optimization utilities are consoli
 | Registry | Ecosystem / Language | Published Artifact Name | Description |
 | :--- | :--- | :--- | :--- |
 | **Maven Central** | Java 25 (JVM) | `org.impulsegraph:impulse-api`<br>`org.impulsegraph:impulse-storage`<br>`org.impulsegraph:impulse-vm`<br>`org.impulsegraph:impulse-compiler`<br>`org.impulsegraph:impulse-builder`<br>`org.impulsegraph:impulse-spec` | Pure Java 25 FFM engine modules (zero runtime dependencies, zero GC pauses). |
-| **Crates.io** | Rust | `impulse-graph` / `impulse-tools` | Zero-dependency Rust engine crate & CLI tools. |
+| **Crates.io** | Rust | `impulse-graph` / `impulse-graph-tooling` | Zero-dependency Rust engine crate & CLI tools. |
 | **PyPI** | Python | `impulse-graph` | Pre-compiled wheels with NumPy & PyTorch zero-copy `mmap` tensors. |
+| **Go Modules** | Go (`CGo`) | `github.com/impulse-graph/impulse-graph-core/impulse-go` | CGo bindings linked against `libimpulse_graph_static.a`. |
 | **NuGet.org** | .NET (C# / F#) | `ImpulseGraph` / `ImpulseGraph.Native` | Managed .NET API and cross-platform native C-ABI binaries. |
 | **npm** | Node.js / Bun | `impulse-graph` | TypeScript definitions & N-API native bindings. |
 | **Vcpkg / Conan** | C / C++20 | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`) & static/shared libraries. |

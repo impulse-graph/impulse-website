@@ -84,7 +84,7 @@ Create four CSV files in a `bank_data/` directory:
 
 ### Step 2: Create `manifest.json`
 
-Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account` = `1`), their node attributes, and the two directed relations (`OWNS` and `TRANSFERRED_TO`):
+Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account` = `1`), their node attributes, and the two directed relations (`OWNS` and `TRANSFERRED_TO`). Because `impulse build` resolves `"file"` paths relative to the directory containing `manifest.json` (`bank_data/`), reference the CSV filenames directly:
 
 ```json
 {
@@ -93,7 +93,7 @@ Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account
       "id": 0,
       "name": "User",
       "key_type": "string",
-      "file": "bank_data/users.csv",
+      "file": "users.csv",
       "id_column": "user_id",
       "attributes": [
         { "name": "name", "column": "name", "type": "string" },
@@ -105,7 +105,7 @@ Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account
       "id": 1,
       "name": "Account",
       "key_type": "string",
-      "file": "bank_data/accounts.csv",
+      "file": "accounts.csv",
       "id_column": "account_id",
       "attributes": [
         { "name": "balance", "column": "balance", "type": "float64" }
@@ -117,7 +117,7 @@ Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account
       "name": "OWNS",
       "src_domain": 0,
       "tgt_domain": 1,
-      "file": "bank_data/owns.csv",
+      "file": "owns.csv",
       "src_column": "user_id",
       "tgt_column": "account_id",
       "include_csc": true
@@ -126,7 +126,7 @@ Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account
       "name": "TRANSFERRED_TO",
       "src_domain": 1,
       "tgt_domain": 1,
-      "file": "bank_data/transfers.csv",
+      "file": "transfers.csv",
       "src_column": "from_account",
       "tgt_column": "to_account",
       "include_csc": true,
@@ -282,8 +282,8 @@ impulse build --manifest citation_manifest.json -o citations_raw.imps
 # 2. Reorder dense IDs with Reverse Cuthill-McKee (RCM) to minimize CSR cache misses
 impulse snapshot optimize -i citations_raw.imps -o citations.imps --rcm --csc
 
-# 3. Inspect degree distribution & supernodes
-impulse snapshot stats citations.imps --supernode-threshold 500
+# 3. Inspect degree distribution & supernodes (statistical Z-score threshold, default 3.0)
+impulse snapshot stats citations.imps --supernode-threshold 3.0
 ```
 
 ### Step 4: Mount Zero-Copy in PyTorch (`impulse-gnn`)
@@ -332,7 +332,7 @@ Each object in `"domains"` defines an independent node domain with its own conti
 | `id` | `u16` | **Yes** | Unique numeric domain ID (`0`, `1`, `2`, ...). Referenced by `src_domain` and `tgt_domain` in `relations[]`. |
 | `name` | `string` | **Yes** | Logical domain name used in queries (e.g., `"User"`, `"Account"`, `"Paper"`). |
 | `key_type` | `string` | **Yes** | Data type of the external primary key: `"string"`, `"int64"`, `"uint64"`, `"uuid"`, `"int32"`, or `"uint16"`. |
-| `file` | `string` | No | Path to the node table file (`.parquet`, `.pq`, `.csv`, `.tsv`). If omitted, the domain's unique keys and node count are inferred automatically from the edge files that reference this domain. |
+| `file` | `string` | No | Path to the node table file (`.parquet`, `.pq`, `.csv`, `.tsv`), resolved relative to the directory containing `manifest.json`. If omitted, the domain's unique keys and node count are inferred automatically from the edge files that reference this domain. |
 | `format` | `string` | No | `"parquet"`, `"csv"`, or `"tsv"`. Auto-detected from the file extension if omitted. |
 | `id_column` | `string` | No | Column name containing the primary key in `file`. Defaults to `"id"` (or column `0` in headerless CSVs). |
 | `attributes` | `AttributeDef[]` | No | List of node attribute columns to extract from `file` into 128-byte-aligned SoA columns. |
@@ -346,7 +346,7 @@ Each object in `"relations"` defines a directed edge relation from `src_domain` 
 | `name` | `string` | No | Relation name used in `.out("NAME")` / `.in("NAME")` and openCypher `[:NAME]`. Defaults to `"REL_{src}_{tgt}"` if omitted. |
 | `src_domain` | `u16` | **Yes** | Numeric `id` of the source domain. |
 | `tgt_domain` | `u16` | **Yes** | Numeric `id` of the target domain. |
-| `file` | `string` | **Yes** | Path to the edge table file (`.parquet`, `.pq`, `.csv`, `.tsv`, `.txt`). |
+| `file` | `string` | **Yes** | Path to the edge table file (`.parquet`, `.pq`, `.csv`, `.tsv`, `.txt`), resolved relative to the directory containing `manifest.json`. |
 | `format` | `string` | No | `"parquet"`, `"csv"`, or `"tsv"`. Auto-detected from the file extension if omitted. |
 | `src_column` | `string` | No | Column name for the source node key. Defaults to `"src"` (or column `0` in CSV/TSV). |
 | `tgt_column` | `string` | No | Column name for the target node key. Defaults to `"tgt"` (or column `1` in CSV/TSV). |
@@ -398,25 +398,30 @@ Beyond `impulse build`, the `impulse` CLI provides a complete toolkit for inspec
 | **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into a 128-byte-aligned `.imps` snapshot. Pass `-o -` to stream directly to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
 | **`snapshot inspect`** | `impulse snapshot inspect graph.imps --verbose` | Prints Page 0 header flags, domain cardinalities, relation encodings, attribute schemas, and byte offsets (supports `--format json`). |
 | **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment` | Verifies magic bytes, 128-byte section alignment, monotonic CSR/CSC offset bounds, and the footer SHA-256 checksum. |
-| **`snapshot stats`** | `impulse snapshot stats graph.imps --supernode-threshold 10000` | Computes min/max/mean/p99 out-degree distributions, density, and lists high-degree supernodes per relation. |
+| **`snapshot stats`** | `impulse snapshot stats graph.imps --supernode-threshold 3.0` | Computes min/max/mean/p99 out-degree distributions, sparsity, multiplicity, and flags high-degree supernodes exceeding the statistical Z-score threshold (default `3.0`). |
 | **`snapshot optimize`** | `impulse snapshot optimize -i raw.imps -o opt.imps --rcm --csc` | Reorders domain dense IDs via **Reverse Cuthill-McKee (`--rcm`)** or **Degree Sorting (`--degree-sort`)** to maximize CPU cache locality, and optionally generates missing CSC reverse indices (`--csc`). |
 | **`snapshot diff`** | `impulse snapshot diff v1.imps v2.imps` | Compares two `.imps` snapshots and reports added/removed domains, relations, node/edge count deltas, and attribute layout changes. |
-| **`snapshot export`** | `impulse snapshot export graph.imps -o out_dir/ --format csv` | Exports the topology and attributes of an `.imps` snapshot back to `csv`, `tsv`, or `jsonl` files. |
-| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` or `.npy` tensor archives into 128-byte-aligned `.imps` vector attribute columns. |
+| **`snapshot export`** | `impulse snapshot export graph.imps -o out_dir/ --format csv` | Exports the topology of an `.imps` snapshot back to `csv`, `tsv`, or `jsonl` files. |
+| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` tensor archives into 128-byte-aligned `.imps` vector attribute columns. |
 
 ---
 
-## 6. Writing a Custom Snapshot Generator (Open `.imps` Binary Specification)
+## 6. Official Programmatic Snapshot Writers & Open `.imps` Specification
 
-While the `impulse` CLI and the Java `SnapshotBuilder` cover almost all standard pipelines, **the `.imps` Binary Snapshot Format is an open, fully documented C-ABI specification**.
+To guarantee 128-byte hardware alignment, well-formed Section 2 Shared String Pools, embedded key lookup indices (`_domain_index`), and valid CRC-16/SHA-256 checksums, **always generate `.imps` snapshots using `impulse build` or the official programmatic writer APIs** (rather than ad-hoc scripts writing raw binary bytes):
 
-Because an `.imps` file is simply a sequence of 128-byte-aligned little-endian structs and contiguous primitive arrays (`row_offsets[]`, `col_indices[]`, and Structure-of-Arrays attribute columns) with no proprietary compression or complex pointer tables, **it is straightforward to write your own `.imps` generator directly in Python (using `struct`, `numpy`, or `pyarrow`), Rust, C++, or Go**:
+* **CLI (CSV / TSV / Apache Parquet)**: `impulse build --manifest manifest.json -o graph.imps` (or `impulse generate` for synthetic benchmark topologies).
+* **Java 21 LTS / Java 25 (`SnapshotBuilder`)**: `org.impulsegraph.builder.api.SnapshotBuilder` for streaming JDBC, Arrow, and custom `RelationDataSource` pipelines (see **[Building Snapshots in Java](building-snapshots.md)**).
+* **Rust (`SnapshotWriter`)**: `impulse_graph::SnapshotWriter` in the `impulse-rust` crate (`writer.add_domain(...)`, `writer.add_relation(...)`, `writer.add_attribute_to_relation(...)`, `writer.finalize()`).
+* **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create`, `impulse_writer_create_stream`, `impulse_writer_add_domain`, `impulse_writer_add_relation`, `impulse_writer_add_attribute`, `impulse_writer_add_index`, and `impulse_writer_finalize` in `impulse_graph.h`.
 
-1. **Follow the Normative Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x0009`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
-2. **Validate with the CLI**: Any custom generator can be immediately verified against the normative compliance rules using:
+For systems engineers inspecting or integrating with the binary format at the specification level:
+
+1. **Normative Binary Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x0009`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
+2. **Validate with the CLI**: Verify any generated `.imps` file against the normative compliance rules using:
    ```bash
-   impulse snapshot validate custom_output.imps --strict-alignment
-   impulse snapshot inspect custom_output.imps --verbose
+   impulse snapshot validate output.imps --strict-alignment
+   impulse snapshot inspect output.imps --verbose
    ```
 3. **Cross-Check Against Compliance Vectors**: The specification repository includes 36 canonical binary test vectors (`tc01`..`tc36`) covering positive and negative structural invariants.
 
@@ -427,4 +432,4 @@ Because an `.imps` file is simply a sequence of 128-byte-aligned little-endian s
 * **[Changing Data & Live Updates](handling-mutations.md)** — Near-real-time (`< 5 min`) rebuild pipelines, S3/GCS distribution, and atomic Blue/Green memory-map swaps.
 * **[Building Snapshots in Java](building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource` API.
 * **[Python SDK Reference](../reference/python-api.md)** & **[PyTorch / GNN Showcase](../showcase/gnn.md)** — Complete Python API and zero-copy PyTorch tensor integration.
-* **[CLI Reference](../reference/cli.md)** — Full command-line reference including `impulse query`, `impulse compile`, and `impulse run`.
+* **[CLI Reference](../reference/cli.md)** — Full command-line reference including `impulse build`, `impulse compile`, `impulse assemble`, and `impulse run`.

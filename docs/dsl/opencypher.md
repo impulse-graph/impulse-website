@@ -52,7 +52,7 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
 * **Inline Node & Edge Attribute Filtering**: Predicates on edge variables (`t.amount >= $minAmt`) or node variables (`a.balance > 0`) compile directly into vectorized [Google CEL](cel.md) shaders (`OP_CSR_WALK_FILTERED` / `OP_NODE_FILTER`) evaluated inline during the CSR/CSC walk step.
 * **`RETURN` Target Frontier Projections**:
   * `RETURN c` (or `RETURN c.id`): Projects the surviving **target domain node frontier** into a zero-copy result set (`BitSetRowReader` yielding surviving dense node IDs in Java, `List[int]` in Python `snap.cypher(...)`, or bitset words in C-ABI `impulse_stmt_column_data(stmt, 0)`).
-  * `RETURN count(c)`: Computes the scalar cardinality of the surviving target frontier (`OP_COLLECT_SCALAR`) without materializing full arrays.
+  * `RETURN count(c)`: Computes the scalar cardinality or aggregate of the surviving target frontier (`OP_SET_CARDINALITY` / `OP_VECTOR_REDUCE_SUM` / `OP_COLLECT_VALUE_MAP`) without materializing full arrays.
 
 !!! important
     **Set Semantics vs. Traditional Cypher Multi-Sets (Why Edge & Intermediate Hop Tuples Collapse)**:
@@ -60,7 +60,7 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
 
     - When `WHERE t.amount >= 1000.0` filters an edge variable `t`, only edges satisfying that predicate are traversed, and all qualifying edges landing on the same destination node `dst` immediately collapse into `dst`'s target bitset via bitwise `OR`.
     - Consequently, `RETURN` outputs the **surviving target domain frontier** (or `count(target)`), rather than unreduced per-edge or intermediate-hop tuple rows. To inspect target node attributes or external keys for the surviving target IDs, use the target domain's O(1) key/attribute accessors.
-    - **Shortest-Path Witness Tracking**: For single-hop minimum-cost witness selection, use `:ARGMIN` (`OP_MONOID_ARGMIN` / `reduceArgMin`). Full multi-hop path sequence reconstruction requires recording per-hop predecessor vectors across BFS levels.
+    - **Shortest-Path Witness Tracking**: For single-hop minimum-cost witness selection, use `:ARGMIN` (`OP_REDUCE` with `ARGMIN` / `OP_STREAM_REDUCE_ARGMIN` / `reduceArgMin`). Full multi-hop path sequence reconstruction requires recording per-hop predecessor vectors across BFS levels.
 
 ---
 
@@ -136,5 +136,5 @@ Under the hood, `CypherCompiler` lowers `MATCH ... WHERE ... RETURN` patterns di
 | openCypher Query | Lowered `ImpScheme` IR (`.impscm`) |
 | :--- | :--- |
 | `MATCH (d:Disease)-[:DdG]->(g:Gene)<-[:CuG]-(c:Compound)`<br>`WHERE d.id = $diseaseId RETURN c` | `(program (csr-walk "DdG") (csc-walk "CuG") (collect-bitset))` |
-| `MATCH (d:Disease)-[:DdG]->(g:Gene)<-[:CuG]-(c:Compound)`<br>`WHERE d.id = $diseaseId RETURN count(c)` | `(program (csr-walk "DdG") (csc-walk "CuG") (collect-scalar))` |
+| `MATCH (d:Disease)-[:DdG]->(g:Gene)<-[:CuG]-(c:Compound)`<br>`WHERE d.id = $diseaseId RETURN count(c)` | `(program (csr-walk "DdG") (csc-walk "CuG") (collect-count))` |
 | `MATCH (u:User)-[e:knows]->(f:User)`<br>`WHERE u.id = $uid AND e.weight >= 0.8 RETURN f` | `(program (csr-walk "knows" (shader (cel-expr (vec-cmp-gte (get-attr edge "weight") 0.8)))) (collect-bitset))` |

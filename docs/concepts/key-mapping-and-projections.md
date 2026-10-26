@@ -60,7 +60,7 @@ Caller-Provided Memory Buffer (buf, buf_len):
 ```
 
 * **Zero String Copies on Projection**: Variable-length string attributes and string domain keys (`VAR_STRING` `0x0B`) are stored in Section 4 as per-column 128-byte-aligned `uint32_t offsets[K+1]` arrays paired with a contiguous UTF-8 byte payload blob (while the Section 2 Shared String Table stores schema/catalog identifier names). When projecting strings, the engine slices `(offsets[id], offsets[id + 1])` **directly inside the immutable `mmap` payload blob**—never copying string characters into heap objects.
-* **Apache Arrow-Compatible Null Bitmaps**: Non-nullable columns (`NullCount == 0`) omit the bitmap entirely (`null_bitmap == NULL`). Nullable columns emit a 64-byte-aligned validity bitmap (`bit i == 1` valid, `bit i == 0` null) that maps directly to Apache Arrow / PyArrow arrays.
+* **Apache Arrow-Compatible Null Bitmaps**: Non-nullable columns (`NullCount == 0`) omit the bitmap entirely (`null_bitmap == NULL`). Nullable columns emit a 128-byte-aligned validity bitmap (`bit i == 1` valid, `bit i == 0` null) that maps directly to Apache Arrow / PyArrow arrays.
 * **Boundary Key Resolution**: External business keys (`String`, `UUID`, `int64`) are resolved to dense `0..N-1` IDs once at the start of execution (`OP_MAP_KEYS_TO_DENSE` / `fromKey`) and projected back to external keys only for the surviving output rows (`OP_MAP_DENSE_TO_KEYS` / `toKeyList`).
 
 ---

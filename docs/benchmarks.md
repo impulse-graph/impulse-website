@@ -10,13 +10,13 @@ Once both **Impulse Graph** engines memory-map (`mmap`) the exact same 128-byte-
 
 ```mermaid
 graph LR
-    subgraph Cold Start Load (twitter-2010, 6.04 GB)
+    subgraph ColdStart["Cold Start Load (twitter-2010, 6.04 GB)"]
         GAPBS_Load["Standard GAPBS C++ (.sg)<br>3,326.05 ms"]
         Arrow_Load["Apache Arrow IPC<br>612.31 ms"]
         Java_Load["Impulse Java 25 (mmap + Leyden AOT)<br>9.75 ms"]
         Cpp_Load["Impulse C++20 (mmap)<br>0.038 ms"]
     end
-    subgraph Full-Graph 10T BFS & Micro-Query
+    subgraph MicroQuery["Full-Graph 10T BFS & Micro-Query"]
         Bfs_Cmp["Full-Graph 1.47B-Edge BFS (10T)<br>C++20: 145.00 ms │ Java 25: 240.29 ms (1.65x)"]
         C2_JIT["Targeted Multi-Hop BFS (C2 JIT)<br>4.13 µs / query"]
     end
@@ -74,15 +74,15 @@ Java Flight Recorder (**JFR**) allocation profiling and `-XX:+PrintCompilation` 
 
 ### 2.1 JDK 25 Project Leyden AOT Cache & HotSpot C2 Tier-4 Warmup (`twitter-2010.imps`)
 
-| Workload / Experiment Mode | JVM Flags / AOT Mode | Warmup Iterations | Cold-Start Load Time | First Invocation Latency | Post-Warmup Steady Latency | Peak Throughput (MTEPS) |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **BFS Baseline (Cold JVM)** | Standard JVM flags | `0` | `14.557 ms` | `332 µs` (`0.332 ms`) | — | `695.2 MTEPS` |
-| **BFS Leyden AOT Production** | `-XX:AOTCache=impulse.aotcache` | `0` | **`9.748 ms`** | `369 µs` (`0.369 ms`) | — | `695.2 MTEPS` |
-| **BFS Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `222 µs` (`0.222 ms`) | **`4.13 µs`** (`0.0041 ms`) | **`6,235.2 MTEPS`** |
-| **CC Baseline (Cold JVM)** | Standard JVM flags | `0` | `16.501 ms` | `776 µs` (`0.776 ms`) | — | `695.2 MTEPS` |
-| **CC Leyden AOT Production** | `-XX:AOTCache=impulse_cc.aotcache` | `0` | **`9.899 ms`** | **`321 µs`** (`0.321 ms`) | — | `695.2 MTEPS` |
-| **CC Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `329 µs` (`0.329 ms`) | **`9.88 µs`** (`0.0098 ms`) | **`5,892.4 MTEPS`** |
-| **Powergrid N-2 Outage Sweep** | Pure Java 25 VM | `10,000` | — | — | **`3.33 µs` / pair** | `300,000 outages/sec` |
+| Workload / Experiment Mode (`twitter-2010.imps`) | JVM Flags / AOT Mode | Warmup Iterations | Cold-Start Load Time | First Invocation Latency | Post-Warmup Steady Latency |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **BFS Baseline (Cold JVM)** | Standard JVM flags | `0` | `14.557 ms` | `332 µs` (`0.332 ms`) | — |
+| **BFS Leyden AOT Production** | `-XX:AOTCache=impulse.aotcache` | `0` | **`9.748 ms`** (`1.49x` faster) | `369 µs` (`0.369 ms`) | — |
+| **BFS Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `222 µs` (`0.222 ms`) | **`4.13 µs`** (`0.0041 ms`) |
+| **CC Baseline (Cold JVM)** | Standard JVM flags | `0` | `16.501 ms` | `776 µs` (`0.776 ms`) | — |
+| **CC Leyden AOT Production** | `-XX:AOTCache=impulse_cc.aotcache` | `0` | **`9.899 ms`** (`1.67x` faster) | **`321 µs`** (**`2.42x` faster cold**) | — |
+| **CC Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `329 µs` (`0.329 ms`) | **`9.88 µs`** (`0.0098 ms`) |
+| **Powergrid N-2 Outage Sweep** | Pure Java 25 VM | `10,000` | — | — | **`3.33 µs` / pair** (`300,000 outages/sec`) |
 
 ### 2.2 Multi-Language FFI Binding Overhead (Hetionet Biomedical Graph: 47K Nodes, 2.25M Edges)
 

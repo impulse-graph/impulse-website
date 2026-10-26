@@ -59,13 +59,13 @@ ImpScheme exposes native `impOps` primitives directly as S-expressions:
 
 | ImpScheme Form | Functionality | Target `impOps` Opcode |
 | :--- | :--- | :--- |
-| `(bitset:from node)` | Create bitset from root node ID | `OP_COLLECT_BITSET` |
+| `(bitset:from node)` | Create bitset from root node ID | `OP_INIT_INPUT_SET` |
 | `(g:walk-csr g frontier "REL")` | Advance 1-hop across relation via CSR | `OP_CSR_WALK` |
 | `(g:walk-csc g frontier "REL")` | Reverse 1-hop traversal via CSC | `OP_CSC_WALK` |
-| `(bitset:and a b)` | Bitwise AND intersection | `OP_ROARING_BITMAP_AND` |
-| `(bitset:or a b)` | Bitwise OR union | `OP_ROARING_BITMAP_OR` |
-| `(bitset:not a)` | Bitwise NOT complement | `OP_ROARING_BITMAP_NOT` |
-| `(bitset:and-not a b)` | Fused Bitwise AND-NOT difference | `OP_ROARING_BITMAP_AND_NOT` |
+| `(bitset:and a b)` | Bitwise AND intersection | `OP_ROARING_BITMAP_AND` (`OP_SET_INTERSECT`) |
+| `(bitset:or a b)` | Bitwise OR union | `OP_ROARING_BITMAP_OR` (`OP_SET_UNION`) |
+| `(bitset:not a)` | Bitwise NOT complement | `OP_MASK_NOT` (fused into `OP_ROARING_BITMAP_AND_NOT`) |
+| `(bitset:and-not a b)` | Fused Bitwise AND-NOT difference | `OP_ROARING_BITMAP_AND_NOT` (`OP_SET_DIFFERENCE`) |
 | `(g:walk-csr-filtered g f "REL" m)` | Fused CSR Walk & Bitset Mask Filter | `OP_CSR_WALK_FILTERED` |
 
 ---
@@ -125,7 +125,7 @@ impulse compile reachability.impscm -o reachability.impas
 impulse compile reachability.impscm --emit-ir
 
 # 3. Assemble .impas text into binary bytecode (.impb)
-impulse assemble reachability.impas -o reachability.impb
+impulse assemble -i reachability.impas -o reachability.impb
 
 # 4. Execute query program against snapshot
 impulse run --snapshot production.imps --bytecode reachability.impb --input-val 1042
