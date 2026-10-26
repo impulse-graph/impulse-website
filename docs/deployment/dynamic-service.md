@@ -2,9 +2,9 @@
 
 The **Long-Lived Dynamic Service** archetype is designed for environments where upstream data changes over time and you need to serve sub-microsecond, read-only graph queries concurrently without interruption.
 
-> [!TIP]
-> **The Near-Real-Time (< 5 Min) & Blob Storage Sweet Spot**
-> Because an `.imps` file is essentially a collection of flat, contiguous arrays, most reasonably sized graphs can be rebuilt from scratch in just a few seconds. Periodically building a fresh `.imps` file, pushing it to **Blob Storage (S3/GCS)**, and performing an atomic Blue/Green swap across stateless pods is the sweet spot for near-real-time graph services. See **[Changing Data & Live Updates: "Wait—My Data Isn't Read-Only!"](../getting-started/handling-mutations.md)** for the full breakdown.
+!!! tip
+    **The Near-Real-Time (< 5 Min) & Blob Storage Sweet Spot**
+    Because an `.imps` file is essentially a collection of flat, contiguous arrays, most reasonably sized graphs can be rebuilt from scratch in just a few seconds. Periodically building a fresh `.imps` file, pushing it to **Blob Storage (S3/GCS)**, and performing an atomic Blue/Green swap across stateless pods is the sweet spot for near-real-time graph services. See **[Changing Data & Live Updates: "Wait—My Data Isn't Read-Only!"](../getting-started/handling-mutations.md)** for the full breakdown.
 
 ## Architecture Overview
 

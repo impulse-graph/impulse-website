@@ -70,8 +70,8 @@ snap.domain("City").fromKey("ATL")
 | **`:ARGMIN(f)`**| Co-Reducer | Min-Value Witness | Reuses the SIMD lane-winner mask from field `f`'s `:MIN` reduction. |
 | **`:ARGMAX(f)`**| Co-Reducer | Max-Value Witness | Reuses the SIMD lane-winner mask from field `f`'s `:MAX` reduction. |
 
-> [!NOTE]
-> **Semantic Type Safety on Node IDs**: Even though Dense IDs are integers (`0..N-1`), the compiler tracks them as `TYPE_NODE_ID` and forbids nonsensical arithmetic reducers (`:SUM`, `:AVG`) on node IDs while permitting witness reducers (`:ANY`, `:MIN`, `:MAX`, `:ARGMIN`, `:ARGMAX`).
+!!! note
+    **Semantic Type Safety on Node IDs**: Even though Dense IDs are integers (`0..N-1`), the compiler tracks them as `TYPE_NODE_ID` and forbids nonsensical arithmetic reducers (`:SUM`, `:AVG`) on node IDs while permitting witness reducers (`:ANY`, `:MIN`, `:MAX`, `:ARGMIN`, `:ARGMAX`).
 
 ### 2.2 Witness Extraction with Co-Reducers (`:ARGMIN` / `:ARGMAX`)
 When computing a `:MIN` or `:MAX` metric (such as the lowest shipping cost to each distribution center), you often want to know **which source node produced that winning value**. `:ARGMIN(state.field)` and `:ARGMAX(state.field)` update the witness atomically alongside the winning metric:

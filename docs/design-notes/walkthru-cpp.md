@@ -24,14 +24,15 @@ git clone https://github.com/impulse-graph/impulse-graph-core.git
 cd impulse-graph-core/impulse-cpp
 ```
 
-> [!NOTE]
-> If you are working locally within the `~/impulse` multi-repository ecosystem, the C++ engine source is located at `~/impulse/impulse-graph-core/impulse-cpp`.
+!!! note
+    If you are working locally within the `~/impulse` multi-repository ecosystem, the C++ engine source is located at `~/impulse/impulse-graph-core/impulse-cpp`.
 
 ---
 
 ## Step 2: Build and Install C++ Core Engine
 
 `impulse-graph-core/impulse-cpp` builds two primary targets using CMake:
+
 * `impulse_graph_static`: Zero-dependency static library (`libimpulse_graph_static.a` / `impulse_graph_static.lib`).
 * `impulse_graph`: Shared dynamic library (`libimpulse_graph.dylib` / `.so` / `.dll`).
 
@@ -52,6 +53,7 @@ sudo cmake --install build --prefix /usr/local
 ```
 
 Upon installation, the following files will be installed:
+
 * Headers: `/usr/local/include/impulse_graph.h`, `/usr/local/include/impulse_sha256.h`
 * Libraries: `/usr/local/lib/libimpulse_graph_static.a`, `/usr/local/lib/libimpulse_graph.dylib`
 * CMake Package Config: `/usr/local/lib/cmake/ImpulseGraph/ImpulseGraphConfig.cmake`
@@ -98,8 +100,8 @@ g++ -std=c++20 -O3 -I/usr/local/include src/main.cpp \
     /usr/local/lib/libimpulse_graph_static.a -o rbac_query_app
 ```
 
-> [!IMPORTANT]
-> Impulse Graph C++ relies on C-ABI binary snapshot alignment (128-byte hardware boundary alignment) for AVX-512 SIMD vector acceleration and zero-copy `mmap` performance. Always compile with modern target CPU instructions (`-march=native` or `-mavx2` / `-mavx512f` when targeting modern x86_64 nodes).
+!!! important
+    Impulse Graph C++ relies on C-ABI binary snapshot alignment (128-byte hardware boundary alignment) for AVX-512 SIMD vector acceleration and zero-copy `mmap` performance. Always compile with modern target CPU instructions (`-march=native` or `-mavx2` / `-mavx512f` when targeting modern x86_64 nodes).
 
 ---
 

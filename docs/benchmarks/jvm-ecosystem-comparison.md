@@ -1,6 +1,7 @@
 # Multi-JVM Ecosystem Benchmark: HotSpot, GraalVM, OpenJ9, Azul Zing & Corretto
 
 This enterprise evaluation compares the **Impulse Graph Java VM Engine** across the **top 6 enterprise JVM runtimes and distributions**:
+
 1. **GraalVM Native Image** (`native-image` AOT Binary)
 2. **GraalVM Enterprise JIT** (Graal JIT Compiler)
 3. **Azul Zing / Prime JVM** (Falcon LLVM JIT + C4 Zero-Pause GC)

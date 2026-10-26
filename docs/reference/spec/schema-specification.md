@@ -3,6 +3,7 @@
 This document defines the declarative YAML/JSON schema and multi-tablespace manifest format (`.imps.schema.yaml` / `manifest.yaml`) used across the Impulse Graph Engine ecosystem.
 
 A schema file serves four roles:
+
 1. **Snapshot Compilation (`impulse snapshot build` & `SnapshotBuilder`)**: Configures per-domain integer widths (`uint16`, `uint32`, `uint64`), key catalogs, CSR/CSC indices, relation multiplicities, and 128-byte-aligned Structure-of-Arrays (SoA) attributes.
 2. **Compile-Time Query Validation**: Verifies domain names, relation endpoints (`SrcDomainID` $\to$ `TgtDomainID`), and attribute types before emitting `impOps` bytecode.
 3. **Code Generation (`impulse-codegen`, Maven/Gradle plugins)**: Generates strongly-typed domain views and POJOs.

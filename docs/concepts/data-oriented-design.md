@@ -9,10 +9,12 @@ For the origin story of why Impulse Graph was built, how `.imps` fills the gap b
 ## 1. Why Object-Oriented Graphs Hit a Memory Wall
 
 Traditional graph libraries and databases model graphs using **Object-Oriented Design (OOD)** or **Array of Structures (AoS)**:
+
 * Every vertex is a heap-allocated `Node` object with an object header, vtable pointer, external ID (`String` or `UUID`), a `Map<String, Object>` of properties, and a `List<Node>` of neighbor references.
 * Traversing an edge means dereferencing a pointer to an arbitrary address in heap memory.
 
 On a modern CPU:
+
 * **L1 Cache Access**: ~1 nanosecond (~4 cycles)
 * **Main DRAM Access (Cache Miss)**: ~80–100 nanoseconds (300+ cycles)
 
@@ -90,6 +92,7 @@ age[]:        [ 30 | 24 | 45 | 19 | 62 | 28 | 33 | 41 | 50 | 18 | 29 | 37 | 44 |
 In a textbook Breadth-First Search (BFS) or multi-hop database join, active vertices are pushed and popped from a `Queue<Node>` or `HashSet<Long>`, allocating objects and computing hashes on every hop.
 
 In `ImpulseVM`, an active frontier over a domain of $N_d$ nodes is represented as a contiguous off-heap **BitSet** ($\lceil N_d / 64 \rceil$ 64-bit `uint64_t` words) or compressed Roaring Bitmap:
+
 * **64 Nodes per Register Word**: Testing, uniting (`OR`), intersecting (`AND`), or differencing (`AND NOT`) 64 nodes takes a single bitwise CPU instruction—or 512 nodes per instruction with AVX-512.
 * **Zero Duplicate Work**: Converging paths across high-fanout graphs automatically coalesce via bitwise `OR` without hash-set deduplication overhead.
 * **Direction-Optimizing Push/Pull**: When the frontier is sparse, `ImpulseVM` walks outgoing CSR slices (**Push**); when the frontier becomes dense, it can switch to scanning incoming CSC slices (**Pull**) and terminate early as soon as a parent bit is found.

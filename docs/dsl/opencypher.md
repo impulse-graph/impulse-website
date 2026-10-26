@@ -54,9 +54,9 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
   * `RETURN c` or `RETURN c._key, c.balance, t.amount`: Projects surviving target node IDs, external keys, or columnar attributes into zero-copy result columns.
   * `RETURN count(c)`: Computes the scalar cardinality of the surviving target frontier without materializing full arrays.
 
-> [!IMPORTANT]
-> **Set Semantics vs. Traditional Cypher Multi-Sets**:
-> Traditional Cypher engines (like Neo4j) use multi-set (bag) path semantics, emitting duplicate rows when multiple paths reach the same node unless `RETURN DISTINCT` is added. Impulse Graph evaluates every hop using **Set Semantics (Monoidic Reduction)**: converging paths are automatically deduplicated via bitwise `OR` at each hop, preventing exponential path explosion.
+!!! important
+    **Set Semantics vs. Traditional Cypher Multi-Sets**:
+    Traditional Cypher engines (like Neo4j) use multi-set (bag) path semantics, emitting duplicate rows when multiple paths reach the same node unless `RETURN DISTINCT` is added. Impulse Graph evaluates every hop using **Set Semantics (Monoidic Reduction)**: converging paths are automatically deduplicated via bitwise `OR` at each hop, preventing exponential path explosion.
 
 ---
 

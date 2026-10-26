@@ -54,6 +54,7 @@ Inspired by Lua 5+ and LuaJIT, `ImpulseVM` is a **register-based virtual machine
 
 ### 2.2 Pure Java 25 `MethodHandle` JIT Combinators
 In the Pure Java 25 engine (`impulse-graph-java`), queries do not sit inside a slow bytecode `switch` loop when evaluating per-edge or per-node filter/projection shaders (`OP_CSR_WALK_STREAM`, `OP_CSC_WALK_STREAM`):
+
 * `ImpulseMethodHandleCompiler` and `ShaderCompiler` translate `impOps` instructions and CEL predicates into composable trees of `java.lang.invoke.MethodHandle` combinators (`MethodHandles.insertArguments`, `foldArguments`, `guardWithTest`).
 * The JVM's **C2 JIT compiler** constant-folds the register offsets and inlines the entire chain of shader operations into a single contiguous block of native machine code with **zero virtual method or interpreter dispatch overhead**.
 * Full 7-stage AST compilation + `MethodHandle` JIT tree generation completes in **under 10 microseconds**.

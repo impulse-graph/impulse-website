@@ -100,6 +100,7 @@ Two classic open-source projects served as primary inspirations for Impulse Grap
 
 ### Lua 5+ & LuaJIT: Register-Based VM Mechanics
 While SQLite inspired the VM-based database architecture, **Lua 5+ and LuaJIT** inspired the internal mechanics of `ImpulseVM` itself:
+
 * **64-Register Architecture (`R0`..`R63`) Instead of a Stack**: Traditional stack VMs spend up to 40–50% of their instructions executing `PUSH`, `POP`, and `DUP`. Like Lua, `ImpulseVM` encodes source and destination register indices directly inside a fixed 64-bit instruction word (`OP_CSR_WALK R5, R4, REL_0`), keeping all execution state inside a single **640-byte, L1-cache-aligned register frame (`impulse_vm_state_t`)**.
 
 ---

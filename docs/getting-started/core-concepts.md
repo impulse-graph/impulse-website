@@ -14,6 +14,7 @@ In traditional application development, graphs are usually modeled in one of two
 2. **Relational Database Tables**: A `nodes` table and an `edges` join table containing `(source_id, target_id)`.
 
 Both approaches hit severe bottlenecks when analytics scale to millions or billions of edges:
+
 * **Object pointer-chasing** causes constant CPU cache misses. In languages with managed memory (like Java), millions of edge objects cause heavy garbage collection (GC) thrashing and high heap overhead.
 * **Relational `JOIN` queries** require expensive disk I/O, hash-join tables, and index lookups for every traversal hop.
 
@@ -36,6 +37,7 @@ User  1 │ 0   0   1   0 │  --> User 1 follows User 2
 
 ### The Problem with Dense 2D Matrices
 If you have 1,000,000 users and each user has 50 friends:
+
 * A standard 2D matrix would require $1,000,000 \times 1,000,000 = 1,000,000,000,000$ (1 Trillion) cells!
 * That would consume **~1 Terabyte of RAM**, where **99.995% of the cells are empty zeros**.
 
@@ -53,6 +55,7 @@ Graphs in the real world are almost always **sparse**—most possible connection
 ### Concrete Example
 
 Let's look at the 4-node graph from above:
+
 * **Node 0** links to: `1, 2` (2 edges)
 * **Node 1** links to: `2` (1 edge)
 * **Node 2** links to: `(none)` (0 edges)
@@ -74,10 +77,12 @@ column_targets: [ 1, 2, │ 2, │ (none), │ 0, 1, 2 ]
 
 ### How an Edge Lookup Works in $O(1)$
 To find the outgoing edges for **Node 0**:
+
 1. Read offset range: `start = row_offsets[0]` ($0$), `end = row_offsets[1]` ($2$).
 2. Slice `column_targets[0..2]`: `[1, 2]`.
 
 To find the outgoing edges for **Node 2**:
+
 1. Read offset range: `start = row_offsets[2]` ($3$), `end = row_offsets[3]` ($3$).
 2. Because `start == end`, Node 2 has **0 outgoing edges**.
 
@@ -100,8 +105,8 @@ To make incoming traversals just as fast, Impulse Graph supports **CSC (Compress
 * In our example above, looking up the incoming edges for Node 2 in CSC yields: `[0, 1, 3]` in $O(1)$ time.
 * **Primary Use**: Incoming traversals (`.in("FOLLOWS")`, reverse reachability, PageRank pull).
 
-> [!TIP]
-> When building an `.imps` snapshot, CSR is mandatory. You can optionally include CSC with a single method call (`.addTopology(Topology.CSC, CompressionScheme.RAW)`). If your edge stream is sorted by source ID, the Impulse builder automatically stages and inverts the stream into CSC using external sort.
+!!! tip
+    When building an `.imps` snapshot, CSR is mandatory. You can optionally include CSC with a single method call (`.addTopology(Topology.CSC, CompressionScheme.RAW)`). If your edge stream is sorted by source ID, the Impulse builder automatically stages and inverts the stream into CSC using external sort.
 
 ---
 
@@ -189,6 +194,7 @@ Because every step collapses its output into at most $N_d$ unique entries (one b
 ## 7. Business Keys vs. Dense IDs (Primary Key Index)
 
 In production databases, entities rarely have continuous 0-indexed integer IDs. You usually have:
+
 * **UUIDs**: `"550e8400-e29b-41d4-a716-446655440000"`
 * **String Business Keys**: `"USR-98421"`, `"alice@example.com"`
 * **Sparse Relational IDs**: `102, 594, 100024, 8847192`
@@ -228,6 +234,7 @@ score[]: [ 9.5,  7.2,  8.8,  6.1,  9.0, ... ]  <-- Contiguous 32-bit floats
 
 ### Why SoA Matters for Filtering
 When evaluating a traversal filter like `.filter("node.age >= 21")`:
+
 * The CPU loads **only** the `age` vector directly into AVX-512 SIMD registers.
 * The CPU never reads `score`, names, or edge pointers from disk/RAM.
 * A single vector instruction evaluates 16 node filters simultaneously, producing a bitmask in nanoseconds.

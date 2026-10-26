@@ -7,6 +7,7 @@ This guide walks you through **building** an immutable `.imps` binary snapshot a
 ## 1. Build Your First `.imps` Snapshot
 
 You can compile an `.imps` file in two ways:
+
 * **Rust CLI Builder (`impulse build`)**: Compiles CSV, TSV, or Parquet files + a JSON manifest directly into an `.imps` file—a fast, standalone option with **no JVM required** (ideal for Python, C/C++, Go, C#, and Node.js users).
 * **Java `SnapshotBuilder`**: Streams data directly from Java collections, JDBC databases, or custom `RelationDataSource` iterators.
 
@@ -97,6 +98,7 @@ You can compile an `.imps` file in two ways:
 ## 2. Mount `social.imps` & Traverse Edges
 
 Impulse Graph maps `.imps` files directly from disk into virtual memory via `mmap`. Every traversal follows two core mechanics:
+
 1. **Domain-to-Domain Pipeline**: You start in a single domain (e.g., `User`), walk zero or more directed relations (e.g., `.out("FOLLOWS")`), and finish in a single target domain, returning the surviving nodes, target attributes, or projected state from that final domain.
 2. **Set Semantics & Collapsed Frontiers**: Intermediate results are stored as a **Set** (an off-heap BitSet), not a multi-set of duplicate paths. Converging paths are immediately collapsed into a single entry per node at each step (via Bitwise `OR` for reachability, or a monoid like `SUM`/`MIN`/`MAX` when projecting numeric state)—so the next hop never repeats work.
 

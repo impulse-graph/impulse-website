@@ -50,9 +50,9 @@ Method names follow idiomatic conventions in each language SDK:
 | **Test Single Target** | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.Contains(id)` |
 | **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | `.to_impas()` | `.to_impas()` | `.toImpas()` | `.ToImpas()` |
 
-> [!NOTE]
-> **Why `.in_()` in Python and `.in_step()` in Rust?**
-> Both Python and Rust reserve `in` as a language keyword (`for x in y`). Python follows PEP 8 with a trailing underscore (`.in_("REL")`), while Rust and C++ use `.in_step("REL")`.
+!!! note
+    **Why `.in_()` in Python and `.in_step()` in Rust?**
+    Both Python and Rust reserve `in` as a language keyword (`for x in y`). Python follows PEP 8 with a trailing underscore (`.in_("REL")`), while Rust and C++ use `.in_step("REL")`.
 
 ---
 

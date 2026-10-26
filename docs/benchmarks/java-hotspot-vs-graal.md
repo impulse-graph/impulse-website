@@ -1,6 +1,7 @@
 # Java VM Benchmark: OpenJDK HotSpot C2 vs. GraalVM Enterprise & Native Image
 
 This benchmark report presents comprehensive performance comparisons and deployment recommendations for the **Impulse Graph Java VM Engine** across all **6 Canonical GAPBS Algorithms** evaluated on three primary runtime configurations:
+
 1. **OpenJDK HotSpot C2** (Java 25 + Vector API + `-XX:AOTCache`)
 2. **GraalVM Enterprise JIT** (Java 25 Graal JIT Compiler)
 3. **GraalVM Native Image** (`native-image` AOT Binary)
@@ -80,11 +81,12 @@ Is sub-millisecond cold start or low RSS required? Is maximum peak query through
 
 ## 4. Building GraalVM Native Image Distributables & Architectural Constraints
 
-> [!WARNING]
-> **Empirical Architecture Constraint (ARM64 vs. AMD64)**:
-> - **GraalVM JIT (JVM mode)**: Full 100% support for Java 25 Foreign Function & Memory (FFM) API across both ARM64 (Apple Silicon / Graviton) and AMD64 (x86_64).
-> - **GraalVM Native Image AOT (`native-image`)**: FFM Foreign API support (`-H:+ForeignAPISupport`) is currently supported **exclusively on AMD64 (x86_64) architectures**. On ARM64 / Apple Silicon, `native-image` compilation returns:
->   `Error: Support for the Foreign Function and Memory API is currently available only on the AMD64 architecture.`
+!!! warning
+    **Empirical Architecture Constraint (ARM64 vs. AMD64)**:
+
+    - **GraalVM JIT (JVM mode)**: Full 100% support for Java 25 Foreign Function & Memory (FFM) API across both ARM64 (Apple Silicon / Graviton) and AMD64 (x86_64).
+    - **GraalVM Native Image AOT (`native-image`)**: FFM Foreign API support (`-H:+ForeignAPISupport`) is currently supported **exclusively on AMD64 (x86_64) architectures**. On ARM64 / Apple Silicon, `native-image` compilation returns:
+      `Error: Support for the Foreign Function and Memory API is currently available only on the AMD64 architecture.`
 
 ### Build Command (AMD64 Linux / macOS)
 ```bash
