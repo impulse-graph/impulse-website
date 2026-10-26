@@ -239,6 +239,17 @@ The only thing the builder needs from a domain is its cardinality—everything e
 
 Of course, if you *do* want attributes or the ability to resolve original database keys at query time, you need the domain scan as shown in Steps 1–2.
 
+### Memory Sizing & High-Cardinality `IdMapper<K>` Strategies
+
+When building large snapshots in Java, it is important to distinguish between the **off-heap streaming topology writer** and the **in-memory `IdMapper<K>` reference classes**:
+
+* **Topology & Attribute Streaming (`StreamingSnapshotWriter` & `ExternalSortStaging`)**: Streams pre-mapped dense IDs in fixed-size off-heap `MemorySegment` chunks (`65,536` edges per chunk) and spills intermediate CSC sort runs to disk whenever the staging buffer reaches `.withStagingMemoryLimit(...)` (default **64 MB**).
+* **Convenience `IdMapper<K>` Classes (`LongIdMapper`, `UuidIdMapper`, `StringIdMapper`)**: These reference implementations store bidirectional mappings in **two in-memory `ConcurrentHashMap` instances** (`rawToDenseMap` and `denseToRawMap`) on the Java heap (~120–200+ bytes of heap per node, bounded by 32-bit `int` map size). They are well-suited for domains up to ~10M–50M nodes depending on JVM heap size.
+* **Scaling to 100M+ Node Domains Without Heap Maps**:
+  1. **Pre-Assign Dense IDs in SQL / Parquet**: Compute contiguous 0-indexed dense IDs directly in your database or data warehouse (`ROW_NUMBER() OVER (ORDER BY id) - 1 AS dense_id`) and stream pre-mapped dense integer pairs directly into `EdgeChunkIterator`, bypassing `IdMapper` entirely.
+  2. **Custom Off-Heap or Disk-Backed `IdMapper<K>`**: Implement the `org.impulsegraph.api.IdMapper<K>` interface backed by a sorted off-heap `MemorySegment` binary-search table or RocksDB/LMDB store.
+  3. **Use the Standalone `impulse build` CLI**: See [Building Snapshots (CLI & Parquet/CSV)](snapshot-builder-reference.md).
+
 ---
 
 ## Step 5: Feeding Edge Data — Data Sources & Chunk Iterators

@@ -38,21 +38,28 @@ Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), see
     ```python
     with Snapshot("banking.imps") as snap:
         recipient_accounts = (
-            snap.domain("User")
-                .from_keys(["usr_101"])
+            snap.traverse(start_node=101)
                 .out("OWNS")
-                .out("TRANSFERRED_TO", filter="edge.amount >= 1000.0")
-                .to_keys()
+                .out("TRANSFERRED_TO")
+                .to_list()
         )
     ```
 
-=== "C++20"
+=== "C++20 (`impulse::vm::QueryBuilder`)"
     ```cpp
-    auto reachable_groups = snap.domain("User")
-        .from_key("usr_alice")
-        .out("MEMBER_OF")
-        .repeat_until_stable("PARENT_GROUP")
-        .to_bitset();
+    using namespace impulse::vm;
+    CompiledQuery query = QueryBuilder()
+        .inputNode(0)
+        .walkEdge(/*MEMBER_OF=*/ 0)
+        .repeatUntilStable([](QueryBuilder& b) {
+            b.walkEdge(/*PARENT_GROUP=*/ 1);
+        })
+        .collectBitset()
+        .compile();
+
+    impulse_vm_context_t* ctx = nullptr;
+    QueryResult res = query.execute(snap, /*input_param=*/ 101, &ctx);
+    if (ctx) impulse_vm_context_destroy(ctx);
     ```
 
 ---
@@ -65,16 +72,14 @@ For declarative `openCypher` queries, prepare a statement once and execute it wi
     ```java
     try (ImpulseStatement stmt = snap.prepare(
             "MATCH (u:User)-[:PURCHASED]->(p:Product) " +
-            "WHERE u._key = $userKey AND p.price <= $maxPrice " +
-            "RETURN p._key, p.price")) {
+            "WHERE u.id = $userId AND p.price <= 100.0 " +
+            "RETURN p")) {
 
-        stmt.bindString("userKey", "usr_alice")
-            .bindDouble("maxPrice", 100.0);
+        stmt.bindNode("userId", 42L);
 
         try (RowReader rows = stmt.execute()) {
             while (rows.next()) {
-                String productKey = rows.getString(0);
-                double price      = rows.getDouble(1);
+                long productDenseId = rows.getNodeId(0);
             }
         }
     }
@@ -85,20 +90,18 @@ For declarative `openCypher` queries, prepare a statement once and execute it wi
     impulse_stmt_t* stmt = NULL;
     impulse_stmt_prepare(
         snap,
-        "MATCH (u:User)-[:PURCHASED]->(p:Product) WHERE u.id = $userId AND p.price <= $maxPrice RETURN p.id, p.price",
+        "MATCH (u:User)-[:PURCHASED]->(p:Product) WHERE u.id = $userId AND p.price <= 100.0 RETURN p",
         &stmt
     );
 
     size_t buf_len = impulse_stmt_buffer_size(stmt);
     void* buf = malloc(buf_len); // Reusable per-thread buffer
 
-    impulse_stmt_bind_node(stmt, "userId", 42);
-    impulse_stmt_bind_float(stmt, "maxPrice", 100.0);
+    impulse_stmt_bind_node(stmt, "$userId", 42);
     impulse_stmt_execute(stmt, buf, buf_len);
 
-    size_t row_count = impulse_stmt_row_count(stmt);
-    const uint64_t* product_ids = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
-    const double* prices        = (const double*)impulse_stmt_column_data(stmt, 1);
+    size_t word_count = impulse_stmt_row_count(stmt);
+    const uint64_t* bitset_words = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
 
     impulse_stmt_finalize(stmt);
     free(buf);

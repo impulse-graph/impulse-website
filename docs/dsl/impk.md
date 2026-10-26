@@ -63,7 +63,7 @@ fn pagerank(g, damping, max_iters, epsilon) {
 
 ---
 
-## 4. Compiling ImpK
+## 4. Compiling ImpK via CLI
 
 Using the `impulse-graph` CLI toolchain:
 
@@ -80,3 +80,49 @@ impulse assemble algorithm.impas -o algorithm.impb
 # 4. Execute compiled bytecode program against a snapshot
 impulse run --snapshot production.imps --bytecode algorithm.impb
 ```
+
+---
+
+## 5. Executing `.impk` Programs from Host SDKs
+
+In-process compilation and execution of `.impk` scripts is exposed directly through the C-ABI (`IMPULSE_LANG_IMPK`), the C++20 `impulse::impk::ImpKCompiler`, or via pre-assembled `.impb` bytecode in Java and polyglot SDKs:
+
+=== "C / C++20 (`impulse_compile_and_execute`)"
+    ```c
+    #include "impulse_vm.h"
+
+    const char* impk_script =
+        "fn reach(g, start_node) {\n"
+        "    f: bitset start_node\n"
+        "    return g @[f; \"MEMBER_OF\"]\n"
+        "}\n";
+
+    impulse_vm_state_t state = {0};
+    state.query_context = impulse_vm_context_create(snap);
+
+    impulse_vm_status_t status = impulse_compile_and_execute(
+        snap,
+        impk_script,
+        IMPULSE_LANG_IMPK,
+        &state,
+        /*input_seed=*/ 42
+    );
+
+    impulse_vm_context_destroy((impulse_vm_context_t*)state.query_context);
+    ```
+
+=== "Java 25 (Pre-Compiled `.impb` or `OP_MXV`)"
+    ```java
+    // Execute a pre-compiled .impb program produced by `impulse compile` + `impulse assemble`
+    byte[] bytecodeBytes = Files.readAllBytes(Path.of("algorithm.impb"));
+
+    try (Arena arena = Arena.ofConfined()) {
+        MemorySegment prog = arena.allocateFrom(ValueLayout.JAVA_BYTE, bytecodeBytes);
+        int instructionCount = bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES;
+
+        Object result = ImpulseVmInterpreter.execute(prog, instructionCount, graph, 0, arena);
+    }
+    ```
+
+!!! note
+    **Java `@ImpKQuery` Annotation Roadmap**: Direct in-process Java compilation of `.impk` scripts and `@ImpKQuery` annotations is scheduled for `v1.0.0` (currently supported natively in the C/C++20 kernel via `IMPULSE_LANG_IMPK` and in the `impulse compile` CLI).

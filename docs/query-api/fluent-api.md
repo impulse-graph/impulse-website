@@ -17,42 +17,42 @@ flowchart LR
 ```
 
 ### Stage 1 & 2: Anchor Domain & Seed the Frontier
-Because every Node Domain (`User`, `Account`, `Product`) has its own independent 0-indexed dense ID space ($0 \dots N_d - 1$), multi-domain queries always begin by binding a domain via `snap.domain("DomainName")` and selecting the initial frontier:
+Because every Node Domain (`User`, `Account`, `Product`) has its own independent 0-indexed dense ID space ($0 \dots N_d - 1$), multi-domain queries in Java 25 begin by binding a domain via `snap.domain("DomainName")` and selecting the initial frontier (while Python and Rust provide `snap.traverse(start_node)` as well as low-level register `QueryBuilder`s):
 
-| Seed Method (Java 25) | Python Equivalent | Description |
+| Seed Method (Java 25 `DomainView`) | Python / Rust Equivalent | Description |
 | :--- | :--- | :--- |
-| `.all()` | `.all()` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
-| `.from(long id)` | `.from_id(id)` | Seeds a single dense node ID. |
-| `.from(long... ids)` | `.from_ids([id1, id2])` | Seeds a batch of dense node IDs. |
-| `.from(ImpulseBitSet bits)` | `.from_bitset(bits)` | Seeds from a pre-computed off-heap BitSet. |
-| `.fromKey(String key)` | `.from_key(key)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
-| `.fromKeys(String... keys)` | `.from_keys([k1, k2])` | Resolves a batch of external business keys to dense IDs. |
+| `.all()` | `QueryBuilder.init_input_bitset` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
+| `.from(long id)` | `snap.traverse(id)` | Seeds a single dense node ID. |
+| `.from(long... ids)` | `QueryBuilder` bitset seed | Seeds a batch of dense node IDs. |
+| `.from(ImpulseBitSet bits)` | `QueryBuilder` bitset seed | Seeds from a pre-computed off-heap BitSet. |
+| `.fromKey(String key)` | Key catalog lookup $\to$ `traverse(id)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
+| `.fromKeys(String... keys)` | Key catalog lookup $\to$ bitset | Resolves a batch of external business keys to dense IDs. |
 
 ---
 
 ## 2. Cross-Language Method Reference
 
-Method names follow idiomatic conventions in each language SDK:
+Each language SDK exposes an idiomatic traversal and/or VM `QueryBuilder` interface:
 
-| Operation | Java 25 | Python | C++20 | Rust | Node.js / TS | C# (.NET) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Anchor Domain** | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.domain(d)` | `snap.Domain(d)` |
-| **Forward Walk (CSR)** | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.Out(rel)` |
-| **Reverse Walk (CSC)** | `.in(rel)` | `.in_(rel)` | `.in_step(rel)` | `.in_step(rel)` | `.in(rel)` | `.In(rel)` |
-| **Filtered Forward Walk** | `.out(rel, cel)` | `.out(rel, filter=cel)` | `.out_filtered(rel, cel)` | `.out_filtered(rel, cel)` | `.outFiltered(rel, cel)` | `.OutFiltered(rel, cel)` |
-| **Filtered Reverse Walk** | `.in(rel, cel)` | `.in_(rel, filter=cel)` | `.in_filtered(rel, cel)` | `.in_filtered(rel, cel)` | `.inFiltered(rel, cel)` | `.InFiltered(rel, cel)` |
-| **In-Domain Node Filter** | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.filter(cel)` | `.Filter(cel)` |
-| **Bind Parameter** | `.withParam(k, v)` | `.with_param(k, v)` | `.with_param(k, v)` | `.with_param(k, v)` | `.withParam(k, v)` | `.WithParam(k, v)` |
-| **Collect Dense IDs** | `.toList()` / `.toSet()` | `.to_list()` / `.to_set()` | `.to_vector()` | `.to_vec()` | `.toArray()` | `.ToList()` |
-| **Collect Business Keys** | `.toKeyList()` | `.to_keys()` | `.to_keys()` | `.to_keys()` | `.toKeys()` | `.ToKeyList()` |
-| **Collect Off-Heap BitSet**| `.toBitSet()` | `.to_bitset()` | `.to_bitset()` | `.to_bitset()` | `.toBitSet()` | `.ToBitSet()` |
-| **Count Surviving Nodes** | `.count()` | `.count()` | `.count()` | `.count()` | `.count()` | `.Count()` |
-| **Test Single Target** | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.contains(id)` | `.Contains(id)` |
-| **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | `.to_impas()` | `.to_impas()` | `.toImpas()` | `.ToImpas()` |
+| Operation | Java 25 (`Traversal<T>`) | Python (`Traversal`) | Rust (`TraversalBuilder`) | C++20 (`vm::QueryBuilder`) | Go / C# / Node (`QueryBuilder`) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Start Traversal** | `snap.domain(d).from(id)` | `snap.traverse(id)` | `snap.traverse(id)` | `qb.initInputNode(reg)` | `qb.initInputNode(reg)` |
+| **Forward Walk (CSR)** | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.walkEdge(src, dst, relId)` | `.walkEdge(src, dst, relId)` |
+| **Reverse Walk (CSC)** | `.in(rel)` | `.in_(rel)` | `.in_step(rel)` | `.walkCsc(src, dst, relId)` | `.walkCsc(src, dst, relId)` |
+| **Filtered Forward Walk** | `.out(rel, cel)` | `.out(rel)` + `.filter(...)` | `.out_filtered(rel, cel)` | `.walkEdgeFiltered(...)` | `.walkEdgeFiltered(...)` |
+| **In-Domain Node Filter** | `.filter(cel)` | `.filter(filter_id)` | `.out_filtered(...)` | `.filterWithCel(src, dst, cel)` | `.filterNodes(...)` |
+| **Bind Parameter** | `.withParam(k, v)` | `params={k: v}` | `.with_param(k, v)` | C-ABI `impulse_stmt_bind_*` | C-ABI `bind_*` |
+| **Fixed-Point Loop** | `.repeatUntilStable(rel)` | `vm.QueryBuilder` | `QueryBuilder` | `.repeatUntilStable(...)` | `.repeatUntilStable(...)` |
+| **Collect Dense IDs** | `.toList()` / `.toSet()` | `.to_list()` / `.to_set()` | `.to_vec()?` | `.collectNodes(dst, src)` | `.collectNodes(dst, src)` |
+| **Collect Business Keys** | `.toKeyList()` | — (Java `DomainView`) | — (Java `DomainView`) | — | — |
+| **Collect Off-Heap BitSet**| `.toBitSet()` | `vm.QueryBuilder` | `QueryBuilder` | `.collectBitset(dst, src)` | `.collectBitset(dst, src)` |
+| **Count Surviving Nodes** | `.count()` | `.count()` | `.to_vec()?.len()` | `.collectScalar(dst, src)` | `.collectScalar(dst, src)` |
+| **Test Single Target** | `.contains(id)` | `.contains(id)` | `snap.is_reachable(...)` | `impulse_snapshot_is_reachable` | `snap.isReachable(...)` |
+| **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | — | `.toImpAsm()` | — |
 
 !!! note
     **Why `.in_()` in Python and `.in_step()` in Rust?**
-    Both Python and Rust reserve `in` as a language keyword (`for x in y`). Python follows PEP 8 with a trailing underscore (`.in_("REL")`), while Rust and C++ use `.in_step("REL")`.
+    Both Python and Rust reserve `in` as a language keyword (`for x in y`). Python follows PEP 8 with a trailing underscore (`.in_("REL")`), while Rust uses `.in_step("REL")`.
 
 ---
 
@@ -126,15 +126,12 @@ try (Arena arena = Arena.ofConfined()) {
     from impulse_graph import Snapshot
 
     with Snapshot("hetionet.imps") as snap:
-        # Compound -> Gene <- Disease with CEL filter
+        # Compound (ID 0) -> Gene <- Disease traversal
         indications = (
-            snap.domain("Compound")
-                .from_key("DB00945")  # Aspirin
+            snap.traverse(start_node=0)
                 .out("Compound::binds::Gene")
                 .in_("Disease::associates::Gene")
-                .filter("node.severity > $min_sev")
-                .with_param("min_sev", 3.5)
-                .to_keys()
+                .to_list()
         )
     ```
 
@@ -143,36 +140,69 @@ try (Arena arena = Arena.ofConfined()) {
     use impulse_graph::reader::SnapshotReader;
 
     let snap = SnapshotReader::open("security.imps")?;
-    let reachable_hosts = snap.domain("User")
-        .from_key("usr_alice")
+    let reachable_hosts = snap.traverse(0)
         .out("MEMBER_OF")
         .out_filtered("CAN_SSH", "edge.port == 22")
-        .to_keys()?;
+        .to_vec()?;
+    ```
+
+=== "C++20 (`impulse::vm::QueryBuilder`)"
+    ```cpp
+    #include "impulse_vm_fluent.hpp"
+
+    using namespace impulse::vm;
+    CompiledQuery query = QueryBuilder()
+        .inputNode(0)                // R0 = seed User ID
+        .walkEdge(/*MEMBER_OF=*/ 0)
+        .repeatUntilStable([](QueryBuilder& b) {
+            b.walkEdge(/*PARENT_GROUP=*/ 1);
+        })
+        .walkEdgeFiltered(/*HAS_PERMISSION=*/ 2, /*filter_id=*/ 1)
+        .collectBitset()
+        .compile();
+
+    impulse_vm_context_t* ctx = nullptr;
+    QueryResult res = query.execute(snap, /*input_param=*/ 42, &ctx);
+    bool has_access = res.testBitset(ctx, target_doc_dense_id);
+    if (ctx) impulse_vm_context_destroy(ctx);
     ```
 
 === "Node.js / TypeScript"
     ```typescript
-    import { Snapshot } from 'impulse-graph';
+    import { Snapshot, VmContext, VmState, QueryBuilder, ExecuteQuery } from 'impulse-graph';
 
-    const snap = Snapshot.open('ecommerce.imps');
-    const recommendations = snap.domain('User')
-      .fromKey('usr_alice')
-      .out('PURCHASED')
-      .in('PURCHASED')
-      .outFiltered('PURCHASED', 'edge.rating >= 4.5')
-      .toKeys();
+    const snap = new Snapshot('ecommerce.imps');
+    const ctx = new VmContext(snap);
+    const state = new VmState();
+    state.setQueryContext(ctx);
+
+    const instructions = new QueryBuilder()
+      .initInputNode(0)
+      .walkEdge(0, 1, 0) // PURCHASED
+      .walkCsc(1, 2, 0)  // <-PURCHASED
+      .walkEdge(2, 3, 0) // PURCHASED
+      .collectBitset(4, 3)
+      .compile();
+
+    ExecuteQuery(instructions, state, 42);
     ```
 
 === "C# (.NET)"
     ```csharp
     using ImpulseGraph;
 
-    using var snap = Snapshot.Open("powergrid.imps");
-    var energizedBuses = snap.Domain("Bus")
-        .FromKey("BUS_101")
-        .OutFiltered("CONNECTED_BRANCH", "edge.status == 1 && edge.kv >= @minKv")
-        .WithParam("minKv", 115.0)
-        .ToKeyList();
+    using var snap = new Snapshot("powergrid.imps");
+    using var ctx = new VmContext(snap);
+    var state = new VmState { QueryContext = ctx.DangerousGetHandle() };
+
+    var query = new QueryBuilder()
+        .InitInputNode(0)
+        .WalkEdge(0, 1, 0)
+        .RepeatUntilStable(1, 2, 0)
+        .CollectBitset(3, 2)
+        .Compile();
+
+    query.Execute(state, 101);
     ```
 
 ---

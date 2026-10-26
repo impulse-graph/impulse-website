@@ -23,7 +23,6 @@ impulse-graph (symlinked as `impulse`)
 │   ├── inspect                  # Print header, domain/relation catalog, and section offsets
 │   ├── validate                 # Verify 128B alignment, CRC-16 header, and SHA-256 footer
 │   ├── optimize                 # Offline RCM node reordering, degree sort, and CSC generation
-│   ├── merge                    # Merge base .imps with delta log files (.impdelta)
 │   ├── diff                     # Compare structural diffs between two .imps snapshots
 │   └── export                   # Export .imps domains/relations to Parquet/CSV/JSONL
 │
@@ -68,17 +67,17 @@ Applies offline layout transformations—such as **Reverse Cuthill-McKee (RCM)**
 impulse snapshot optimize -i raw.imps -o optimized.imps --rcm --csc
 ```
 
-### `impulse snapshot merge`, `diff` & `export`
+### `impulse snapshot diff` & `export`
 ```bash
-# Integrate delta logs into a fresh immutable snapshot
-impulse snapshot merge --base production.imps --deltas batch1.impdelta -o next.imps
-
 # Compare domain/edge count deltas between two snapshots
 impulse snapshot diff v1.imps v2.imps
 
 # Export snapshot back to Parquet or CSV
 impulse snapshot export production.imps --output-dir ./exported_csv/
 ```
+
+!!! note
+    **Note on `impulse snapshot merge`**: While the CLI taxonomy reserves an `impulse snapshot merge` subcommand stub, production updates in Impulse Graph are performed by streaming fresh `.imps` snapshots from updated tables via `impulse build` (or Java `SnapshotBuilder`) and executing an atomic Blue/Green pointer swap (see [Changing Data & Live Updates](../getting-started/handling-mutations.md)).
 
 ---
 

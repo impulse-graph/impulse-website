@@ -7,7 +7,7 @@ A schema file serves four roles:
 1. **Snapshot Compilation (`impulse snapshot build` & `SnapshotBuilder`)**: Configures per-domain integer widths (`uint16`, `uint32`, `uint64`), key catalogs, CSR/CSC indices, relation multiplicities, and 128-byte-aligned Structure-of-Arrays (SoA) attributes.
 2. **Compile-Time Query Validation**: Verifies domain names, relation endpoints (`SrcDomainID` $\to$ `TgtDomainID`), and attribute types before emitting `impOps` bytecode.
 3. **Code Generation (`impulse-codegen`, Maven/Gradle plugins)**: Generates strongly-typed domain views and POJOs.
-4. **Multi-Tablespace Composite Loading**: Maps logical domains and relations across multiple `.imps` files.
+4. **Multi-Tablespace Composite Loading**: Maps logical domains and relations across multiple `.imps` files (supported in the Java 25 engine via `BinarySnapshotLoader.loadFromManifest(Path manifestPath, Arena arena)`, while C-ABI `impulse_snapshot_open` maps single `.imps` files directly and multi-snapshot federated C-ABI queries are targeted for post-`v1.0`).
 
 ---
 

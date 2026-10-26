@@ -6,7 +6,7 @@ In addition to Java 25, Python, C/C++20, and Rust, Impulse Graph provides offici
 
 ## 1. Go SDK (`impulse-go` via CGo)
 
-Links directly against `libimpulse_graph_static.a` (`CGO_ENABLED=1`), exposing zero-copy `.imps` loading, domain-bound traversals, prepared statements, and single-pass `.imps` writing.
+Links directly against `libimpulse_graph_static.a` (`CGO_ENABLED=1`), exposing zero-copy `.imps` loading, CSR slice views, `ImpulseVM` bytecode execution (`QueryBuilder`), and single-pass `.imps` writing.
 
 ```go
 package main
@@ -29,16 +29,22 @@ func main() {
 	connected := snap.IsReachable(0, 10, 42)
 	fmt.Printf("Edge (10 -> 42) exists: %v\n", connected)
 
-	// 2. Domain-anchored fluent traversal with transitive closure
-	groups, err := snap.Domain("User").
-		FromKey("usr_alice").
-		Out("MEMBER_OF").
-		RepeatUntilStable("PARENT_GROUP").
-		ToKeys()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Reachable groups: %v\n", groups)
+	// 2. Fluent VM QueryBuilder with fixed-point transitive closure
+	ctx := impulse.NewVmContext(snap)
+	defer ctx.Close()
+
+	var state impulse.VmState
+	state.SetQueryContext(ctx)
+
+	query := impulse.NewQueryBuilder().
+		InitInputNode(0).
+		WalkEdge(0, 1, 0).          // Relation 0: MEMBER_OF
+		RepeatUntilStable(1, 2, 1). // Relation 1: PARENT_GROUP
+		CollectBitset(3, 2).
+		Compile()
+
+	status := query.Execute(&state, 10)
+	fmt.Printf("VM execution status: %v\n", status)
 }
 ```
 
@@ -46,7 +52,7 @@ func main() {
 
 ## 2. .NET 8+ / C# SDK (`ImpulseGraph` via P/Invoke)
 
-Provides deterministic `IDisposable` off-heap management for `Snapshot`, `Statement`, and `Writer` across Linux (`x64`/`arm64`), macOS (`arm64`), and Windows (`x64`).
+Provides deterministic `IDisposable` off-heap management (`Snapshot`, `VmContext`, `QueryBuilder`, `Writer`) and zero-copy `ReadOnlySpan<uint>` views across Linux (`x64`/`arm64`), macOS (`arm64`), and Windows (`x64`).
 
 ```bash
 dotnet add package ImpulseGraph
@@ -61,58 +67,58 @@ using var snap = new Snapshot("rbac.imps");
 
 Console.WriteLine($"Domains: {snap.DomainCount}, Relations: {snap.RelationCount}");
 
-// 1. Domain-anchored fluent traversal (zero lambdas)
-string[] groups = snap.Domain("User")
-    .FromKey("usr_alice")
-    .Out("MEMBER_OF")
-    .RepeatUntilStable("PARENT_GROUP")
-    .ToKeyArray();
+// 1. Zero-copy ReadOnlySpan<uint> views over CSR arrays
+ReadOnlySpan<uint> rowOffsets = snap.GetRowOffsetsSpan(0);
+ReadOnlySpan<uint> colIndices = snap.GetColIndicesSpan(0);
 
-// 2. Parameterized prepared statement
-using var stmt = snap.Prepare(
-    "MATCH (u:User)-[:PURCHASED]->(p:Product) " +
-    "WHERE u._key = $userKey AND p.price <= $maxPrice " +
-    "RETURN p._id, p.price"
-);
-stmt.BindString("userKey", "usr_alice");
-stmt.BindDouble("maxPrice", 99.95);
+// 2. Fluent VM QueryBuilder with transitive closure
+using var ctx = new VmContext(snap);
+var state = new VmState { QueryContext = ctx.DangerousGetHandle() };
 
-using var result = stmt.Execute();
-ReadOnlySpan<ulong> productIds = result.GetColumnSpan<ulong>(0);
-ReadOnlySpan<double> prices    = result.GetColumnSpan<double>(1);
+var query = new QueryBuilder()
+    .InitInputNode(0)
+    .WalkEdge(0, 1, 0)          // Relation 0: MEMBER_OF
+    .RepeatUntilStable(1, 2, 1) // Relation 1: PARENT_GROUP
+    .CollectBitset(3, 2)
+    .Compile();
+
+VmStatus status = query.Execute(state, 42);
 ```
 
 ---
 
 ## 3. Node.js, Bun & TypeScript SDK (`impulse-graph` via N-API)
 
-Built on N-API (`node-addon-api`) with zero external npm dependencies and full TypeScript declarations (`index.d.ts`). Exposes zero-copy `TypedArray` views (`Uint32Array`, `Float32Array`, `BigUint64Array`) directly over `mmap` snapshot regions.
+Built on N-API (`node-addon-api`) with zero external npm dependencies and full TypeScript declarations (`index.d.ts`). Exposes zero-copy `TypedArray` views (`Uint32Array`) directly over `mmap` snapshot regions as well as `VmContext`, `QueryBuilder`, and `Writer`.
 
 ```bash
 npm install impulse-graph
 ```
 
 ```typescript
-import { Snapshot, Writer } from 'impulse-graph';
+import { Snapshot, VmContext, VmState, QueryBuilder, ExecuteQuery } from 'impulse-graph';
 
 const snap = new Snapshot('rbac.imps');
 
 try {
-  // 1. Domain-anchored fluent traversal with CEL predicate and transitive closure
-  const accessibleDocs: string[] = snap
-    .domain('User')
-    .fromKey('usr_alice')
-    .out('MEMBER_OF')
-    .repeatUntilStable('PARENT_GROUP')
-    .out('HAS_PERMISSION', 'edge.scope == $scope')
-    .withParam('scope', 'doc:write')
-    .toKeys();
+  // 1. Zero-copy TypedArray views over 128-byte-aligned CSR buffers
+  const rowOffsets: Uint32Array = snap.getRowOffsets(0);
+  const colIndices: Uint32Array = snap.getColIndices(0);
 
-  console.log('Accessible documents:', accessibleDocs);
+  // 2. Fluent VM QueryBuilder with fixed-point transitive closure
+  const ctx = new VmContext(snap);
+  const state = new VmState();
+  state.setQueryContext(ctx);
 
-  // 2. Zero-copy TypedArray view of a 128-byte-aligned SoA attribute column
-  const prices: Float32Array = snap.getAttributeFloat32Array('Product', 'price');
-  console.log('First product price:', prices[0]);
+  const instructions = new QueryBuilder()
+    .initInputNode(0)
+    .walkEdge(0, 1, 0)          // Relation 0: MEMBER_OF
+    .repeatUntilStable(1, 2, 1) // Relation 1: PARENT_GROUP
+    .collectBitset(3, 2)
+    .compile();
+
+  const status = ExecuteQuery(instructions, state, 42);
+  console.log('Execution status:', status);
 } finally {
   snap.close();
 }
@@ -125,10 +131,11 @@ try {
 | Operation | Go (`impulse-go`) | .NET 8+ (`ImpulseGraph`) | Node.js / TS (`impulse-graph`) |
 | :--- | :--- | :--- | :--- |
 | **Open `.imps`** | `impulse.OpenSnapshot(path)` | `new Snapshot(path)` | `new Snapshot(path)` |
-| **Bind Domain** | `snap.Domain("User")` | `snap.Domain("User")` | `snap.domain('User')` |
-| **Seed Frontier** | `.From(ids...)` / `.FromKey(k)` | `.From(ids)` / `.FromKey(k)` | `.from(ids)` / `.fromKey(k)` |
-| **Step Relation** | `.Out(rel)` / `.In(rel)` | `.Out(rel)` / `.In(rel)` | `.out(rel)` / `.in(rel)` |
-| **CEL Filter** | `.Filter(cel)` | `.Filter(cel)` | `.filter(cel)` |
-| **Fixed-Point Loop** | `.RepeatUntilStable(rel)` | `.RepeatUntilStable(rel)` | `.repeatUntilStable(rel)` |
-| **Prepared Query** | `snap.Prepare(query)` | `snap.Prepare(query)` | `snap.prepare(query)` |
+| **Domain / Relation Count** | `snap.DomainCount()` / `RelationCount()` | `snap.DomainCount` / `RelationCount` | `snap.domainCount()` / `relationCount()` |
+| **Direct CSR Check** | `snap.IsReachable(rel, src, tgt)` | `snap.IsReachable(rel, src, tgt)` | `snap.isReachable(rel, src, tgt)` |
+| **Zero-Copy CSR Slices** | `snap.GetRowOffsets(rel)` | `snap.GetRowOffsetsSpan(rel)` | `snap.getRowOffsets(rel)` |
+| **VM Context** | `impulse.NewVmContext(snap)` | `new VmContext(snap)` | `new VmContext(snap)` |
+| **Forward Walk (CSR)** | `qb.WalkEdge(src, dst, rel)` | `qb.WalkEdge(src, dst, rel)` | `qb.walkEdge(src, dst, rel)` |
+| **Reverse Walk (CSC)** | `qb.WalkCsc(src, dst, rel)` | `qb.WalkCsc(src, dst, rel)` | `qb.walkCsc(src, dst, rel)` |
+| **Fixed-Point Loop** | `qb.RepeatUntilStable(s, d, r)` | `qb.RepeatUntilStable(s, d, r)` | `qb.repeatUntilStable(s, d, r)` |
 | **Close / Unmap** | `snap.Close()` | `snap.Dispose()` (`using`) | `snap.close()` |

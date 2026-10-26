@@ -14,7 +14,7 @@ Pre-built wheels (`manylinux_2_28_x86_64`, `manylinux_2_28_aarch64`, `macosx_11_
 
 ---
 
-## 2. Opening Snapshots & Domain-Anchored Traversals
+## 2. Opening Snapshots & Fluent Traversals
 
 ```python
 from impulse_graph import Snapshot
@@ -22,23 +22,20 @@ from impulse_graph import Snapshot
 with Snapshot("commerce.imps") as snap:
     print("Domains:", snap.domain_count(), "Relations:", snap.relation_count())
 
-    # 1. Domain-anchored fluent traversal with inline CEL filtering
-    recommended_skus = (
-        snap.domain("User")
-            .from_keys(["usr_alice"])
-            .out("PURCHASED", filter="edge.amount >= 50.0")
+    # 1. Fluent multi-hop traversal (User 0 -> PURCHASED -> <-PURCHASED -> PURCHASED)
+    recommended_items = (
+        snap.traverse(start_node=0, catalog={"PURCHASED": 0})
+            .out("PURCHASED")
             .in_("PURCHASED")
             .out("PURCHASED")
-            .filter("node.in_stock == true")
-            .to_keys()
+            .to_list()
     )
 
-    # 2. Unbounded fixed-point reachability (transitive closure, zero lambdas)
-    ancestors = (
-        snap.domain("Group")
-            .from_key("grp_engineering_west")
-            .repeat_until_stable("PARENT_GROUP")
-            .to_keys()
+    # 2. Declarative openCypher query execution
+    buyers = snap.cypher(
+        "MATCH (u:User)-[:PURCHASED]->(p:Product) WHERE u.id = $uid RETURN p",
+        params={"uid": 0},
+        catalog={"PURCHASED": 0},
     )
 ```
 
@@ -47,15 +44,19 @@ with Snapshot("commerce.imps") as snap:
 | Method | Description |
 | :--- | :--- |
 | **`Snapshot(path: str)`** | Memory-map `.imps` file read-only (`MAP_SHARED`). Supports `with` context manager. |
-| **`domain(name: str) -> DomainView`** | Bind traversal anchor to the named domain's $0 \dots N_d-1$ dense ID space. |
 | **`domain_count() -> int`** | Total node domains in Section 2 catalog. |
 | **`relation_count() -> int`** | Total edge relations in Section 2 directory. |
+| **`max_node_count() -> int`** | Maximum node count across all domains in the snapshot. |
 | **`is_reachable(rel_idx: int, src_id: int, tgt_id: int) -> bool`** | Direct $O(\log d)$ / $O(1)$ CSR adjacency check. |
-| **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned CSR `row_offsets`. |
-| **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned CSR `col_indices`. |
-| **`get_attribute_dlpack(domain: str, attr: str)`** | Export 128-byte-aligned SoA attribute or vector column via zero-copy DLPack. |
-| **`sample_neighbors(rel_idx: int, nodes, k: int, seed: int = 42)`** | Native SIMD $K$-hop neighborhood sampler returning `(row_ptr, col_idx)` NumPy/tensor views. |
-| **`prepare(query: str) -> Statement`** | Compile a parameterized `openCypher`, `ImpLog`, `ImpK`, or `ImpScheme` query. |
+| **`traverse(start_node: int, catalog=None) -> Traversal`** | Start a fluent multi-hop traversal from `start_node` (`.out(rel)`, `.in_(rel)`, `.filter(...)`, `.to_list()`, `.to_set()`, `.count()`, `.contains(id)`, `.to_impas()`). |
+| **`cypher(query: str, params=None, catalog=None) -> List[int]`** | Compile and execute a read-only `openCypher` query, returning surviving target node IDs. |
+| **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `row_offsets`. |
+| **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `col_indices`. |
+| **`get_attribute_array(rel_idx: int, attr_idx: int, dtype=np.float32, shape=None) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned SoA attribute or `[N, D]` vector column. |
+| **`sample_neighbors(rel_idx: int, src_nodes, k: int, seed: int = 42)`** | Native SIMD $K$-hop neighborhood sampler returning `(sampled_src, sampled_tgt)` NumPy arrays. |
+| **`to_torch_csr(rel_idx: int)` / `to_torch_edge_index(rel_idx: int)`** | Export relation directly to PyTorch `sparse_csr_tensor` or `[2, E]` `edge_index` tensor. |
+| **`to_scipy_csr(rel_idx: int)` / `to_networkx(rel_idx: int)`** | Export relation to `scipy.sparse.csr_matrix` or `networkx.DiGraph`. |
+| **`to_arrow_table(rel_idx: int)` / `to_polars(rel_idx: int)` / `to_pandas(rel_idx: int)`** | Export relation edge list to PyArrow Table, Polars DataFrame, or Pandas DataFrame. |
 
 ---
 
@@ -64,41 +65,49 @@ with Snapshot("commerce.imps") as snap:
 Because `.imps` aligns all CSR topology arrays and Structure-of-Arrays (SoA) attribute columns to **128-byte boundaries**, PyTorch and NumPy read them directly from the OS page cache with **0 bytes of heap serialization**:
 
 ```python
+import numpy as np
 import torch
 from impulse_graph import Snapshot
 
-snap = Snapshot("ogbn_papers100M.imps")
+with Snapshot("ogbn_papers100M.imps") as snap:
+    # 1. Zero-copy 128-D float32 node embeddings (N x 128) via NumPy buffer protocol
+    num_nodes = snap.max_node_count()
+    feat_np = snap.get_attribute_array(0, 0, dtype=np.float32, shape=(num_nodes, 128))
+    x_embeddings = torch.from_numpy(feat_np)
 
-# 1. Zero-copy 128-D float32 node embeddings (N x 128) via DLPack
-x_embeddings = torch.from_dlpack(snap.get_attribute_dlpack("Paper", "feat_128"))
+    # 2. Zero-copy CSR topology tensors
+    csr_tensor = snap.to_torch_csr(0)
 
-# 2. Zero-copy CSR topology arrays
-row_ptr = torch.from_numpy(snap.get_row_offsets_array(0))
-col_idx = torch.from_numpy(snap.get_col_indices_array(0))
-
-# 3. Native SIMD neighborhood sampling for GNN mini-batches (25,000+ batches/sec)
-seed_nodes = torch.tensor([10, 42, 105, 891], dtype=torch.int64)
-sub_row_ptr, sub_col_idx = snap.sample_neighbors(
-    relation_index=0, nodes=seed_nodes, k_samples=15, seed=42
-)
+    # 3. Native SIMD neighborhood sampling for GNN mini-batches
+    seed_nodes = np.array([10, 42, 105, 891], dtype=np.uint64)
+    sampled_src, sampled_tgt = snap.sample_neighbors(
+        relation_index=0, src_nodes=seed_nodes, k=15, seed=42
+    )
 ```
 
 ---
 
-## 4. Parameterized Prepared Statements (`snap.prepare`)
+## 4. Low-Level VM Bytecode Builder (`impulse_graph.vm`)
+
+For custom register-level `impOps` pipelines (such as `repeat_until_stable`, set intersections, or GraphBLAS `matrix_vector_mul`), use `impulse_graph.vm.QueryBuilder`:
 
 ```python
-with snap.prepare("""
-    MATCH (u:User)-[:PURCHASED]->(p:Product)
-    WHERE u._key = $userKey AND p.price <= $maxPrice
-    RETURN p._id, p.price
-""") as stmt:
-    stmt.bind_str("userKey", "usr_alice")
-    stmt.bind_float("maxPrice", 99.95)
+from impulse_graph import Snapshot, vm
 
-    result = stmt.execute()
-    product_ids = result.column_array(0)   # Zero-copy NumPy uint64 array
-    prices      = result.column_array(1)   # Zero-copy NumPy float64 array
+with Snapshot("commerce.imps") as snap:
+    ctx = vm.VmContext(snap)
+    state = vm.VmState()
+    state.set_query_context(ctx)
+
+    qb = vm.QueryBuilder()
+    query = (
+        qb.init_input_node(0)
+          .walk_edge(0, 1, 0)
+          .repeat_until_stable(1, 2, 0)
+          .collect_bitset(3, 2)
+          .compile()
+    )
+    res = query.execute(state, input_param=0)
 ```
 
 ---

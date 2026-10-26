@@ -49,14 +49,18 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
 ## 2. `WHERE` Predicates & `RETURN` Projections
 
 * **Seed Anchoring (`WHERE u._key = $key` or `WHERE u.id = $id`)**: Constraining the starting node variable anchors the initial traversal frontier to that key or dense node ID.
-* **Node & Edge Attribute Filtering**: Predicates on edge variables (`t.amount >= $minAmt`) or node variables (`a.balance > 0`) compile directly into vectorized [Google CEL](cel.md) shaders (`OP_CSR_WALK_FILTERED` / `OP_NODE_FILTER`).
-* **`RETURN` Projections**:
-  * `RETURN c` or `RETURN c._key, c.balance, t.amount`: Projects surviving target node IDs, external keys, or columnar attributes into zero-copy result columns.
-  * `RETURN count(c)`: Computes the scalar cardinality of the surviving target frontier without materializing full arrays.
+* **Inline Node & Edge Attribute Filtering**: Predicates on edge variables (`t.amount >= $minAmt`) or node variables (`a.balance > 0`) compile directly into vectorized [Google CEL](cel.md) shaders (`OP_CSR_WALK_FILTERED` / `OP_NODE_FILTER`) evaluated inline during the CSR/CSC walk step.
+* **`RETURN` Target Frontier Projections**:
+  * `RETURN c` (or `RETURN c.id`): Projects the surviving **target domain node frontier** into a zero-copy result set (`BitSetRowReader` yielding surviving dense node IDs in Java, `List[int]` in Python `snap.cypher(...)`, or bitset words in C-ABI `impulse_stmt_column_data(stmt, 0)`).
+  * `RETURN count(c)`: Computes the scalar cardinality of the surviving target frontier (`OP_COLLECT_SCALAR`) without materializing full arrays.
 
 !!! important
-    **Set Semantics vs. Traditional Cypher Multi-Sets**:
-    Traditional Cypher engines (like Neo4j) use multi-set (bag) path semantics, emitting duplicate rows when multiple paths reach the same node unless `RETURN DISTINCT` is added. Impulse Graph evaluates every hop using **Set Semantics (Monoidic Reduction)**: converging paths are automatically deduplicated via bitwise `OR` at each hop, preventing exponential path explosion.
+    **Set Semantics vs. Traditional Cypher Multi-Sets (Why Edge & Intermediate Hop Tuples Collapse)**:
+    Traditional Cypher engines (like Neo4j) use multi-set (bag) path semantics, emitting one row per path tuple `(u, t, dst)`. Impulse Graph evaluates every hop using **Set Semantics (Monoidic Reduction)**:
+
+    - When `WHERE t.amount >= 1000.0` filters an edge variable `t`, only edges satisfying that predicate are traversed, and all qualifying edges landing on the same destination node `dst` immediately collapse into `dst`'s target bitset via bitwise `OR`.
+    - Consequently, `RETURN` outputs the **surviving target domain frontier** (or `count(target)`), rather than unreduced per-edge or intermediate-hop tuple rows. To inspect target node attributes or external keys for the surviving target IDs, use the target domain's O(1) key/attribute accessors.
+    - **Shortest-Path Witness Tracking**: For single-hop minimum-cost witness selection, use `:ARGMIN` (`OP_MONOID_ARGMIN` / `reduceArgMin`). Full multi-hop path sequence reconstruction requires recording per-hop predecessor vectors across BFS levels.
 
 ---
 
@@ -71,7 +75,7 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
         """;
 
     try (ImpulseStatement stmt = snap.prepare(cypher)) {
-        stmt.bindNode("$diseaseId", 42L);
+        stmt.bindNode("diseaseId", 42L);
 
         try (RowReader rows = stmt.execute()) {
             while (rows.next()) {
@@ -82,21 +86,22 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
     }
     ```
 
-=== "Python (`snap.query`)"
+=== "Python (`snap.cypher`)"
     ```python
     from impulse_graph import Snapshot
 
     with Snapshot("banking.imps") as snap:
-        rows = snap.query(
+        # Returns the list of surviving destination Account dense node IDs
+        dst_account_ids = snap.cypher(
             """
             MATCH (u:User)-[:OWNS]->(src:Account)-[t:TRANSFERRED_TO]->(dst:Account)
-            WHERE u._key = $user_key AND t.amount >= $min_amount
-            RETURN dst._key AS account, dst.balance AS balance, t.amount AS amount
+            WHERE u.id = $user_id AND t.amount >= 1000.0
+            RETURN dst
             """,
-            params={"user_key": "usr_101", "min_amount": 1000.0},
+            params={"user_id": 101},
         )
-        for row in rows:
-            print(row)
+        for account_id in dst_account_ids:
+            print("Reached Account dense ID:", account_id)
     ```
 
 === "C / C++20 (`impulse_stmt_*`)"
@@ -104,7 +109,7 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
     impulse_stmt_t* stmt = NULL;
     impulse_stmt_prepare(
         snap,
-        "MATCH (u:User)-[e:KNOWS]->(f:User) WHERE u.id = $uid AND e.weight >= 0.8 RETURN f.id",
+        "MATCH (u:User)-[e:KNOWS]->(f:User) WHERE u.id = $uid AND e.weight >= 0.8 RETURN f",
         &stmt
     );
 
@@ -114,8 +119,8 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
     impulse_stmt_bind_node(stmt, "$uid", 101);
     impulse_stmt_execute(stmt, buf, buf_len);
 
-    size_t count = impulse_stmt_row_count(stmt);
-    const uint64_t* friend_ids = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
+    size_t word_count = impulse_stmt_row_count(stmt);
+    const uint64_t* bitset_words = (const uint64_t*)impulse_stmt_column_data(stmt, 0);
 
     impulse_stmt_finalize(stmt);
     free(buf);

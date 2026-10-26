@@ -162,32 +162,28 @@ Now open `banking.imps` in Python (`pip install impulse-graph`). The file is mem
 from impulse_graph import Snapshot
 
 with Snapshot("banking.imps") as snap:
-    print(f"Domains: {snap.domains()}")  # ['User', 'Account']
+    print(f"Domains: {snap.domain_count()}, Relations: {snap.relation_count()}")
 
-    # 1. Fluent Domain-to-Domain Traversal:
-    # Start in User ("usr_101") -> walk OWNS -> walk TRANSFERRED_TO (amount >= 1000) -> return Account keys
-    high_value_recipients = (
-        snap.domain("User")
-            .from_keys(["usr_101"])
+    # 1. Fluent Traversal from User dense ID 0 ("usr_101"):
+    # Walk OWNS -> walk TRANSFERRED_TO -> return reached Account dense IDs
+    reached_accounts = (
+        snap.traverse(start_node=0)
             .out("OWNS")
-            .out("TRANSFERRED_TO", filter="edge.amount >= 1000.0")
-            .to_keys()
+            .out("TRANSFERRED_TO")
+            .to_list()
     )
-    print("Accounts receiving >= $1,000 from usr_101:", high_value_recipients)
-    # Output: ['acc_7008']
+    print("Accounts reached from User 0:", reached_accounts)
 
     # 2. Parameterized openCypher Query over the same memory-mapped snapshot:
-    rows = snap.query(
+    high_value_recipients = snap.cypher(
         """
         MATCH (u:User)-[:OWNS]->(src:Account)-[t:TRANSFERRED_TO]->(dst:Account)
-        WHERE u._key = $user_key AND t.amount >= $min_amount
-        RETURN dst._key AS recipient_account, dst.balance AS recipient_balance, t.amount AS transfer_amount
+        WHERE u.id = $user_id AND t.amount >= 1000.0
+        RETURN dst
         """,
-        params={"user_key": "usr_101", "min_amount": 1000.0},
+        params={"user_id": 0},
     )
-    for row in rows:
-        print(row)
-        # {'recipient_account': 'acc_7008', 'recipient_balance': 53100.0, 'transfer_amount': 2500.0}
+    print("Destination Account dense IDs (transfers >= $1,000):", high_value_recipients)
 ```
 
 ---
@@ -382,9 +378,13 @@ Both domains and relations accept an `"attributes"` array where each element has
 | `"float16"`, `"float32"`, `"float64"` | IEEE-754 16 / 32 / 64-bit float array | `Float16`, `Float32`, `Float64` |
 | `"bool"` / `"boolean"` | Bit-packed boolean array (`1 bit` per element) | `Boolean` |
 | `"timestamp_ms"`, `"timestamp_ns"`, `"date32"` | 64-bit epoch timestamp (`ms` / `ns`) or 32-bit days | `Timestamp(Millisecond/Second/Microsecond/Nanosecond)`, `Date32`, `Date64` |
-| `"string"` | 32-bit string ID array indexing the Section 2 Shared String Pool | `Utf8`, `LargeUtf8` |
-| `"uuid"` | 128-bit (`16-byte`) fixed-width binary UUID | `FixedSizeBinary(16)` or UUID string |
-| **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Appends a 128-byte-aligned Arrow validity bitmap (`1` = valid, `0` = null) | Any nullable Parquet column or CSV column with empty cells |
+| `"string"` | Variable-length UTF-8 (`VAR_STRING` `0x0B`): per-column 128B-aligned `uint32_t offsets[K+1]` array + contiguous UTF-8 byte blob in Section 4 (note: Section 2 Shared String Pool stores only schema catalog identifiers) | `Utf8`, `LargeUtf8` |
+| `"uuid"` | 128-bit (`16-byte`) fixed-width binary UUID (`FIXED_BYTES` `0x0A`, `dim = 16`) | `FixedSizeBinary(16)` or UUID string |
+| **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Prepends a 128-byte-aligned Arrow validity bitmap (`1` = valid, `0` = null) before the data array | Any nullable Parquet column or CSV column with empty cells |
+
+!!! note
+    **Primary Key Catalog vs. Programmatic Secondary Indices (`Section 2.6`)**:
+    When `impulse build` compiles a `manifest.json`, it automatically builds the primary key lookup index (`_domain_index`) and attribute min/max metadata for each domain. Additional secondary indices (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitset, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval) can be constructed programmatically via the C-ABI (`impulse_index_build_*` + `impulse_writer_add_index` in `impulse_index.h`) or Rust `SnapshotWriter::add_index`.
 
 ---
 

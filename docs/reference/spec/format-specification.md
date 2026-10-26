@@ -255,6 +255,12 @@ Begins immediately after Relation Directory Table, aligned to a 128-byte boundar
 | `0x0020` – `0x0027` | `PayloadFeatureMask` | `uint64_t` | 8 Bytes | Generic Index Feature Bitmask (e.g. hash seed, metric flags). |
 | `0x0028` – `0x003F` | `ReservedPadding` | `uint8_t[24]` | 24 Bytes | Reserved for future index engine parameters (`0x00`). |
 
+#### 3.4.1 Constructing & Attaching Secondary Indices (`impulse_index.h`)
+
+* **Automatic Primary Key Index (`impulse build`)**: When building an `.imps` snapshot from a `manifest.json` via `impulse build`, the compiler automatically populates the domain key catalog index (`_domain_index`) and attribute min/max metadata.
+* **Programmatic Secondary Index Construction (C-ABI & Rust)**: The 7 secondary index families (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitSet, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval) are constructed via `impulse_index_build_*` in `impulse_index.h` and attached to the snapshot writer via `impulse_writer_add_index` (or Rust `SnapshotWriter::add_index`).
+* **Transient Scratch Indices & `.imps.idx` Sidecars**: Opcodes `OP_CREATE_SCRATCH_INDEX` (`0x1E`) and `OP_DROP_SCRATCH_INDEX` (`0x1F`) allocate and free transient secondary indices in the query scratch workspace; external `.imps.idx` sidecar file persistence is a reserved specification extension.
+
 ---
 
 ### 4.4 Optional Snapshot Topology & Topology Inspection Opcodes (`0x19` .. `0x1C`)

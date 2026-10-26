@@ -61,9 +61,9 @@ Artifacts are built inside GitHub Actions CI pipelines with SLSA Level 3 cryptog
 
 ## Post-`v1.0` Roadmap
 
-### 1. Multi-Snapshot Federated Traversals
-* Cross-snapshot relation namespacing (`SnapshotA::RelationName`) allowing a single `ImpulseVM` query pipeline to traverse across multiple memory-mapped `.imps` files with zero heap copying.
-* Bind-time node domain identity verification and zero-copy dense ID translation vectors (`OP_REMAP_ID_SPACE`).
+### 1. Multi-Snapshot Federated Traversals (C-ABI & Cross-Snapshot VM Opcodes)
+* Note: Composite multi-file `manifest.yaml` loading into a unified `GraphSnapshot` is supported today in the Pure Java 25 engine via `BinarySnapshotLoader.loadFromManifest(manifestPath, arena)`.
+* Post-`v1.0` extends this to cross-snapshot relation namespacing (`SnapshotA::RelationName`) in C-ABI and `ImpulseVM` bytecode, allowing a single VM pipeline to traverse across independently versioned `.imps` files via zero-copy dense ID translation vectors (`OP_REMAP_ID_SPACE`).
 
 ### 2. GPU & Accelerator Offload (`cuFile` GPUDirect Storage)
 * Direct DMA transfers of 128-byte-aligned `.imps` CSR and SoA sections into NVIDIA GPU HBM via `cuFile` (GPUDirect Storage), bypassing host CPU page cache for multi-terabyte graph analytics and GNN neighborhood sampling.

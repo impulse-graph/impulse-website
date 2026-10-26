@@ -1,58 +1,51 @@
-# Impulse Graph Engine Benchmarks & Java VM Excellence
+# Impulse Graph Engine Benchmarks & Performance
 
 ## Executive Summary
 
-The **Impulse Graph Java 25 VM Execution Engine** (`impulse-core`) sets a new benchmark for graph analytics performance, consistency, and cold-start latency. Built entirely on Java 25 **Foreign Function & Memory (FFM)**, **Vector API (`jdk.incubator.vector`)**, and **JDK 25 Project Leyden AOT Caching (`-XX:AOTCache`)**, the engine achieves **83% to 90% of raw multi-threaded C++ GAPBS performance** while delivering **$341\times$ faster cold-start dataset load times** ($9.74\text{ ms}$ vs $3,326\text{ ms}$).
+Once both **Impulse Graph** engines memory-map (`mmap`) the exact same 128-byte-aligned `.imps` CSR/CSC and Structure-of-Arrays (SoA) segments off-heap (`MemorySegment` in **Pure Java 25**, raw `mmap` pointers in **Native C++20**) and scan them with hardware SIMD (`jdk.incubator.vector` vs. Highway / OpenMP), **the dominant limiting factor is physical DRAM memory bandwidth and CPU L1/L2/L3 cache-line transfers—not the language runtime.**
+
+* **Sub-10 Millisecond JVM Cold Start (`341x` Faster than GAPBS `.sg`)**: Off-heap `FileChannel.map` paired with JDK 25 Project Leyden AOT Caching (`-XX:AOTCache`) loads the **6.04 GB `twitter-2010.imps`** snapshot (`1.47B` edges, `41.65M` nodes) in **`9.748 ms`** (and **`0.038 ms`** in C++20 `mmap`), compared to `3,326.05 ms` for standard GAPBS `.sg` file loading and `612.31 ms` for Apache Arrow IPC record-batch loading.
+* **Pure Java 25 Within `1.65x` of 10-Thread Native C++20**: On full-graph direction-optimizing Breadth-First Search (BFS) across all 1.47 billion edges of `twitter-2010`, the Native C++20 kernel executes in **`145.00 ms`** (10 threads) and the warmed Pure Java 25 engine executes in **`240.29 ms` (`1.65x`)**—with **zero heap object allocations** in the hot loop.
+* **Sub-10 Microsecond Targeted Queries & Polyglot FFI**: Targeted multi-hop traversals execute in **`4.13 µs`** in Java 25 (post-C2 JIT warmup) and **`18.4 µs – 26.8 µs`** across C++20, Rust, Go, Python, .NET, and Node.js on the 2.25M-edge Hetionet biomedical graph.
 
 ```mermaid
 graph LR
-    subgraph Cold Start Load
+    subgraph Cold Start Load (twitter-2010, 6.04 GB)
         GAPBS_Load["Standard GAPBS C++ (.sg)<br>3,326.05 ms"]
-        Java_Load["Impulse Java 25 VM (mmap + Leyden AOT)<br>9.75 ms"]
+        Arrow_Load["Apache Arrow IPC<br>612.31 ms"]
+        Java_Load["Impulse Java 25 (mmap + Leyden AOT)<br>9.75 ms"]
+        Cpp_Load["Impulse C++20 (mmap)<br>0.038 ms"]
     end
-    subgraph Micro-Query Latency
-        C2_JIT["Java 25 MethodHandle JIT + AVX-512<br>4.13 µs / query"]
+    subgraph Full-Graph 10T BFS & Micro-Query
+        Bfs_Cmp["Full-Graph 1.47B-Edge BFS (10T)<br>C++20: 145.00 ms │ Java 25: 240.29 ms (1.65x)"]
+        C2_JIT["Targeted Multi-Hop BFS (C2 JIT)<br>4.13 µs / query"]
     end
-    Java_Load -->|341x Faster Load| C2_JIT
+    Java_Load --> Bfs_Cmp
+    Cpp_Load --> Bfs_Cmp
+    Java_Load --> C2_JIT
 ```
 
 ---
 
-## 1. Master GAPBS Benchmark Suite Matrix
+## 1. Full-Graph `twitter-2010` Macro-Benchmarks (1.47B Edges, 41.65M Nodes)
 
-All benchmarks were evaluated over the canonical **`twitter-2010` Graph Snapshot** (**6.040 GB**, **1,468,365,182 Edges**, **41,652,230 Nodes**) on an Apple Silicon M-Series / AVX-512 hardware platform, comparing the official **C++ GAPBS Reference Baseline (10 Threads)** against the **Impulse Java 25 VM Execution Engine**:
+All macro-benchmarks below were executed on an **Apple Silicon M-Series (ARM64 NEON 128-bit SIMD, 10 Threads)** platform over the canonical **`twitter-2010.imps` Graph Snapshot** (**6.040 GB**, **1,468,365,182 Edges**, **41,652,230 Nodes**):
 
-| GAPBS Benchmark Algorithm | C++ GAPBS Baseline (10 Threads) | Impulse Java 25 VM (Vector API + Leyden AOT) | Java VM Throughput (MTEPS) | Performance Ratio vs C++ GAPBS | Primary Java VM Architectural Engine |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **0. Cold-Start Load Time** | `3,326.05 ms` | **`9.748 ms`** | N/A | **`341.2x` Faster JVM Load** | Off-heap `FileChannel.map` + Leyden AOT Cache (`-XX:AOTCache`) |
-| **1. BFS** *(Breadth-First Search)* | `533.83 ms` | **`642.10 ms`** | `2,286.8 MTEPS` | **`0.83x`** *(83% of C++)* | 512k ST/MT threshold + AVX-512 SIMD (`copyTargetsSimd`) |
-| **2. PR** *(PageRank per iter)* | `355.69 ms` | **`398.20 ms`** | `3,687.5 MTEPS` | **`0.89x`** *(89% of C++)* | Gauss-Seidel Pull (`OP_FLOAT_VECTOR_SCALE` + `OP_L1_NORM_DIFF`) |
-| **3. CC** *(Connected Components)* | `508.80 ms` | **`582.40 ms`** | `2,521.2 MTEPS` | **`0.87x`** *(87% of C++)* | Afforest sampling + Union-Find (`OP_CC_AFFOREST` + `OP_SET_UNION`) |
-| **4. TC** *(Triangle Counting)* | `14,250.00 ms` | **`15,820.00 ms`** | `92.8 MTEPS` | **`0.90x`** *(90% of C++)* | Vectorized intersection sweep (`OP_TC_SWEEP_BATCH`) |
-| **5. BC** *(Betweenness Centrality)* | `3,125.40 ms` | **`3,510.00 ms`** | `418.3 MTEPS` | **`0.89x`** *(89% of C++)* | Brandes DAG pass (`OP_BRANDES_FORWARD` + `OP_BRANDES_BACKWARD`) |
-| **6. SSSP** *(Shortest Paths)* | `1,850.20 ms` | **`2,120.00 ms`** | `692.6 MTEPS` | **`0.87x`** *(87% of C++)* | Delta-Stepping bucket queue (`OP_DELTA_STEP_RELAX`) |
+### 1.1 Cold-Start Dataset Load Time (`twitter-2010`, 6.04 GB)
 
----
+| Loader / Format | Cold-Start Load Latency | Speedup vs. Stock GAPBS (`.sg`) | Architectural Mechanism |
+| :--- | :---: | :---: | :--- |
+| **Stock GAPBS C++ (`.sg` Deserialize)** | `3,326.05 ms` | `1.0x` Baseline | Heap allocation + file read into CSR buffers |
+| **Apache Arrow IPC (`mmap` + `ReadRecordBatch`)** | `612.31 ms` | `5.4x` | `66.0 ms` `mmap` + `546.2 ms` Arrow record-batch extraction |
+| **Impulse Java 25 VM (Standard Cold JVM)** | `14.557 ms` | `228.5x` | Off-heap `FileChannel.map` (`READ_ONLY`) + catalog slice setup |
+| **Impulse Java 25 VM (`-XX:AOTCache` Leyden AOT)** | **`9.748 ms`** | **`341.2x`** | Off-heap `FileChannel.map` + pre-linked Leyden AOT class/method cache |
+| **Impulse Native C++20 Kernel (`impulse_snapshot_open`)** | **`0.038 ms`** (`38 µs`) | **`87,527x`** | Direct OS `mmap` + 4KB Page 0 header pointer cast |
 
-## 2. Sub-10 Microsecond Single-Query Micro-Latencies
+### 1.2 Head-to-Head Full-Graph Direction-Optimizing BFS (Root 0, 1.47B Edges)
 
-For targeted root-node traversals, permission checks, and microservice RPCs, HotSpot C2 Tier-4 JIT compilation combined with Java 25 Vector API yields **sub-10 microsecond execution times**:
+In head-to-head full-graph Breadth-First Search (BFS) from Hub Node 0 (`35,016,137` reachable nodes across `1,468,365,182` edges), the warmed Pure Java 25 engine executes within **`1.65x` of native compiled C++20** (closing from an initial `1.87x` baseline after hoisting `VmQueryContext` bitset allocations outside the BFS level loop):
 
-| Micro-Benchmark Workload | Java 25 VM Single-Query Latency | Peak Throughput (MTEPS) | Discovered Components / Output |
-| :--- | :--- | :--- | :--- |
-| **BFS Multi-Hop Traversal (Root 0)** | **`12.0 µs`** (**`0.0120 ms`**) | **`6,235.2 MTEPS`** | 1 target node set |
-| **Connected Components (CC) Full Sweep** | **`1,390.8 ms`** (**`1.39 s`**) | **`1,055.7 MTEPS`** | **`39,681,514 components`** (**`0.035 µs`** / label) |
-| **Powergrid N-2 Double Outage Pair Sweep** | **`3.33 µs`** per pair | **`300,000 outages/sec`** | `194,329 critical islanding pairs` |
-
----
-
-## 3. Java 25 FFM / Vector API Performance Relative to Native C++20
-
-Once both engines `mmap` the exact same 128-byte-aligned `.imps` CSR/CSC arrays off-heap (`MemorySegment` in Java 25, raw `mmap` pointers in C++20) and scan them with hardware SIMD (`jdk.incubator.vector` vs. AVX-512 / ARM NEON), **the dominant limiting factor is physical DRAM memory bandwidth and CPU L1/L2/L3 cache-line transfers—not the language runtime.**
-
-In head-to-head full-graph Breadth-First Search (BFS) from Hub Node 0 across the **1.47-billion-edge `twitter-2010` snapshot** ($41.65\text{M}$ nodes), the warmed Pure Java 25 engine executes within **`1.65x` of native compiled C++20** (closing from an initial `1.87x` baseline after hoisting `VmQueryContext` bitset allocations outside the BFS level loop):
-
-| Benchmark Configuration (`twitter-2010.imps`, 1.47B Edges) | Threads | Cold Latency | Warmed Latency (HotSpot C2) | Speedup vs. 1T GAPBS C++ | Ratio vs. 10T Native C++20 |
+| Benchmark Configuration (`twitter-2010.imps`, Root 0) | Threads | Cold Latency | Warmed Latency (HotSpot C2) | Speedup vs. 1T GAPBS C++ | Ratio vs. 10T Native C++20 |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Stock GAPBS C++ Baseline** | 1 Thread | `13,305 ms` | `13,305 ms` | `1.0x` | `91.8x` slower |
 | **Stock GAPBS C++ (OpenMP)** | 10 Threads | `149.00 ms` | `149.00 ms` | `89.3x` | `1.03x` |
@@ -61,7 +54,14 @@ In head-to-head full-graph Breadth-First Search (BFS) from Hub Node 0 across the
 | **Impulse Pure Java 25 VM (Baseline)** | 10 Threads | `1,130 ms` | `272.24 ms` | `48.8x` | `1.87x` |
 | **Impulse Pure Java 25 VM (Optimized)** | 10 Threads | `942 ms` | **`240.29 ms`** | **`55.4x`** | **`1.65x` of C++20** |
 
-### Why Native C++20 Retains a `1.5x–2.0x` (`1.65x`) Edge
+### 1.3 Connected Components (`OP_CC_AFFOREST`) & PageRank (`OP_MXV`) on `twitter-2010`
+
+| GAPBS Algorithm Workload (`twitter-2010.imps`, 10 Threads) | Stock GAPBS C++ (10T) | Impulse Native C++20 (`impulse_vm.cpp`) | Impulse Java VM (HotSpot C2) | Impulse Java VM (Graal JIT) | Notes / Primary Kernel |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Connected Components (CC)** *(39,681,514 components)* | `138.69 ms` | `156.73 ms` | `349.60 ms` | **`311.23 ms`** | Afforest neighbor sampling + lock-free Union-Find (`OP_CC_AFFOREST`) |
+| **PageRank (PR, per iteration)** *(10 Iterations)* | `2,286.45 ms` | `1,940.12 ms` | `1,890.30 ms` | **`1,680.10 ms`** | CSR/CSC SpMV pull accumulation (`OP_MXV` + `jdk.incubator.vector`) |
+
+### Why Native C++20 Retains a `1.5x–2.0x` (`1.65x`) Edge on Full-Graph BFS
 Java Flight Recorder (**JFR**) allocation profiling and `-XX:+PrintCompilation` confirm that **zero `java.lang.Object` heap allocations** occur inside the Java 25 BFS inner loop. The residual `1.65x` speed advantage of the native C++20 kernel comes down to three low-level runtime invariants that the JVM cannot completely elide in data-dependent CSR loops:
 
 1. **`MemorySegment` Bounds & Liveness Checking**: Even with `ValueLayout.JAVA_INT_UNALIGNED`, the Java 25 FFM API validates segment bounds and arena scope liveness, adding ~1 cycle per random CSR read compared to raw C pointer dereference.
@@ -70,7 +70,38 @@ Java Flight Recorder (**JFR**) allocation profiling and `-XX:+PrintCompilation` 
 
 ---
 
-## 4. Enterprise Service Reality: JSON Serialization Is Slower Than the Graph Query
+## 2. Project Leyden AOT, Single-Query Micro-Latencies & Polyglot FFI Overhead
+
+### 2.1 JDK 25 Project Leyden AOT Cache & HotSpot C2 Tier-4 Warmup (`twitter-2010.imps`)
+
+| Workload / Experiment Mode | JVM Flags / AOT Mode | Warmup Iterations | Cold-Start Load Time | First Invocation Latency | Post-Warmup Steady Latency | Peak Throughput (MTEPS) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **BFS Baseline (Cold JVM)** | Standard JVM flags | `0` | `14.557 ms` | `332 µs` (`0.332 ms`) | — | `695.2 MTEPS` |
+| **BFS Leyden AOT Production** | `-XX:AOTCache=impulse.aotcache` | `0` | **`9.748 ms`** | `369 µs` (`0.369 ms`) | — | `695.2 MTEPS` |
+| **BFS Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `222 µs` (`0.222 ms`) | **`4.13 µs`** (`0.0041 ms`) | **`6,235.2 MTEPS`** |
+| **CC Baseline (Cold JVM)** | Standard JVM flags | `0` | `16.501 ms` | `776 µs` (`0.776 ms`) | — | `695.2 MTEPS` |
+| **CC Leyden AOT Production** | `-XX:AOTCache=impulse_cc.aotcache` | `0` | **`9.899 ms`** | **`321 µs`** (`0.321 ms`) | — | `695.2 MTEPS` |
+| **CC Vector API + C2 JIT** | `--add-modules jdk.incubator.vector` | `10,000` | `5.784 ms` | `329 µs` (`0.329 ms`) | **`9.88 µs`** (`0.0098 ms`) | **`5,892.4 MTEPS`** |
+| **Powergrid N-2 Outage Sweep** | Pure Java 25 VM | `10,000` | — | — | **`3.33 µs` / pair** | `300,000 outages/sec` |
+
+### 2.2 Multi-Language FFI Binding Overhead (Hetionet Biomedical Graph: 47K Nodes, 2.25M Edges)
+
+Evaluating a 4-hop drug-repurposing traversal (`Disease::DOID:10652 -> [:DaG] -> [:GpPW] <- [:GpPW] <- [:CbG]`, returning `1,317` candidate compounds) across all C-ABI language bindings:
+
+| Language / SDK Binding | Runtime Environment | Mean 4-Hop Latency | FFI Overhead vs. Native C++20 |
+| :--- | :--- | :---: | :---: |
+| **Native C++20** (`impulse-cpp`) | Clang, Computed Goto + SIMD | **`18.4 µs`** | Baseline (`0.0 µs`) |
+| **Rust** (`impulse-rust`) | Safe Rust Wrapper over C-ABI | **`19.1 µs`** | `+0.7 µs` |
+| **Go** (`impulse-go`) | Go CGo | **`21.5 µs`** | `+3.1 µs` |
+| **C# / .NET** (`impulse-dotnet`) | .NET P/Invoke (`LibraryImport`) | **`23.0 µs`** | `+4.6 µs` |
+| **Python** (`impulse-python`) | Python `pybind11` | **`24.2 µs`** | `+5.8 µs` |
+| **Node.js** (`impulse-node`) | Node.js N-API | **`26.8 µs`** | `+8.4 µs` |
+| *Comparison: PyTorch Geometric (PyG)* | *In-Memory CSR Tensor* | *`850.0 µs`* (`0.85 ms`) | *`46.2x` slower (`450 ms` cold load)* |
+| *Comparison: Python NetworkX* | *In-Memory Python Dicts* | *`42,100.0 µs`* (`42.1 ms`) | *`2,288x` slower (`1,850 ms` cold load)* |
+
+---
+
+## 3. Enterprise Service Reality: JSON Serialization Is Slower Than the Graph Query
 
 Why is `1.65x` of C++20 wholly suitable for demanding enterprise workloads? Because in real-world microservice architectures (Spring Boot, REST/gRPC APIs, ReBAC authorization servers), **formatting the response into JSON consumes far more CPU time than the Impulse Graph query itself.**
 
@@ -88,7 +119,7 @@ While the Impulse Graph engine executes SIMD integer vector reads and bitwise `O
 
 ---
 
-## 5. Architectural Pillars of Java VM Excellence
+## 4. Architectural Pillars of Java VM Excellence
 
 ### 1. Zero-Copy Off-Heap Scaling
 All graph relation offsets, target lists, and property vectors are accessed zero-copy off-heap via Java 25 Foreign Function & Memory (FFM) `FileChannel.map` and `MemorySegment.asSlice(...)`. Zero JVM heap garbage collection occurs during query execution.
@@ -103,8 +134,8 @@ java --enable-preview --add-modules jdk.incubator.vector --enable-native-access=
      -jar impulse-platform.jar
 ```
 
-### 3. Java 25 Vector API (AVX-512 SIMD)
-Target neighbor gathering in `RelationSnapshot.java` uses explicit 512-bit SIMD vector tiles (`IntVector.fromMemorySegment`), processing **16 32-bit target node IDs per CPU instruction**:
+### 3. Java 25 Vector API (`IntVector.SPECIES_PREFERRED` SIMD)
+Target neighbor gathering in `RelationSnapshot.java` uses hardware-adaptive SIMD vector tiles (`IntVector.fromMemorySegment` with `IntVector.SPECIES_PREFERRED`), automatically dispatching **128-bit ARM NEON** instructions on Apple Silicon / AWS Graviton and **256-bit AVX2 / 512-bit AVX-512** instructions on x86_64 servers:
 
 ```java
 // RelationSnapshot.java SIMD Vector Gathering
@@ -134,5 +165,5 @@ public void copyTargetsSimd(int nodeId, BitSet outBs) {
 ### 4. 512k Frontier ST vs. MT Threshold Heuristic
 To eliminate thread pool scheduling overhead on small and medium queries, `VmHandlers.java` dynamically evaluates frontier size against `PARALLEL_FRONTIER_THRESHOLD = 524_288`:
 
-- **Frontier $< 512,000$ active edges**: Executes single-threaded AVX-512 SIMD with zero thread pool locks.
+- **Frontier $< 512,000$ active edges**: Executes single-threaded SIMD with zero thread pool coordination overhead.
 - **Frontier $\ge 512,000$ active edges**: Automatically switches to multi-threaded parallel execution across physical CPU cores (`ForkJoinPool.commonPool()`).
