@@ -83,7 +83,6 @@ Impulse uses Java Foreign Function & Memory (FFM) and the Vector API. Configure 
                 <compilerArgs>
                     <arg>--add-modules</arg>
                     <arg>jdk.incubator.vector</arg>
-                    <arg>--enable-native-access=ALL-UNNAMED</arg>
                 </compilerArgs>
             </configuration>
         </plugin>
@@ -91,7 +90,7 @@ Impulse uses Java Foreign Function & Memory (FFM) and the Vector API. Configure 
 </build>
 ```
 
-On **Java 21 LTS**, also add `--enable-preview` to both compiler args and JVM flags.
+At runtime, pass `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` to `java` (note that `--enable-native-access=ALL-UNNAMED` is a JVM runtime flag for `java`, not a `javac` compiler flag). On **Java 21 LTS**, also add `--enable-preview` to both compiler args and JVM runtime flags.
 
 ---
 
@@ -199,7 +198,7 @@ RelationDefinition ownsRelation = RelationDefinition.builder("User", "Account")
 
 ### Topologies: CSR vs CSC
 
-- **`Topology.CSR` (Compressed Sparse Row)** — Stores forward edges. Enables queries like `snap.domain("User").from(userId).out("OWNS")`. CSR is required for all relations.
+- **`Topology.CSR` (Compressed Sparse Row)** — Stores forward edges. Enables queries like `snap.domain("User").from(userId).out("OWNS")`. CSR is the standard forward topology required by `SnapshotBuilder` for forward `.out(...)` walks (while at the `.imps` binary specification level all topology sections—`CSR`, `CSC`, `COO`—are optional, e.g., for `M:1` / `1:1` direct arrays or CSC-only / virtual relations probed via `OP_HAS_CSR`).
 - **`Topology.CSC` (Compressed Sparse Column)** — Stores reverse (incoming) edges. Enables queries like `snap.domain("Account").from(accountId).in("OWNS")` (*"Who owns this account?"*). CSC is optional.
 
 ### TRANSFERRED_TO: Account → Account (with `amount` Edge Attribute)
@@ -443,7 +442,7 @@ AttributeDataSource transferAmountSource = new AttributeDataSource() {
 
     @Override
     public Nullability nullability() {
-        return Nullability.NOT_NULL;
+        return Nullability.NON_NULL;
     }
 
     @Override
@@ -458,7 +457,20 @@ AttributeDataSource transferAmountSource = new AttributeDataSource() {
             ResultSet rs = stmt.executeQuery();
 
             return new AttributeChunkIterator() {
-                private boolean hasNextRow = rs.next();
+                private boolean hasNextRow = advanceOrClose();
+
+                private boolean advanceOrClose() {
+                    try {
+                        boolean more = rs.next();
+                        if (!more) {
+                            rs.close();
+                            stmt.close();
+                        }
+                        return more;
+                    } catch (SQLException e) {
+                        throw new RuntimeException("Error advancing transfer amount cursor", e);
+                    }
+                }
 
                 @Override
                 public boolean hasNext() {
@@ -473,18 +485,12 @@ AttributeDataSource transferAmountSource = new AttributeDataSource() {
                             double amount = rs.getDouble(1);
                             destination.setAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, count, amount);
                             count++;
-                            hasNextRow = rs.next();
+                            hasNextRow = advanceOrClose();
                         }
                     } catch (SQLException e) {
                         throw new RuntimeException("Error reading transfer amount", e);
                     }
                     return count;
-                }
-
-                @Override
-                public void close() throws Exception {
-                    rs.close();
-                    stmt.close();
                 }
             };
         } catch (SQLException e) {
@@ -583,7 +589,7 @@ Because we configured `.withPrimaryKeyIndex(true)` on both `User` and `Account` 
 | **ORDER BY** | Domain scan order determines dense ID assignment. Edge queries must use the same `ORDER BY` on the source column. |
 | **Disjoint ID Spaces** | Dense ID `0` in `User` ≠ dense ID `0` in `Account`. Each domain is independent. |
 | **Domains without attributes** | Only the cardinality is required. Skip the domain scan if you don't need attributes or a primary key index. |
-| **CSR** | Forward edges, required. Edges must arrive sorted by source dense ID. |
+| **CSR** | Standard forward topology required by `SnapshotBuilder` for `.out(...)` walks (optional at the `.imps` spec level for `M:1` / `1:1` direct arrays or CSC-only / virtual relations). Edges must arrive sorted by source dense ID. |
 | **CSC** | Reverse edges, optional. Built automatically from CSR via the staging directory. |
 | **EdgeChunkIterator** | Fills fixed-size off-heap buffers in batches. Keeps heap usage constant. |
 

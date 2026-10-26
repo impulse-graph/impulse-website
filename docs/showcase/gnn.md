@@ -78,8 +78,8 @@ with ImpulseGnnDataset("graph.imps", relation_index=0) as dataset:
     sampler = ImpulseNeighborSampler(dataset, sizes=[25, 10])
     subgraphs = sampler.sample(target_nodes=[42, 100, 256])
 
-    # 2. Or execute GPU/SIMD sparse matrix multiplication directly over the mapped snapshot
-    out = dataset.spmm(x_features)
+    # 2. Or export a zero-copy CSR matrix directly over the mapped snapshot
+    csr_mat = dataset.to_scipy_csr()
 ```
 
 ---

@@ -94,11 +94,12 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
         # Returns the list of surviving destination Account dense node IDs
         dst_account_ids = snap.cypher(
             """
-            MATCH (u:User)-[:OWNS]->(src:Account)-[t:TRANSFERRED_TO]->(dst:Account)
-            WHERE u.id = $user_id AND t.amount >= 1000.0
+            MATCH (u:User)-[:OWNS]->(src:Account)-[:TRANSFERRED_TO]->(dst:Account)
+            WHERE u.id = $user_id
             RETURN dst
             """,
             params={"user_id": 101},
+            catalog={"OWNS": 0, "TRANSFERRED_TO": 1},
         )
         for account_id in dst_account_ids:
             print("Reached Account dense ID:", account_id)

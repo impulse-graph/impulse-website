@@ -103,11 +103,11 @@ You can compile and execute `.implog` programs directly inside your application 
 
     try (Arena arena = Arena.ofConfined()) {
         MemorySegment prog = arena.allocateFrom(ValueLayout.JAVA_BYTE, bytecodeBytes);
-        int instructionCount = bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES;
+        int instructionCount = (int) (bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES);
 
         // Compile to fused MethodHandle chain or execute directly in ImpulseVmInterpreter
         MethodHandle mh = ImpulseMethodHandleCompiler.compile(prog, instructionCount);
-        ImpulseBitSet permittedDocs = (ImpulseBitSet) mh.invokeExact(graph, (Object) 1042, arena);
+        ImpulseBitSet permittedDocs = (ImpulseBitSet) mh.invoke(graph, 1042, arena);
     }
     ```
 

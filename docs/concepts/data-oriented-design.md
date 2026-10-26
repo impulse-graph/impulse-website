@@ -43,7 +43,7 @@ Instead of assigning 64-bit memory pointers or global UUIDs to every vertex, eve
 
 * **The ID Is the Offset**: Looking up node `k`'s outgoing edges or attribute value requires zero hashing and zero B-tree searches—it is a direct $O(1)$ array read at index `k`.
 * **Configurable Integer Widths**: Each domain configures its physical integer width based on cardinality (`uint16` up to 65K nodes, `uint32` up to 4.29B nodes, or `uint64`), packing up to 4x more target IDs into every 64-byte CPU cache line.
-* **Boundary Key Resolution**: External business keys (`UUID`, `String`, `int64`) are resolved to Dense IDs once at the start of the query (`fromKey` / `impulse_snapshot_resolve_key`) and mapped back at materialization (`toKeyList`), keeping the entire traversal loop on dense integers.
+* **Boundary Key Resolution**: External business keys (`UUID`, `String`, `int64`) are resolved to Dense IDs once at the start of the query (`fromKey` / `OP_MAP_KEYS_TO_DENSE`) and mapped back at materialization (`toKeyList` / `OP_MAP_DENSE_TO_KEYS`), keeping the entire traversal loop on dense integers.
 
 ---
 
@@ -103,10 +103,10 @@ In `ImpulseVM`, an active frontier over a domain of $N_d$ nodes is represented a
 
 A foundational design rule of Impulse Graph is **zero memory allocations in the hot query path**:
 
-1. **Deterministic Footprint at `prepare` Time**: Because an `.imps` snapshot is immutable and every domain's cardinality $N_d$ is fixed, the exact workspace memory required to execute a query—its 640-byte `impulse_vm_state_t` register frame, its scratch bitsets ($4 \times \lceil N_d / 64 \rceil \times 8\text{ bytes}$), and its output column projection area—is **explicitly calculated when the query is prepared** (`impulse_stmt_buffer_size(stmt)` / `impulse_vm_get_required_buffer_size`, enforced in bytecode via `OP_ALLOC_SCRATCH` and `OP_ASSERT_SCRATCH_BYTES`).
+1. **Deterministic Footprint at `prepare` Time**: Because an `.imps` snapshot is immutable and every domain's cardinality $N_d$ is fixed, the exact workspace memory required to execute a query—its 640-byte `impulse_vm_state_t` register frame, its scratch bitsets ($4 \times \lceil N_d / 64 \rceil \times 8\text{ bytes}$), and its output column projection area—is **explicitly calculated when the query is prepared** (`impulse_stmt_buffer_size(stmt)`, enforced in bytecode via `OP_ALLOC_SCRATCH` and `OP_ASSERT_SCRATCH_BYTES`).
 2. **Pre-Allocated & Passed In by the Caller**:
    * **C / C++20 C-ABI**: The caller queries `impulse_stmt_buffer_size(stmt)` once, pre-allocates a reusable buffer (thread-local, stack, or arena), and passes it into `impulse_stmt_execute(stmt, buffer, buffer_size)` (see [Zero-Alloc Buffers & Projections](key-mapping-and-projections.md)).
-   * **Pure Java 25**: `CompiledQuery.execute(snapshot, input, executionArena)` operates over off-heap `MemorySegment` slices (`VmStateLayout.VM_STATE_LAYOUT` and `OffHeapBitSet`), recycling bitset handles (`acquireBitset()` / `releaseBitset()`) and ping-ponging frontiers in place via `OP_SWAP_REG`.
+   * **Pure Java 25**: `ImpulseVmInterpreter.execute(programSeg, instructionCount, snapshot, input, arena)` and `ImpulseStatement.execute()` operate over off-heap `MemorySegment` slices (`VmStateLayout.VM_STATE_LAYOUT` and `OffHeapBitSet`), recycling bitset handles (`acquireBitset()` / `releaseBitset()`) and ping-ponging frontiers in place via `OP_SWAP_REG`.
 3. **Lock-Free, GC-Free Extreme Concurrency**: Because the `.imps` graph topology is read-only and every query executes inside its own isolated, caller-supplied workspace and 640-byte register frame, **thousands of OS threads or Java 25 Virtual Threads can execute queries concurrently over the same mapped snapshot with zero locks, zero mutex contention, and zero GC pauses.**
 
 ---

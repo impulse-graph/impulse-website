@@ -14,8 +14,8 @@ impulse-graph = "0.9"
 | Module | Exported Types & Functions |
 | :--- | :--- |
 | **`reader`** | `SnapshotReader` (`open`, `domain_count`, `relation_count`, `is_reachable`, `get_row_offsets`, `get_col_indices`, `get_neighbors`, `get_attribute_data`) |
-| **`traversal`** | `TraversalBuilder`, `TraversalStep`, `StepDirection` |
-| **`writer`** | `SnapshotWriter` (`new`, `add_domain`, `add_relation`, `add_attribute`, `add_index`, `finalize`) |
+| **`traversal`** | `Traversal`, `TraversalStep`, `StepDirection` |
+| **`writer`** | `SnapshotWriter` (`new`, `add_domain`, `add_relation`, `add_attribute_to_relation`, `add_index`, `finalize`) |
 | **`spec`** | `SnapshotHeader`, `KeyType`, `BaseDataType`, `EncodingType`, `ImpulseError`, `IMPULSE_MAGIC` |
 | **`simd`** | SIMD dot product, elementwise sum/scale/mul, and sorted `u32` slice intersection |
 | **`ffi`** | Raw `extern "C"` bindings to `impulse_graph.h` and `impulse_vm.h` |
@@ -37,8 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Direct O(log d) adjacency check on relation 0 (0 -> 1)
     let connected: bool = reader.is_reachable(0, 0, 1);
 
-    // Zero-copy slice of outgoing neighbor dense IDs (&[u32])
-    let neighbors: &[u32] = reader.get_neighbors(0, 0)?;
+    // Outgoing neighbor dense IDs (Vec<u64>)
+    let neighbors: Vec<u64> = reader.get_neighbors(0, 0)?;
 
     // Zero-copy CSR row_offsets and col_indices slices (&[u32], 128-byte aligned)
     let row_offsets: &[u32] = reader.get_row_offsets(0)?;
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## 3. Fluent Multi-Hop Traversal (`TraversalBuilder`)
+## 3. Fluent Multi-Hop Traversal (`Traversal`)
 
 ```rust
 use impulse_graph::reader::SnapshotReader;
@@ -65,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .traverse(0)
         .out("MEMBER_OF")
         .in_step("MANAGES")
-        .out_filtered("HAS_PERMISSION", "edge.active == true")
-        .with_param("scope", "write")
+        .out_filtered("HAS_PERMISSION", "edge.port >= $min_port")
+        .with_param("min_port", 22.0)
         .to_vec()?;
 
     println!("Reachable Nodes: {:?}", reachable_nodes);
@@ -82,17 +82,16 @@ Constructs 4KB-page-aligned and 128-byte-section-aligned `.imps` snapshots with 
 
 ```rust
 use impulse_graph::writer::SnapshotWriter;
-use impulse_graph::spec::{KeyType, EncodingType};
+use impulse_graph::spec::KeyType;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = SnapshotWriter::new("graph.imps");
     writer.add_domain(0, KeyType::Int64, "User");
     writer.add_relation(
         0, 0,
-        EncodingType::Csr32,
-        4, 4, 0,
-        &[0u32, 2, 3, 4, 4],
-        &[1u32, 2, 3, 0],
+        4, 4,
+        vec![0u32, 2, 3, 4, 4],
+        vec![1u32, 2, 3, 0],
     );
     writer.finalize()?;
     Ok(())

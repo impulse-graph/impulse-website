@@ -46,14 +46,14 @@ with Snapshot("commerce.imps") as snap:
 | **`Snapshot(path: str)`** | Memory-map `.imps` file read-only (`MAP_SHARED`). Supports `with` context manager. |
 | **`domain_count() -> int`** | Total node domains in Section 2 catalog. |
 | **`relation_count() -> int`** | Total edge relations in Section 2 directory. |
-| **`max_node_count() -> int`** | Maximum node count across all domains in the snapshot. |
+| **`get_relation(index: int) -> dict`** | Relation metadata dictionary (`node_count`, `edge_count`, `src_domain_id`, `tgt_domain_id`). |
 | **`is_reachable(rel_idx: int, src_id: int, tgt_id: int) -> bool`** | Direct $O(\log d)$ / $O(1)$ CSR adjacency check. |
 | **`traverse(start_node: int, catalog=None) -> Traversal`** | Start a fluent multi-hop traversal from `start_node` (`.out(rel)`, `.in_(rel)`, `.filter(...)`, `.to_list()`, `.to_set()`, `.count()`, `.contains(id)`, `.to_impas()`). |
 | **`cypher(query: str, params=None, catalog=None) -> List[int]`** | Compile and execute a read-only `openCypher` query, returning surviving target node IDs. |
 | **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `row_offsets`. |
 | **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `col_indices`. |
 | **`get_attribute_array(rel_idx: int, attr_idx: int, dtype=np.float32, shape=None) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned SoA attribute or `[N, D]` vector column. |
-| **`sample_neighbors(rel_idx: int, src_nodes, k: int, seed: int = 42)`** | Native SIMD $K$-hop neighborhood sampler returning `(sampled_src, sampled_tgt)` NumPy arrays. |
+| **`sample_neighbors(relation_index: int, nodes, k_samples: int, seed: int = 42)`** | Native SIMD neighborhood sampler returning `(sampled_src, sampled_tgt)` NumPy arrays. |
 | **`to_torch_csr(rel_idx: int)` / `to_torch_edge_index(rel_idx: int)`** | Export relation directly to PyTorch `sparse_csr_tensor` or `[2, E]` `edge_index` tensor. |
 | **`to_scipy_csr(rel_idx: int)` / `to_networkx(rel_idx: int)`** | Export relation to `scipy.sparse.csr_matrix` or `networkx.DiGraph`. |
 | **`to_arrow_table(rel_idx: int)` / `to_polars(rel_idx: int)` / `to_pandas(rel_idx: int)`** | Export relation edge list to PyArrow Table, Polars DataFrame, or Pandas DataFrame. |
@@ -71,7 +71,7 @@ from impulse_graph import Snapshot
 
 with Snapshot("ogbn_papers100M.imps") as snap:
     # 1. Zero-copy 128-D float32 node embeddings (N x 128) via NumPy buffer protocol
-    num_nodes = snap.max_node_count()
+    num_nodes = snap.get_relation(0)["node_count"]
     feat_np = snap.get_attribute_array(0, 0, dtype=np.float32, shape=(num_nodes, 128))
     x_embeddings = torch.from_numpy(feat_np)
 
@@ -81,7 +81,7 @@ with Snapshot("ogbn_papers100M.imps") as snap:
     # 3. Native SIMD neighborhood sampling for GNN mini-batches
     seed_nodes = np.array([10, 42, 105, 891], dtype=np.uint64)
     sampled_src, sampled_tgt = snap.sample_neighbors(
-        relation_index=0, src_nodes=seed_nodes, k=15, seed=42
+        relation_index=0, nodes=seed_nodes, k_samples=15, seed=42
     )
 ```
 
@@ -95,19 +95,18 @@ For custom register-level `impOps` pipelines (such as `repeat_until_stable`, set
 from impulse_graph import Snapshot, vm
 
 with Snapshot("commerce.imps") as snap:
-    ctx = vm.VmContext(snap)
-    state = vm.VmState()
-    state.set_query_context(ctx)
+    with vm.VmContext(snap) as ctx:
+        state = vm.VmState()
 
-    qb = vm.QueryBuilder()
-    query = (
-        qb.init_input_node(0)
-          .walk_edge(0, 1, 0)
-          .repeat_until_stable(1, 2, 0)
-          .collect_bitset(3, 2)
-          .compile()
-    )
-    res = query.execute(state, input_param=0)
+        qb = vm.QueryBuilder()
+        query = (
+            qb.input_node(0)
+              .walk_edge(0)
+              .repeat_until_stable(lambda b: b.walk_edge(0))
+              .collect_bitset()
+              .compile()
+        )
+        res = query.execute_with_context(ctx, state, input_param=0)
 ```
 
 ---

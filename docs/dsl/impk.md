@@ -118,7 +118,7 @@ In-process compilation and execution of `.impk` scripts is exposed directly thro
 
     try (Arena arena = Arena.ofConfined()) {
         MemorySegment prog = arena.allocateFrom(ValueLayout.JAVA_BYTE, bytecodeBytes);
-        int instructionCount = bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES;
+        int instructionCount = (int) (bytecodeBytes.length / VmStateLayout.INSTRUCTION_SIZE_BYTES);
 
         Object result = ImpulseVmInterpreter.execute(prog, instructionCount, graph, 0, arena);
     }

@@ -33,7 +33,7 @@ FFM arenas govern off-heap memory lifetimes. Choosing the proper arena determine
 | Arena Type | Thread Concurrency Model | Engine Usage | Lifecycle & Deallocation |
 | :--- | :--- | :--- | :--- |
 | **`Arena.ofShared()`** | Multi-Threaded | Active Graph Snapshots & SWMR Query Engines | Safe for concurrent worker and virtual carrier threads. Memory is unmapped when `close()` or `drainAndClose()` is explicitly called. |
-| **`Arena.ofConfined()`** | Single-Threaded | Snapshot Builders & Scratch Computations | Strictly confined to allocating thread. Automatically unmaps memory upon `try-with-resources` block exit. Used internally by `DefaultSnapshotBuilder`. |
+| **`Arena.ofConfined()`** | Single-Threaded | Snapshot Builders & Scratch Computations | Strictly confined to allocating thread. Automatically unmaps memory upon `try-with-resources` block exit. Used internally by `SnapshotBuilder`. |
 
 ### 2.2 Production SWMR Snapshot Swapping & Safe Draining
 
@@ -211,9 +211,12 @@ In Impulse Graph, each Node Domain possesses an independent 0-indexed dense inte
 | **`4` Bytes** | `uint32_t` | 4,294,967,296 nodes | **16 IDs** / line | **16 IDs** / tile | **4.0 GB** |
 | **`8` Bytes** | `uint64_t` | >4.29 Billion nodes | **8 IDs** / line | **8 IDs** / tile | **8.0 GB** |
 
-To configure domain width during snapshot compilation with `DefaultSnapshotBuilder`:
+To configure domain width during snapshot compilation with `SnapshotBuilder`:
 ```java
-builder.withDomain(0, "User", (byte) 0x01, 65000); // Configured with uint16 target width
+SnapshotBuilder.create()
+    .addDomain("User", DomainDefinition.builder(65_000L)
+        .idWidth(PrimitiveWidth.UINT16) // Configured with uint16 target width
+        .build());
 ```
 
 ---

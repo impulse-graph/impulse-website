@@ -167,7 +167,7 @@ with Snapshot("banking.imps") as snap:
     # 1. Fluent Traversal from User dense ID 0 ("usr_101"):
     # Walk OWNS -> walk TRANSFERRED_TO -> return reached Account dense IDs
     reached_accounts = (
-        snap.traverse(start_node=0)
+        snap.traverse(start_node=0, catalog={"OWNS": 0, "TRANSFERRED_TO": 1})
             .out("OWNS")
             .out("TRANSFERRED_TO")
             .to_list()
@@ -177,13 +177,14 @@ with Snapshot("banking.imps") as snap:
     # 2. Parameterized openCypher Query over the same memory-mapped snapshot:
     high_value_recipients = snap.cypher(
         """
-        MATCH (u:User)-[:OWNS]->(src:Account)-[t:TRANSFERRED_TO]->(dst:Account)
-        WHERE u.id = $user_id AND t.amount >= 1000.0
+        MATCH (u:User)-[:OWNS]->(src:Account)-[:TRANSFERRED_TO]->(dst:Account)
+        WHERE u.id = $user_id
         RETURN dst
         """,
         params={"user_id": 0},
+        catalog={"OWNS": 0, "TRANSFERRED_TO": 1},
     )
-    print("Destination Account dense IDs (transfers >= $1,000):", high_value_recipients)
+    print("Destination Account dense IDs:", high_value_recipients)
 ```
 
 ---
@@ -295,19 +296,19 @@ from impulse_gnn import ImpulseGnnDataset, ImpulseNeighborSampler
 
 # 1. Memory-map citations.imps (< 1 ms cold start, 0 bytes of heap allocation)
 dataset = ImpulseGnnDataset("citations.imps")
-print(f"Nodes: {dataset.num_nodes:,}, Edges: {dataset.num_edges:,}")
+print(f"Nodes: {dataset.node_count:,}, Edges: {dataset.edge_count:,}")
 
-# 2. Zero-copy DLPack tensor views pointing directly into the .imps mmap pages
-row_offsets: torch.Tensor = dataset.row_offsets   # torch.int64 [num_nodes + 1]
-col_indices: torch.Tensor = dataset.col_indices   # torch.int32 [num_edges]
+# 2. Zero-copy tensor views pointing directly into the .imps mmap pages
+row_offsets: torch.Tensor = dataset.row_offsets   # torch.uint32 [node_count + 1]
+col_indices: torch.Tensor = dataset.col_indices   # torch.uint32 [edge_count]
 
 # 3. Sample 2-hop GraphSAGE mini-batches (25 neighbors at hop 1, 10 at hop 2)
 #     directly from the C-ABI CSR arrays without building a full-graph PyG Data object
-sampler = ImpulseNeighborSampler(dataset, fanouts=[25, 10])
+sampler = ImpulseNeighborSampler(dataset, sizes=[25, 10])
 seed_nodes = torch.arange(0, 1024, dtype=torch.int32)
-batch = sampler.sample_from_nodes(seed_nodes)
+subgraphs = sampler.sample(seed_nodes.tolist())
 
-print(f"Sampled subgraph: {batch.num_sampled_nodes} nodes, {batch.edge_index.shape[1]} edges")
+print(f"Sampled {len(subgraphs)} hops; hop-0 edges: {subgraphs[0].shape[1]}")
 
 # 4. Also interoperates zero-copy with SciPy / NetworkX / GraphBLAS:
 csr_mat = dataset.to_scipy_csr()

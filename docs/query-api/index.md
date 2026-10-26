@@ -38,7 +38,7 @@ Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), see
     ```python
     with Snapshot("banking.imps") as snap:
         recipient_accounts = (
-            snap.traverse(start_node=101)
+            snap.traverse(start_node=101, catalog={"OWNS": 0, "TRANSFERRED_TO": 1})
                 .out("OWNS")
                 .out("TRANSFERRED_TO")
                 .to_list()

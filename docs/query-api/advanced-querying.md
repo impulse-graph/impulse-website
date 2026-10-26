@@ -61,8 +61,10 @@ state.<target_field>:<REDUCER> = <CEL Expression>
 ```
 
 ```java
-snap.domain("City").fromKey("ATL")
+List<String> budgetCities = snap.domain("City").fromKey("ATL")
     .outWithState("FLIGHT_LEG", "state.min_cost:MIN = src.airport_fee + edge.ticket_price")
+    .filter("state.min_cost <= 350.0")
+    .toKeyList();
 ```
 
 ### 2.1 The 10 Hardware SIMD Reducers & Co-Reducers
@@ -89,11 +91,13 @@ snap.domain("City").fromKey("ATL")
 When computing a `:MIN` or `:MAX` metric (such as the lowest shipping cost to each distribution center), you often want to know **which source node produced that winning value**. `:ARGMIN(state.field)` and `:ARGMAX(state.field)` update the witness atomically alongside the winning metric:
 
 ```java
-snap.domain("Warehouse").from(activeWarehouses)
+List<String> qualifyingCenters = snap.domain("Warehouse").from(activeWarehouses)
     .outWithState("TRUCK_ROUTE", """
         state.lowest_cost:MIN = src.handling_cost + edge.freight_fee,
         state.best_warehouse:ARGMIN(state.lowest_cost) = src.id
         """)
+    .filter("state.lowest_cost <= 500.0")
+    .toKeyList();
 ```
 
 ### 2.3 In-Domain State Projections (`.project`)
@@ -116,22 +120,28 @@ There are three ways projected state and numeric attributes are consumed at the 
 
 1. **Downstream Frontier Filtering (`Traversal<T>`)**:
    As shown above, any `state.<field>` computed by `.outWithState(...)` or `.project(...)` can be referenced in subsequent `.filter("state.<field> ...")` or `.outWithState(...)` steps to prune the active node frontier before calling `.toBitSet()`, `.toList()`, `.toKeyList()`, or `.count()`.
-2. **Terminal Scalar & Witness Reductions (`ImpulseQueryBuilder`)**:
-   When you want to reduce an attribute across the surviving target frontier into a single scalar aggregate (`double`) or extract the winning node ID (`long`), `org.impulsegraph.api.ImpulseQueryBuilder` provides terminal reduction operators and value-map collectors:
+2. **Terminal Scalar & Witness Reductions (`ImpulseQueryBuilder` & `ImpulseGraphQuery`)**:
+   When you want to reduce projected values across the surviving target frontier into a single scalar aggregate (`Double`) or extract the winning target node ID (`Integer`), `org.impulsegraph.api.ImpulseQueryBuilder` provides terminal reduction operators (`reduceMin()`, `reduceMax()`, `reduceSum()`, `reduceAvg()`, `reduceArgMin()`, `reduceArgMax()`):
    ```java
-   ImpulseQueryBuilder qb = snap.queryBuilder();
+   import org.impulsegraph.api.ArgType;
+   import org.impulsegraph.api.ImpulseGraphQuery;
+   import org.impulsegraph.api.ImpulseQueryBuilder;
 
-   // Terminal scalar reduction (OP_MONOID_SUM / MIN / MAX / AVG / ARGMIN / ARGMAX)
-   CompiledQuery minCostQuery = qb.initInputNode(startWarehouseId)
-       .walkEdge(0, 1, truckRouteRelId)
-       .reduceMin(2, 1, handlingCostAttrId)
-       .compile();
+   // Terminal scalar reduction (OP_REDUCE / OP_VECTOR_REDUCE_SUM -> Double)
+   ImpulseGraphQuery<Double> minCostQuery = new ImpulseQueryBuilder<Double>()
+       .input("Warehouse", ArgType.SINGLE_NODE)
+       .walkEdge("TRUCK_ROUTE")
+       .projectExpression("handling_cost", "+", "freight_fee")
+       .reduceMin();
+   double minCost = minCostQuery.execute(snap, startWarehouseId);
 
-   // Or materialize a dense Node ID -> Attribute Value map (OP_COLLECT_VALUE_MAP)
-   CompiledQuery valueMapQuery = qb.initInputNode(startWarehouseId)
-       .walkEdge(0, 1, truckRouteRelId)
-       .collectValueMap(2, 1, handlingCostAttrId)
-       .compile();
+   // Terminal witness reduction (reduceArgMin / reduceArgMax -> winning target Node ID)
+   ImpulseGraphQuery<Integer> bestCenterQuery = new ImpulseQueryBuilder<Integer>()
+       .input("Warehouse", ArgType.SINGLE_NODE)
+       .walkEdge("TRUCK_ROUTE")
+       .projectExpression("handling_cost", "+", "freight_fee")
+       .reduceArgMin();
+   int bestCenterId = bestCenterQuery.execute(snap, startWarehouseId);
    ```
 3. **Multi-Column Tabular State Extraction (`v1.0.0` Roadmap)**:
    On the high-level `Traversal<T>` fluent interface, terminal collectors (`collect()`, `toBitSet()`, `toList()`, `toKeyList()`, `count()`) currently return the surviving target node frontier (`ImpulseBitSet` / dense IDs / keys). Direct multi-column tabular extraction of attached `state.*` registers (`Traversal.collectRows()`) is scheduled for the `v1.0.0` release.

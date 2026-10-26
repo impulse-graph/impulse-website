@@ -100,10 +100,14 @@ Set<Long> reachableGroups = users.from(42L)
     .toSet();
 
 // 3. Monoidic state projection and reduction
-ImpulseBitSet targetBitSet = users.from(1L, 2L, 3L)
-    .out("PURCHASED", Reducer.OR)
+ImpulseBitSet highSpendProducts = users.from(1L, 2L, 3L)
+    .outWithState("PURCHASED", "state.total_spend:SUM = edge.amount")
+    .project("state.spend_with_tax = state.total_spend * 1.08")
+    .filter("state.spend_with_tax >= 100.0")
     .toBitSet();
 ```
+
+See [State Projections, Reducers & Loops](../query-api/advanced-querying.md) for the full list of monoidic `:MIN`, `:MAX`, `:SUM`, `:AVG`, `:ARGMIN`, and `:ARGMAX` reducers.
 
 | Interface | Core Methods |
 | :--- | :--- |
@@ -120,15 +124,14 @@ ImpulseBitSet targetBitSet = users.from(1L, 2L, 3L)
 try (ImpulseStatement stmt = snap.prepare(
         "MATCH (u:User)-[:PURCHASED]->(p:Product) " +
         "WHERE u._key = $userKey AND p.price <= $maxPrice " +
-        "RETURN p._id, p.price")) {
+        "RETURN p")) {
 
     stmt.bindString("userKey", "usr_alice")
         .bindDouble("maxPrice", 99.95);
 
     try (RowReader rows = stmt.execute()) {
         while (rows.next()) {
-            long productId = rows.getNodeId(0);
-            double price   = rows.getDouble(1);
+            long productDenseId = rows.getNodeId(0);
         }
     }
 }
@@ -158,9 +161,14 @@ Epoch-tracked atomic A/B pointer swap manager for rotating live `.imps` snapshot
 SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialGraph);
 
 // Reader thread: zero-lock epoch acquisition
-try (var holder = swapManager.acquireCurrent()) {
-    GraphSnapshot current = holder.getResource();
-    // Execute lock-free traversal...
+var holder = swapManager.acquireCurrent();
+if (holder != null) {
+    try {
+        GraphSnapshot current = holder.getResource();
+        // Execute lock-free traversal...
+    } finally {
+        holder.release();
+    }
 }
 
 // Background updater thread: atomic pointer swap
@@ -184,11 +192,14 @@ To generate strongly-typed domain views and POJOs from a declarative [`.imps.sch
         <version>${impulse.version}</version>
         <executions>
             <execution>
-                <goals><goal>generate</goal></goals>
+                <goals>
+                    <goal>generate</goal>
+                </goals>
             </execution>
         </executions>
         <configuration>
-            <schemaFile>src/main/resources/schema.yaml</schemaFile>
+            <schemaFile>${project.basedir}/src/main/resources/schema.yaml</schemaFile>
+            <outputDirectory>${project.build.directory}/generated-sources/impulse</outputDirectory>
             <packageName>com.example.graph.generated</packageName>
         </configuration>
     </plugin>
@@ -202,6 +213,7 @@ To generate strongly-typed domain views and POJOs from a declarative [`.imps.sch
 
     impulse {
         schemaFile = file("src/main/resources/schema.yaml")
+        outputDirectory = layout.buildDirectory.dir("generated/sources/impulse").get().asFile
         packageName = "com.example.graph.generated"
     }
     ```

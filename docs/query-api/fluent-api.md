@@ -21,12 +21,12 @@ Because every Node Domain (`User`, `Account`, `Product`) has its own independent
 
 | Seed Method (Java 25 `DomainView`) | Python / Rust Equivalent | Description |
 | :--- | :--- | :--- |
-| `.all()` | `QueryBuilder.init_input_bitset` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
+| `.all()` | `vm.QueryBuilder().input_set()` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
 | `.from(long id)` | `snap.traverse(id)` | Seeds a single dense node ID. |
-| `.from(long... ids)` | `QueryBuilder` bitset seed | Seeds a batch of dense node IDs. |
-| `.from(ImpulseBitSet bits)` | `QueryBuilder` bitset seed | Seeds from a pre-computed off-heap BitSet. |
-| `.fromKey(String key)` | Key catalog lookup $\to$ `traverse(id)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
-| `.fromKeys(String... keys)` | Key catalog lookup $\to$ bitset | Resolves a batch of external business keys to dense IDs. |
+| `.from(long... ids)` | `vm.QueryBuilder` bitset seed | Seeds a batch of dense node IDs. |
+| `.from(ImpulseBitSet bits)` | `vm.QueryBuilder` bitset seed | Seeds from a pre-computed off-heap BitSet. |
+| `.fromKey(String key)` | `snap.resolve_dense_id` $\to$ `traverse(id)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
+| `.fromKeys(String... keys)` | `vm.QueryBuilder().load_keys(keys)` | Resolves a batch of external business keys to dense IDs. |
 
 ---
 
@@ -34,21 +34,21 @@ Because every Node Domain (`User`, `Account`, `Product`) has its own independent
 
 Each language SDK exposes an idiomatic traversal and/or VM `QueryBuilder` interface:
 
-| Operation | Java 25 (`Traversal<T>`) | Python (`Traversal`) | Rust (`TraversalBuilder`) | C++20 (`vm::QueryBuilder`) | Go / C# / Node (`QueryBuilder`) |
+| Operation | Java 25 (`Traversal<T>`) | Python (`Traversal`) | Rust (`Traversal`) | C++20 (`vm::QueryBuilder`) | Go / C# / Node (`QueryBuilder`) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Start Traversal** | `snap.domain(d).from(id)` | `snap.traverse(id)` | `snap.traverse(id)` | `qb.initInputNode(reg)` | `qb.initInputNode(reg)` |
-| **Forward Walk (CSR)** | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.walkEdge(src, dst, relId)` | `.walkEdge(src, dst, relId)` |
-| **Reverse Walk (CSC)** | `.in(rel)` | `.in_(rel)` | `.in_step(rel)` | `.walkCsc(src, dst, relId)` | `.walkCsc(src, dst, relId)` |
-| **Filtered Forward Walk** | `.out(rel, cel)` | `.out(rel)` + `.filter(...)` | `.out_filtered(rel, cel)` | `.walkEdgeFiltered(...)` | `.walkEdgeFiltered(...)` |
-| **In-Domain Node Filter** | `.filter(cel)` | `.filter(filter_id)` | `.out_filtered(...)` | `.filterWithCel(src, dst, cel)` | `.filterNodes(...)` |
-| **Bind Parameter** | `.withParam(k, v)` | `params={k: v}` | `.with_param(k, v)` | C-ABI `impulse_stmt_bind_*` | C-ABI `bind_*` |
-| **Fixed-Point Loop** | `.repeatUntilStable(rel)` | `vm.QueryBuilder` | `QueryBuilder` | `.repeatUntilStable(...)` | `.repeatUntilStable(...)` |
-| **Collect Dense IDs** | `.toList()` / `.toSet()` | `.to_list()` / `.to_set()` | `.to_vec()?` | `.collectNodes(dst, src)` | `.collectNodes(dst, src)` |
-| **Collect Business Keys** | `.toKeyList()` | — (Java `DomainView`) | — (Java `DomainView`) | — | — |
-| **Collect Off-Heap BitSet**| `.toBitSet()` | `vm.QueryBuilder` | `QueryBuilder` | `.collectBitset(dst, src)` | `.collectBitset(dst, src)` |
-| **Count Surviving Nodes** | `.count()` | `.count()` | `.to_vec()?.len()` | `.collectScalar(dst, src)` | `.collectScalar(dst, src)` |
-| **Test Single Target** | `.contains(id)` | `.contains(id)` | `snap.is_reachable(...)` | `impulse_snapshot_is_reachable` | `snap.isReachable(...)` |
-| **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | — | `.toImpAsm()` | — |
+| **Start Traversal** | `snap.domain(d).from(id)` | `snap.traverse(id, catalog=...)` | `snap.traverse(id)` | `qb.inputNode(0)` | `InputNode(0)` / `inputNode(0)` |
+| **Forward Walk (CSR)** | `.out(rel)` | `.out(rel)` | `.out(rel)` | `.walkEdge(relId)` | `WalkEdge(relId, dst)` / `walkEdge(relId)` |
+| **Reverse Walk (CSC)** | `.in(rel)` | `.in_(rel)` | `.in_step(rel)` | `.walkCsc(relId)` | `CscWalk(relId, dst)` / `walkCsc(relId)` |
+| **Filtered Forward Walk** | `.out(rel, cel)` | `.out(rel, filter_id=...)` | `.out_filtered(rel, cel)` | `.walkEdgeFiltered(relId, filterId)` | `WalkEdgeFiltered(...)` / `walkEdgeFiltered(...)` |
+| **In-Domain Node Filter** | `.filter(cel)` | `.filter(filter_id=...)` | `.out_filtered(rel, cel)` | `.filterNode(filterId)` | `qb.filterNode(filterId)` (Node) |
+| **Bind Parameter** | `.withParam(k, v)` | `snap.cypher(..., params=...)` | `.with_param(k, v)` | C-ABI `impulse_stmt_bind_*` | `WithParam(k, v)` / `withParam(k, v)` |
+| **Fixed-Point Loop** | `.repeatUntilStable(rel)` | `vm.QueryBuilder.repeat_until_stable` | — | `.repeatUntilStable([](auto& b){...})` | `qb.repeatUntilStable(b => ...)` (Node) |
+| **Collect Dense IDs** | `.toList()` / `.toSet()` | `.to_list()` / `.to_set()` | `.to_vec()?` / `.to_hashset()?` | `.collectArray()` | `CollectArray(reg)` / `collectArray()` |
+| **Collect Business Keys** | `.toKeyList()` | `snap.resolve_keys_batch(d, ids)` | — | `.mapDenseToKeys()` | `qb.mapDenseToKeys()` (Node) |
+| **Collect Off-Heap BitSet**| `.toBitSet()` | `vm.QueryBuilder.collect_bitset()` | — | `.collectBitset()` | `CollectBitset(reg)` / `collectBitset()` |
+| **Count Surviving Nodes** | `.count()` | `.count()` | `.count()?` | `.cardinality()` | `SetCardinality(s, d)` / `cardinality()` |
+| **Test Single Target** | `.contains(id)` | `.contains(id)` | `snap.is_reachable(rel, s, t)` | `res.testBitset(ctx, id)` | `IsReachable(...)` / `isReachable(...)` |
+| **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | — | `impulse_compile_to_impas` | — |
 
 !!! note
     **Why `.in_()` in Python and `.in_step()` in Rust?**
@@ -128,9 +128,9 @@ try (Arena arena = Arena.ofConfined()) {
     with Snapshot("hetionet.imps") as snap:
         # Compound (ID 0) -> Gene <- Disease traversal
         indications = (
-            snap.traverse(start_node=0)
-                .out("Compound::binds::Gene")
-                .in_("Disease::associates::Gene")
+            snap.traverse(start_node=0, catalog={"binds": 0, "associates": 1})
+                .out("binds")
+                .in_("associates")
                 .to_list()
         )
     ```
@@ -169,40 +169,41 @@ try (Arena arena = Arena.ofConfined()) {
 
 === "Node.js / TypeScript"
     ```typescript
-    import { Snapshot, VmContext, VmState, QueryBuilder, ExecuteQuery } from 'impulse-graph';
+    import { Snapshot, VmContext, VmState, QueryBuilder } from 'impulse-graph';
 
     const snap = new Snapshot('ecommerce.imps');
     const ctx = new VmContext(snap);
     const state = new VmState();
-    state.setQueryContext(ctx);
 
-    const instructions = new QueryBuilder()
-      .initInputNode(0)
-      .walkEdge(0, 1, 0) // PURCHASED
-      .walkCsc(1, 2, 0)  // <-PURCHASED
-      .walkEdge(2, 3, 0) // PURCHASED
-      .collectBitset(4, 3)
+    const query = new QueryBuilder()
+      .inputNode(0)
+      .walkEdge(0) // PURCHASED
+      .walkCsc(0)  // <-PURCHASED
+      .walkEdge(0) // PURCHASED
+      .collectBitset()
       .compile();
 
-    ExecuteQuery(instructions, state, 42);
+    const res = query.executeWithContext(ctx, state, 42);
+    ctx.destroy();
+    snap.close();
     ```
 
 === "C# (.NET)"
     ```csharp
     using ImpulseGraph;
+    using ImpulseGraph.Vm;
 
     using var snap = new Snapshot("powergrid.imps");
     using var ctx = new VmContext(snap);
-    var state = new VmState { QueryContext = ctx.DangerousGetHandle() };
 
-    var query = new QueryBuilder()
-        .InitInputNode(0)
-        .WalkEdge(0, 1, 0)
-        .RepeatUntilStable(1, 2, 0)
-        .CollectBitset(3, 2)
+    Query query = new QueryBuilder()
+        .InputNode(0)
+        .WalkEdge(relationId: 0, dstReg: 1)
+        .WalkEdge(relationId: 0, dstReg: 2)
+        .CollectBitset(reg: 2)
         .Compile();
 
-    query.Execute(state, 101);
+    ExecutionResult res = snap.ExecuteQuery(query, ctx, inputParam: 101UL);
     ```
 
 ---

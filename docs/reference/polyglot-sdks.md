@@ -6,7 +6,7 @@ In addition to Java 25, Python, C/C++20, and Rust, Impulse Graph provides offici
 
 ## 1. Go SDK (`impulse-go` via CGo)
 
-Links directly against `libimpulse_graph_static.a` (`CGO_ENABLED=1`), exposing zero-copy `.imps` loading, CSR slice views, `ImpulseVM` bytecode execution (`QueryBuilder`), and single-pass `.imps` writing.
+Links directly against `libimpulse_graph_static.a` (`CGO_ENABLED=1`), exposing zero-copy `.imps` loading, CSR slice views (`GetRelationBuffers`), fluent `Traversal` pipelines, `ImpulseVM` bytecode execution (`QueryBuilder` + `ExecuteVM`), and single-pass `.imps` writing.
 
 ```go
 package main
@@ -25,26 +25,36 @@ func main() {
 	}
 	defer snap.Close()
 
-	// 1. Direct O(log d) reachability check
+	// 1. Direct O(log d) reachability check & zero-copy CSR buffer slices
 	connected := snap.IsReachable(0, 10, 42)
-	fmt.Printf("Edge (10 -> 42) exists: %v\n", connected)
+	offsets, targets, nodeCount, edgeCount, err := snap.GetRelationBuffers(0)
+	if err != nil {
+		log.Fatalf("buffer access failed: %v", err)
+	}
+	fmt.Printf("Edge (10 -> 42): %v (nodes=%d, edges=%d, offsets=%d, targets=%d)\n",
+		connected, nodeCount, edgeCount, len(offsets), len(targets))
 
-	// 2. Fluent VM QueryBuilder with fixed-point transitive closure
-	ctx := impulse.NewVmContext(snap)
+	// 2. Fluent VM QueryBuilder & ExecuteVM
+	ctx, err := impulse.NewVMContext(snap)
+	if err != nil {
+		log.Fatalf("vm context failed: %v", err)
+	}
 	defer ctx.Close()
 
-	var state impulse.VmState
+	state := impulse.NewVMState()
 	state.SetQueryContext(ctx)
 
-	query := impulse.NewQueryBuilder().
-		InitInputNode(0).
-		WalkEdge(0, 1, 0).          // Relation 0: MEMBER_OF
-		RepeatUntilStable(1, 2, 1). // Relation 1: PARENT_GROUP
-		CollectBitset(3, 2).
+	bytecode := impulse.NewQueryBuilder().
+		InputNode(0).
+		WalkEdge(0, 1). // Relation 0: MEMBER_OF -> R1
+		WalkEdge(1, 2). // Relation 1: PARENT_GROUP -> R2
+		CollectBitset(2).
 		Compile()
 
-	status := query.Execute(&state, 10)
-	fmt.Printf("VM execution status: %v\n", status)
+	if err := impulse.ExecuteVM(bytecode, state, 10); err != nil {
+		log.Fatalf("VM execution failed: %v", err)
+	}
+	fmt.Printf("Result bitset handle in R2: %d\n", state.GetRegister(2))
 }
 ```
 
@@ -52,7 +62,7 @@ func main() {
 
 ## 2. .NET 8+ / C# SDK (`ImpulseGraph` via P/Invoke)
 
-Provides deterministic `IDisposable` off-heap management (`Snapshot`, `VmContext`, `QueryBuilder`, `Writer`) and zero-copy `ReadOnlySpan<uint>` views across Linux (`x64`/`arm64`), macOS (`arm64`), and Windows (`x64`).
+Provides deterministic `IDisposable` off-heap management (`Snapshot`, `VmContext`, `QueryBuilder`, `Query`, `ExecutionResult`) across Linux (`x64`/`arm64`), macOS (`arm64`), and Windows (`x64`).
 
 ```bash
 dotnet add package ImpulseGraph
@@ -62,64 +72,65 @@ dotnet add package ImpulseGraph.Native
 ```csharp
 using System;
 using ImpulseGraph;
+using ImpulseGraph.Vm;
 
 using var snap = new Snapshot("rbac.imps");
 
 Console.WriteLine($"Domains: {snap.DomainCount}, Relations: {snap.RelationCount}");
 
-// 1. Zero-copy ReadOnlySpan<uint> views over CSR arrays
-ReadOnlySpan<uint> rowOffsets = snap.GetRowOffsetsSpan(0);
-ReadOnlySpan<uint> colIndices = snap.GetColIndicesSpan(0);
+// 1. Direct O(log d) reachability check & relation directory inspection
+bool reachable = snap.IsReachable(0, 10UL, 42UL);
+var relEntry = snap.GetRelationEntry(0);
 
-// 2. Fluent VM QueryBuilder with transitive closure
+// 2. Fluent VM QueryBuilder & Snapshot.ExecuteQuery
 using var ctx = new VmContext(snap);
-var state = new VmState { QueryContext = ctx.DangerousGetHandle() };
 
-var query = new QueryBuilder()
-    .InitInputNode(0)
-    .WalkEdge(0, 1, 0)          // Relation 0: MEMBER_OF
-    .RepeatUntilStable(1, 2, 1) // Relation 1: PARENT_GROUP
-    .CollectBitset(3, 2)
+Query query = new QueryBuilder()
+    .InputNode(0)
+    .WalkEdge(relationId: 0, dstReg: 1) // Relation 0: MEMBER_OF -> R1
+    .WalkEdge(relationId: 1, dstReg: 2) // Relation 1: PARENT_GROUP -> R2
+    .CollectBitset(reg: 2)
     .Compile();
 
-VmStatus status = query.Execute(state, 42);
+ExecutionResult result = snap.ExecuteQuery(query, ctx, inputParam: 42UL);
+Console.WriteLine($"VM Status: {result.Status}, R2 Handle: {result.GetRegister(2)}");
 ```
 
 ---
 
 ## 3. Node.js, Bun & TypeScript SDK (`impulse-graph` via N-API)
 
-Built on N-API (`node-addon-api`) with zero external npm dependencies and full TypeScript declarations (`index.d.ts`). Exposes zero-copy `TypedArray` views (`Uint32Array`) directly over `mmap` snapshot regions as well as `VmContext`, `QueryBuilder`, and `Writer`.
+Built on N-API (`node-addon-api`) with zero external npm dependencies and full TypeScript declarations (`index.d.ts`). Exposes `Snapshot` (with fluent `.traverse(startNode)`), `VmContext` (with `Float32Array` / `Float64Array` / `BigUint64Array` vector views), `VmState`, `QueryBuilder`, `CompiledQuery`, and `Writer`.
 
 ```bash
 npm install impulse-graph
 ```
 
 ```typescript
-import { Snapshot, VmContext, VmState, QueryBuilder, ExecuteQuery } from 'impulse-graph';
+import { Snapshot, VmContext, VmState, QueryBuilder } from 'impulse-graph';
 
 const snap = new Snapshot('rbac.imps');
+const ctx = new VmContext(snap);
 
 try {
-  // 1. Zero-copy TypedArray views over 128-byte-aligned CSR buffers
-  const rowOffsets: Uint32Array = snap.getRowOffsets(0);
-  const colIndices: Uint32Array = snap.getColIndices(0);
+  // 1. Direct reachability check
+  const reachable: boolean = snap.isReachable(0, 10, 0, 42);
 
   // 2. Fluent VM QueryBuilder with fixed-point transitive closure
-  const ctx = new VmContext(snap);
   const state = new VmState();
-  state.setQueryContext(ctx);
-
-  const instructions = new QueryBuilder()
-    .initInputNode(0)
-    .walkEdge(0, 1, 0)          // Relation 0: MEMBER_OF
-    .repeatUntilStable(1, 2, 1) // Relation 1: PARENT_GROUP
-    .collectBitset(3, 2)
+  const query = new QueryBuilder()
+    .inputNode(0)
+    .walkEdge(0) // Relation 0: MEMBER_OF
+    .repeatUntilStable((b) => {
+      b.walkEdge(1); // Relation 1: PARENT_GROUP
+    })
+    .collectBitset()
     .compile();
 
-  const status = ExecuteQuery(instructions, state, 42);
-  console.log('Execution status:', status);
+  const res = query.executeWithContext(ctx, state, 42);
+  console.log('Execution OK:', res.isOk(), 'Group 7 reachable:', res.testBitset(ctx, 7));
 } finally {
+  ctx.destroy();
   snap.close();
 }
 ```
@@ -131,11 +142,13 @@ try {
 | Operation | Go (`impulse-go`) | .NET 8+ (`ImpulseGraph`) | Node.js / TS (`impulse-graph`) |
 | :--- | :--- | :--- | :--- |
 | **Open `.imps`** | `impulse.OpenSnapshot(path)` | `new Snapshot(path)` | `new Snapshot(path)` |
-| **Domain / Relation Count** | `snap.DomainCount()` / `RelationCount()` | `snap.DomainCount` / `RelationCount` | `snap.domainCount()` / `relationCount()` |
-| **Direct CSR Check** | `snap.IsReachable(rel, src, tgt)` | `snap.IsReachable(rel, src, tgt)` | `snap.isReachable(rel, src, tgt)` |
-| **Zero-Copy CSR Slices** | `snap.GetRowOffsets(rel)` | `snap.GetRowOffsetsSpan(rel)` | `snap.getRowOffsets(rel)` |
-| **VM Context** | `impulse.NewVmContext(snap)` | `new VmContext(snap)` | `new VmContext(snap)` |
-| **Forward Walk (CSR)** | `qb.WalkEdge(src, dst, rel)` | `qb.WalkEdge(src, dst, rel)` | `qb.walkEdge(src, dst, rel)` |
-| **Reverse Walk (CSC)** | `qb.WalkCsc(src, dst, rel)` | `qb.WalkCsc(src, dst, rel)` | `qb.walkCsc(src, dst, rel)` |
-| **Fixed-Point Loop** | `qb.RepeatUntilStable(s, d, r)` | `qb.RepeatUntilStable(s, d, r)` | `qb.repeatUntilStable(s, d, r)` |
+| **Domain / Relation Count** | `snap.DomainCount()` / `RelationCount()` | `snap.DomainCount` / `RelationCount` | — |
+| **Direct CSR Check** | `snap.IsReachable(rel, src, tgt)` | `snap.IsReachable(rel, src, tgt)` | `snap.isReachable(srcDom, src, tgtDom, tgt)` |
+| **Zero-Copy CSR Buffers** | `snap.GetRelationBuffers(rel)` | `snap.GetRelationEntry(rel)` | `snap.traverse(startNode)` |
+| **VM Context** | `impulse.NewVMContext(snap)` | `new VmContext(snap)` | `new VmContext(snap)` |
+| **Seed Input Node** | `qb.InputNode(dstReg)` | `qb.InputNode(dstReg)` | `qb.inputNode(dstReg)` |
+| **Forward Walk (CSR)** | `qb.WalkEdge(relId, dstReg)` | `qb.WalkEdge(relId, dstReg)` | `qb.walkEdge(relId, flags)` |
+| **Reverse Walk (CSC)** | `qb.CscWalk(relId, dstReg)` | `qb.CscWalk(relId, dstReg)` | `qb.walkCsc(relId)` |
+| **Fixed-Point Loop** | — | — | `qb.repeatUntilStable(b => ...)` |
+| **Execute VM Query** | `impulse.ExecuteVM(code, state, seed)` | `snap.ExecuteQuery(query, ctx, seed)` | `query.executeWithContext(ctx, state, seed)` |
 | **Close / Unmap** | `snap.Close()` | `snap.Dispose()` (`using`) | `snap.close()` |
