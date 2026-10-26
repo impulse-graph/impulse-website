@@ -13,7 +13,7 @@ Because Impulse Graph operates over **immutable `.imps` snapshots** with **set-b
 When a query is compiled against an `.imps` snapshot:
 
 1. **Domain Cardinalities ($N_d$) Are Fixed**: Every node domain's exact size $N_d$ is stored in the Section 2 Domain Catalog.
-2. **Frontiers Are Bounded by $N_d$**: Because intermediate results are [squished into sets at every hop](../getting-started/index.md#how-queries-work-the-two-core-mechanics), a reachability frontier over domain $D$ never exceeds $\lceil N_d / 64 \rceil$ 64-bit words, and a scalar state vector never exceeds $N_d \times \text{sizeof}(\text{state})$.
+2. **Frontiers Are Bounded by $N_d$**: Because intermediate results are [collapsed into sets at every hop](../getting-started/index.md#how-queries-work-the-two-core-mechanics), a reachability frontier over domain $D$ never exceeds $\lceil N_d / 64 \rceil$ 64-bit words, and a scalar state vector never exceeds $N_d \times \text{sizeof}(\text{state})$.
 3. **Static Register & Scratch Accounting**: During compilation, the compiler emits `OP_ALLOC_SCRATCH` and `OP_ASSERT_SCRATCH_BYTES` instructions, computing the exact byte count needed for both intermediate VM scratch space and final columnar output projections.
 
 ---

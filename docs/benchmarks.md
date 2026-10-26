@@ -46,21 +46,49 @@ For targeted root-node traversals, permission checks, and microservice RPCs, Hot
 
 ---
 
-## 3. Java 25 VM vs. Native C++ VM Comparison
+## 3. Java 25 FFM / Vector API Performance Relative to Native C++20
 
-Comparing the **Impulse Java 25 VM (`impulse-core`)** against the **Impulse Native C++ VM (`impulse_vm.cpp`)** demonstrates the performance advantage of JIT-inlined MethodHandle pipelines over threaded-goto bytecodes:
+Once both engines `mmap` the exact same 128-byte-aligned `.imps` CSR/CSC arrays off-heap (`MemorySegment` in Java 25, raw `mmap` pointers in C++20) and scan them with hardware SIMD (`jdk.incubator.vector` vs. AVX-512 / ARM NEON), **the dominant limiting factor is physical DRAM memory bandwidth and CPU L1/L2/L3 cache-line transfers—not the language runtime.**
 
-| Workload / Feature | Impulse C++ VM (`impulse_vm.cpp`) | Impulse Java 25 VM (`impulse-core`) | Architectural Advantage |
-| :--- | :--- | :--- | :--- |
-| **Opcode Dispatch Model** | GCC Direct Threaded Goto (`goto *dispatch_table[...]`) | `MethodHandle` JIT combinators fused by HotSpot C2 | **Java VM**: Eliminates indirect GOTO jump instructions entirely |
-| **Full Graph BFS Traversal** | `917.95 ms` | **`642.10 ms`** | **Java VM is $1.43\times$ faster** |
-| **Full Graph Connected Components** | `745.20 ms` | **`582.40 ms`** | **Java VM is $1.28\times$ faster** |
-| **Single-Query BFS Latency** | `10.633 ms` | **`0.0041 ms`** (**`4.13 µs`**) | **Java VM JIT is $2,580\times$ faster** |
-| **SIMD Hardware Driving** | Compiler auto-vectorization | Java 25 Vector API (`jdk.incubator.vector`) AVX-512 | Explicit 512-bit vector tile loading (`copyTargetsSimd`) |
+In head-to-head full-graph Breadth-First Search (BFS) from Hub Node 0 across the **1.47-billion-edge `twitter-2010` snapshot** ($41.65\text{M}$ nodes), the warmed Pure Java 25 engine executes within **`1.65x` of native compiled C++20** (closing from an initial `1.87x` baseline after hoisting `VmQueryContext` bitset allocations outside the BFS level loop):
+
+| Benchmark Configuration (`twitter-2010.imps`, 1.47B Edges) | Threads | Cold Latency | Warmed Latency (HotSpot C2) | Speedup vs. 1T GAPBS C++ | Ratio vs. 10T Native C++20 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Stock GAPBS C++ Baseline** | 1 Thread | `13,305 ms` | `13,305 ms` | `1.0x` | `91.8x` slower |
+| **Stock GAPBS C++ (OpenMP)** | 10 Threads | `149.00 ms` | `149.00 ms` | `89.3x` | `1.03x` |
+| **Impulse Native C++20 Kernel** | 10 Threads | **`145.00 ms`** | **`145.00 ms`** | **`91.8x`** | **`1.00x` Baseline** |
+| **Impulse Pure Java 25 VM (Optimized)** | 1 Thread | `4,420 ms` | `1,015.99 ms` | `13.1x` | — |
+| **Impulse Pure Java 25 VM (Baseline)** | 10 Threads | `1,130 ms` | `272.24 ms` | `48.8x` | `1.87x` |
+| **Impulse Pure Java 25 VM (Optimized)** | 10 Threads | `942 ms` | **`240.29 ms`** | **`55.4x`** | **`1.65x` of C++20** |
+
+### Why Native C++20 Retains a `1.5x–2.0x` (`1.65x`) Edge
+Java Flight Recorder (**JFR**) allocation profiling and `-XX:+PrintCompilation` confirm that **zero `java.lang.Object` heap allocations** occur inside the Java 25 BFS inner loop. The residual `1.65x` speed advantage of the native C++20 kernel comes down to three low-level runtime invariants that the JVM cannot completely elide in data-dependent CSR loops:
+
+1. **`MemorySegment` Bounds & Liveness Checking**: Even with `ValueLayout.JAVA_INT_UNALIGNED`, the Java 25 FFM API validates segment bounds and arena scope liveness, adding ~1 cycle per random CSR read compared to raw C pointer dereference.
+2. **JVM Safepoint Polling**: HotSpot inserts safepoint poll instructions at loop back-edges, adding ~1–3 cycles per inner loop iteration for thread coordination.
+3. **`ForkJoinPool` Task Dispatch vs. OpenMP**: Java's work-stealing `ForkJoinPool` incurs ~200–500 ns of task dispatch overhead compared to OpenMP's lightweight static thread scheduling.
 
 ---
 
-## 4. Architectural Pillars of Java VM Excellence
+## 4. Enterprise Service Reality: JSON Serialization Is Slower Than the Graph Query
+
+Why is `1.65x` of C++20 wholly suitable for demanding enterprise workloads? Because in real-world microservice architectures (Spring Boot, REST/gRPC APIs, ReBAC authorization servers), **formatting the response into JSON consumes far more CPU time than the Impulse Graph query itself.**
+
+When we profiled enterprise ReBAC authorization and navigation queries with **Java Flight Recorder (JFR)** and ran a 100,000-operation side-by-side benchmark (`JsonVsCsrBenchmarkRunner`) comparing off-heap CSR query evaluation against Jackson (`ObjectMapper`) JSON serialization to `/dev/null`:
+
+| Operation (100,000-Request Benchmark) | Average Latency | Relative CPU Cost vs. CSR Query (`large`) |
+| :--- | :---: | :--- |
+| **Impulse Java 25 Multi-Hop CSR Query (`small` profile)** | **`0.026 µs`** (`26 ns`) | `0.047x` (**`73.4x` faster than JSON stream**) |
+| **Impulse Java 25 Multi-Hop CSR Query (`medium` profile)** | **`0.088 µs`** (`88 ns`) | `0.159x` (**`21.7x` faster than JSON stream**) |
+| **Impulse Java 25 Multi-Hop CSR Query (`large`, 600k users)** | **`0.552 µs`** (`552 ns`) | **`1.00x` Baseline** |
+| **Jackson Streaming JSON Serialization (`/dev/null`)** | **`1.908 µs`** (`1,908 ns`) | **`3.46x` MORE CPU than the graph query** |
+| **Jackson JSON String + UTF-8 Byte Output (`/dev/null`)** | **`2.558 µs`** (`2,558 ns`) | **`4.63x` MORE CPU than the graph query** |
+
+While the Impulse Graph engine executes SIMD integer vector reads and bitwise `OR` reductions in L1/L2 cache with zero heap allocations, Jackson must allocate heap buffers, inspect DTO fields, and encode integers and UUIDs into UTF-8 JSON characters. When serializing the HTTP response takes `3.5x–73x` longer than traversing the graph, the Pure Java 25 engine gives enterprise teams near-C++ memory-bandwidth speed with **zero JNI deployment complexity** and **zero inherited CVEs**.
+
+---
+
+## 5. Architectural Pillars of Java VM Excellence
 
 ### 1. Zero-Copy Off-Heap Scaling
 All graph relation offsets, target lists, and property vectors are accessed zero-copy off-heap via Java 25 Foreign Function & Memory (FFM) `FileChannel.map` and `MemorySegment.asSlice(...)`. Zero JVM heap garbage collection occurs during query execution.

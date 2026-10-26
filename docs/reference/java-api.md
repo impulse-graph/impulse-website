@@ -2,6 +2,8 @@
 
 The **Pure Java 25 Engine** (`impulse-graph-java`) is a standalone, zero-dependency implementation of the Impulse Graph Engine and `ImpulseVM`. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` C2 JIT combinators.
 
+Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **memory-bandwidth and cache-line bound**, `impulse-graph-java` executes within **`1.5x–2.0x` of the Native C++20 kernel** (specifically **`1.65x`** on 1.47B-edge `twitter-2010` BFS: `240.29 ms` Java vs. `145.00 ms` C++) with a **JFR-verified zero-allocation hot path** (`0.00 ms` GC pauses). In enterprise microservices, JFR profiling shows that Jackson JSON serialization of the query response (`1.91 µs – 2.56 µs`) consumes **`3.5x to 73x` more CPU time** than the Impulse Graph query itself (`0.026 µs – 0.552 µs`)—making Pure Java 25 wholly suitable for demanding enterprise workloads without JNI wrappers or inherited CVEs. See **[Benchmarks](../benchmarks.md)** for full details.
+
 !!! info "Interactive Aggregated Javadocs"
     Browse the full multi-module HTML Javadoc site at [**`/javadoc/index.html`**](/javadoc/index.html).
 

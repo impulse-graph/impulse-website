@@ -42,7 +42,7 @@ Set<Long> threeHopNetwork = snap.domain("User")
 
 When a query carries computed state across an edge relation $R: D_1 \to D_2$, multiple edges from $D_1$ will frequently land on the same destination node in $D_2$.
 
-Instead of emitting duplicate rows (like a SQL `JOIN`), `.outWithState(relation, stateProjections)` (and `.outWithState(relation, edgePredicate, stateProjections)`) requires an explicit **monoidic reducer** specifying how converging values are squished into a single value per target node:
+Instead of emitting duplicate rows (like a SQL `JOIN`), `.outWithState(relation, stateProjections)` (and `.outWithState(relation, edgePredicate, stateProjections)`) requires an explicit **monoidic reducer** specifying how converging values are collapsed into a single value per target node:
 
 ```text
 state.<target_field>:<REDUCER> = <CEL Expression>
