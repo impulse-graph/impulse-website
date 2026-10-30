@@ -14,7 +14,7 @@ Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **me
 | [**`org.impulsegraph.api.statement`**](/javadoc/org/impulsegraph/api/statement/package-summary.html) | `impulse-api` | SQLite-style prepared statements (`ImpulseStatement`, `RowReader`) |
 | [**`org.impulsegraph.api.bitset`**](/javadoc/org/impulsegraph/api/bitset/package-summary.html) | `impulse-api` | Zero-copy off-heap bitsets (`ImpulseBitSet`, `OffHeapBitSet`) |
 | [**`org.impulsegraph.storage.csr`**](/javadoc/org/impulsegraph/storage/csr/package-summary.html) | `impulse-storage` | `BinarySnapshotLoader`, `GraphSnapshot`, `SnapshotSwapManager` |
-| [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery` |
+| [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery`, `VmQueryContext`, `VmLaneFrontier`, `VmMultiLaneHandlers` |
 | [**`org.impulsegraph.compiler.ast`**](/javadoc/org/impulsegraph/compiler/ast/package-summary.html) · [**`cypher`**](/javadoc/org/impulsegraph/compiler/cypher/package-summary.html) · [**`cel`**](/javadoc/org/impulsegraph/compiler/cel/package-summary.html) · [**`passes`**](/javadoc/org/impulsegraph/compiler/passes/package-summary.html) · [**`emitter`**](/javadoc/org/impulsegraph/compiler/emitter/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes, and bytecode emitter |
 | [**`org.impulsegraph.builder.api`**](/javadoc/org/impulsegraph/builder/api/package-summary.html) | `impulse-builder` | Streaming `SnapshotBuilder`, `DomainDefinition`, `RelationDefinition` |
 | [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format FFM memory layouts and protocol constants |
@@ -139,9 +139,45 @@ try (ImpulseStatement stmt = snap.prepare(
 
 ---
 
-## 4. Streaming Snapshot Builder & Blue/Green Swaps
+## 4. Multi-Lane Bit-Sliced Execution & Pool Management (`org.impulsegraph.vm`) [Planned v0.9.1]
 
-### 4.1 `SnapshotBuilder` (`org.impulsegraph:impulse-builder`)
+In `v0.9.1`, `org.impulsegraph.vm` implements the **Multi-Lane Bit-Sliced Execution (`0xC0..0xC9`)** and **Hybrid Vector ANN (`0xCA..0xCB`)** ISA extensions with zero hot-path heap allocations via thread-local `VmQueryContext` buffer pools.
+
+### 4.1 `VmLaneFrontier` & `LaneWidth` (`TYPE_LANE_FRONTIER = 0x10`)
+`VmLaneFrontier` represents a pooled vertical bit-sliced frontier where each node $u \in [0, N_d)$ holds up to 64 parallel lane bits alongside optional per-relation counterfactual edge trip masks:
+
+* **`VmLaneFrontier.LaneWidth`**: Hardware width tiers **`WIDTH_8(8)`**, **`WIDTH_16(16)`**, **`WIDTH_32(32)`**, and **`WIDTH_64(64)`**.
+* **`VmLaneFrontier.selectLaneWidth(int k)`**: Selects the narrowest tier capable of holding `k` active lanes (`WIDTH_8` for $k \le 8$, `WIDTH_16` for $k \le 16$, `WIDTH_32` for $k \le 32$, `WIDTH_64` for $k > 32$).
+* **`VmLaneFrontier.NORMATIVE_BOUNDARY_SEED_COUNTS`**: The 17 normative boundary lane counts `{0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129}` used across polyglot verification suites to guard width transitions and 32/64-bit shift boundaries.
+* **Counterfactual Edge Trip Masks**: `ensureEdgeTripMask(VmQueryContext ctx, int relId, int minEdges)` (or `setEdgeTripMask`), `getEdgeTripMask(int relId)`, `getEdgeTripMaskLength(int relId)`, and `copyEdgeTripMasksFrom(VmQueryContext ctx, VmLaneFrontier src)` manage per-edge bitmasks (`tripArr[e] |= (1L << laneB)`) for simultaneous $N-1$/$N-2$ outage screening (`OP_LANE_SET_EDGE_MASK` `0xC2`).
+
+### 4.2 `VmQueryContext` Pooling & `VmMultiLaneHandlers`
+`VmQueryContext` pools `VmLaneFrontier` instances via thread-local arenas (`TL_BUFFER_POOL`) so multi-lane steps execute with zero GC pressure:
+
+```java
+try (VmQueryContext ctx = VmQueryContext.acquire(snap, arena)) {
+    int k = 16;
+    VmLaneFrontier.LaneWidth width = VmLaneFrontier.selectLaneWidth(k); // WIDTH_16
+    long activeMask = VmRegisterType.VmRegType.makeActiveMaskU64(k);    // 0xFFFFL
+    int handle = ctx.acquireLaneFrontier(width, k, activeMask, nodeCount);
+
+    VmLaneFrontier frontier = ctx.getLaneFrontier(handle);
+    // Execute 0xC0..0xCB instructions via VmMultiLaneHandlers.handleMultiLaneOpcode(state, ctx, instr, pc)
+}
+```
+
+| Class / Method | Purpose |
+| :--- | :--- |
+| **`VmQueryContext.acquireLaneFrontier(width, numLanes, activeMask, nodeCount)`** | Acquires and resets a pooled `VmLaneFrontier` from the thread-local buffer pool and returns its integer handle. |
+| **`VmQueryContext.getLaneFrontier(int handle)`** | Resolves a `TYPE_LANE_FRONTIER` (`0x10`) register handle to its `VmLaneFrontier` instance. |
+| **`VmMultiLaneHandlers.requireLaneFrontier(state, ctx, regIndex)`** | Exhaustive switch-checked extractor that validates `T_LANE_FRONTIER` (`0x10`) in `R[regIndex]` or traps with `IMPULSE_VM_ERR_INVALID_REGISTER`. |
+| **`VmMultiLaneHandlers.handleMultiLaneOpcode(state, ctx, instr, pc)`** | Executes opcodes `0xC0` (`OP_LANE_INIT_SEEDS`) through `0xCB` (`OP_VECTOR_RERANK_DOT`) with 100% bitwise parity against C++20 and the OCaml oracle. |
+
+---
+
+## 5. Streaming Snapshot Builder & Blue/Green Swaps
+
+### 5.1 `SnapshotBuilder` (`org.impulsegraph:impulse-builder`)
 Streams page-aligned, 128-byte-aligned `.imps` snapshots direct-to-disk in $O(\text{chunk})$ memory (see [Building Snapshots (Java)](../getting-started/building-snapshots.md)):
 
 ```java
@@ -154,7 +190,7 @@ SnapshotBuilder.create()
     .writeTo(Path.of("graph.imps"));
 ```
 
-### 4.2 `SnapshotSwapManager<T>` (`org.impulsegraph:impulse-storage`)
+### 5.2 `SnapshotSwapManager<T>` (`org.impulsegraph:impulse-storage`)
 Epoch-tracked atomic A/B pointer swap manager for rotating live `.imps` snapshots without blocking active reader threads:
 
 ```java
@@ -177,7 +213,7 @@ swapManager.swap(newGraphSnapshot);
 
 ---
 
-## 5. JVM Languages (Kotlin & Scala 3) & Build Plugins
+## 6. JVM Languages (Kotlin & Scala 3) & Build Plugins
 
 Because `impulse-api` uses standard Java 25 interfaces without checked exceptions or runtime lambdas, it is directly usable from **Kotlin** (`org.impulsegraph:impulse-kotlin`) and **Scala 3** (`org.impulsegraph:impulse-scala_3`).
 

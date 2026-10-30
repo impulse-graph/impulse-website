@@ -31,7 +31,7 @@ Impulse Graph eliminates pointer chasing, heap allocations, and interpreter over
 | **1. Pointer References & Global UUIDs**<br>64-bit heap pointers or hash-table lookups per hop | **Per-Domain Dense IDs ($0 \dots N_d-1$)**<br>Configurable `uint16`, `uint32`, or `uint64` indices per domain | Node ID *is* the array index ($O(1)$ lookup, zero hashing, up to 4x smaller cache footprint) |
 | **2. Adjacency Lists of Object Pointers**<br>`List<Node>` scattered across the heap | **Contiguous CSR & CSC Arrays**<br>128-byte-aligned `row_offsets[]` and `col_indices[]` in `.imps` | All neighbors of a node sit contiguously in L1 cache lines; hardware prefetcher streams ahead |
 | **3. Array of Structures (AoS) Properties**<br>`Map<String, Object>` attached to each node | **Structure of Arrays (SoA) Columns**<br>128-byte-aligned primitive vectors (`age[]`, `score[]`) | Filtering `.filter("node.age >= 21")` loads only `age[]` into SIMD registers; zero wasted bandwidth |
-| **4. Object Queues & Hash-Set Deduplication**<br>`Queue<Node>` and `HashSet<Long>` per BFS hop | **Off-Heap Bitset Frontiers & Push/Pull**<br>$\lceil N_d / 64 \rceil$ 64-bit words or Roaring Bitmaps | 64 nodes tested/merged per CPU instruction (512 with AVX-512); automatic path deduplication |
+| **4. Object Queues & Hash-Set Deduplication**<br>`Queue<Node>` and `HashSet<Long>` per BFS hop | **Off-Heap Bitset & Multi-Lane Frontiers**<br>$\lceil N_d / 64 \rceil$ 64-bit words, Roaring Bitmaps, or 8/16/32/64-bit `TYPE_LANE_FRONTIER` (`v0.9.1`) | 64 nodes tested/merged per CPU instruction (or 64 independent walks fused in one CSR pass); automatic path deduplication |
 | **5. Dynamic Heap Allocations per Query**<br>Resizing lists, hash tables, and boxed objects | **Pre-Determined, Caller-Allocated Buffers**<br>Exact scratch + result size known at `prepare` time | Zero allocations (`malloc`/`new`) in the hot query path; lock-free, GC-free extreme concurrency |
 | **6. AST Interpreter / Stack Machine**<br>Polymorphic `Step.next()` or `PUSH`/`POP` stack traffic | **640-Byte Register VM & `MethodHandle` JIT**<br>64-bit instructions over `R0`..`R63` (`impulse_vm_state_t`) | Entire VM state fits in 10 L1 cache lines; Java 25 C2 JIT fuses shaders into native machine code |
 
@@ -96,6 +96,26 @@ In `ImpulseVM`, an active frontier over a domain of $N_d$ nodes is represented a
 * **64 Nodes per Register Word**: Testing, uniting (`OR`), intersecting (`AND`), or differencing (`AND NOT`) 64 nodes takes a single bitwise CPU instruction—or 512 nodes per instruction with AVX-512.
 * **Zero Duplicate Work**: Converging paths across high-fanout graphs automatically coalesce via bitwise `OR` without hash-set deduplication overhead.
 * **Direction-Optimizing Push/Pull**: When the frontier is sparse, `ImpulseVM` walks outgoing CSR slices (**Push**); when the frontier becomes dense, it can switch to scanning incoming CSC slices (**Pull**) and terminate early as soon as a parent bit is found.
+
+### 6.1 Multi-Lane Bit-Sliced Frontiers (Planned `v0.9.1`: `0xC0`..`0xC9`)
+
+When a workload evaluates up to 64 independent seed queries, concept-group expansions, or counterfactual $N-1$ edge-outage contingencies over the same graph, running 64 separate 1-bit BFS passes streams `row_offsets[]` and `col_indices[]` from DRAM 64 times.
+
+In `v0.9.1` (Planned), `TYPE_LANE_FRONTIER` (`0x10`) transposes the frontier layout into a **bit-sliced array** (`uint8_t[N]`, `uint16_t[N]`, `uint32_t[N]`, or `uint64_t[N]`), assigning each concurrent walk or contingency to bit position $b \in [0, 63]$:
+
+```c
+// Single-pass 64-lane CSR propagation with per-edge counterfactual trip masks (OP_LANE_CSR_WALK 0xC3)
+uint64_t u_lanes = current_lanes[u] & active_mask;
+if (u_lanes != 0) {
+    for (uint64_t e = row_offsets[u]; e < row_offsets[u + 1]; ++e) {
+        uint32_t v = col_indices[e];
+        next_lanes[v] |= (u_lanes & ~edge_trip_mask[e]);
+    }
+}
+```
+
+* **64 Walks per CSR Read**: Because `row_offsets[u]` and `col_indices[e]` are fetched once from memory and shared across all 64 bitwise lanes, memory bandwidth is amortized across up to 64 simultaneous traversals. In the Pure Java 25 `MultiLaneVmBenchmarkTest` (`50,000` nodes, `400,000` edges, 2-hop walk), wall-clock latency remains nearly flat at **`~0.23 ms`** from $L=1$ to $L=64$ lanes, scaling effective throughput from **`2,229.5 Effective Lane-MTEPS`** ($L=1$) to **`138,979.4 Effective Lane-MTEPS`** ($L=64$, a **`62.3x`** throughput multiplier over sequential single-lane execution).
+* **Locality-Preserving Node Reordering (`--vamana-locality`)**: For hybrid vector-graph workloads using Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.9.1`), running `impulse opt --vamana-locality` reorders dense Node IDs by a BFS traversal from the Vamana medoid $m^*$, permuting the CSR/CSC arrays, `[N, D]` `FLOAT32` embeddings, and Vamana adjacency/quantized slabs in lockstep so neighbor expansions during greedy beam search (`OP_VECTOR_ANN_SEARCH` `0xCA`) hit adjacent cache lines.
 
 ---
 

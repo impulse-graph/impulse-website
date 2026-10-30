@@ -384,8 +384,8 @@ Both domains and relations accept an `"attributes"` array where each element has
 | **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Prepends a 128-byte-aligned Arrow validity bitmap (`1` = valid, `0` = null) before the data array | Any nullable Parquet column or CSV column with empty cells |
 
 !!! note
-    **Primary Key Catalog vs. Programmatic Secondary Indices (`Section 2.6`)**:
-    When `impulse build` compiles a `manifest.json`, it automatically builds the primary key lookup index (`_domain_index`) and attribute min/max metadata for each domain. Additional secondary indices (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitset, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval) can be constructed programmatically via the C-ABI (`impulse_index_build_*` + `impulse_writer_add_index` in `impulse_index.h`) or Rust `SnapshotWriter::add_index`.
+    **Primary Key Catalog vs. Programmatic & Vector Secondary Indices (`Section 2.6`)**:
+    When `impulse build` compiles a `manifest.json`, it automatically builds the primary key lookup index (`_domain_index`) and attribute min/max metadata for each domain. Embedded DiskANN/Vamana vector indices (`0x08` `IMP_INDEX_VAMANA_ANN`, `v0.9.1`) can be built directly from the CLI via `--embeddings <SPEC>` and `--vector-index <SPEC>` on `impulse build`, `impulse snapshot attach-embeddings`, or `impulse snapshot optimize`. Additional secondary indices (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitset, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval, `0x08` VamanaANN) can also be constructed programmatically via the C-ABI (`impulse_index_build_*` + `impulse_writer_add_index` in `impulse_index.h`) or Rust `SnapshotWriter::add_index` / `SnapshotWriter::add_built_vamana_index`.
 
 ---
 
@@ -395,14 +395,16 @@ Beyond `impulse build`, the `impulse` CLI provides a complete toolkit for inspec
 
 | Command | Example | Purpose |
 | :--- | :--- | :--- |
-| **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into a 128-byte-aligned `.imps` snapshot. Pass `-o -` to stream directly to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
+| **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into a 128-byte-aligned `.imps` snapshot (supports `--embeddings` and `--vector-index`). Pass `-o -` to stream directly to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
+| **`snapshot attach-embeddings`** | `impulse snapshot attach-embeddings -i base.imps -o vec.imps --embeddings "Paper.emb=vecs.npy:dim=768:norm=l2" --vector-index "Paper.emb:R=32:L=64:quant=sq8"` | Attaches external embedding files (`.npy`, `.fvecs`, `.safetensors`, `.parquet`, `.jsonl`, `.csv`) and optional Section 2.6 Vamana ANN indices (`0x08`) to an existing `.imps` snapshot. |
+| **`bench-vector`** | `impulse bench-vector -n 10000 -d 128 --ef-search 16,32,64 --compare-optimize` | Runs the empirical Vamana ANN (`IMP_INDEX_VAMANA_ANN = 0x08`) construction, two-stage quantized beam search (`NONE`, `FP16`, `SQ8`, `BQ1`), and `Recall@K` / QPS benchmark suite. |
 | **`snapshot inspect`** | `impulse snapshot inspect graph.imps --verbose` | Prints Page 0 header flags, domain cardinalities, relation encodings, attribute schemas, and byte offsets (supports `--format json`). |
-| **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment` | Verifies magic bytes, 128-byte section alignment, monotonic CSR/CSC offset bounds, and the footer SHA-256 checksum. |
+| **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment --deep-audit` | Verifies magic bytes, 128-byte section alignment, monotonic CSR/CSC offset bounds, Vamana ANN invariants (`--quick-check` / `--deep-audit`), and the footer SHA-256 checksum. |
 | **`snapshot stats`** | `impulse snapshot stats graph.imps --supernode-threshold 3.0` | Computes min/max/mean/p99 out-degree distributions, sparsity, multiplicity, and flags high-degree supernodes exceeding the statistical Z-score threshold (default `3.0`). |
-| **`snapshot optimize`** | `impulse snapshot optimize -i raw.imps -o opt.imps --rcm --csc` | Reorders domain dense IDs via **Reverse Cuthill-McKee (`--rcm`)** or **Degree Sorting (`--degree-sort`)** to maximize CPU cache locality, and optionally generates missing CSC reverse indices (`--csc`). |
+| **`snapshot optimize`** | `impulse snapshot optimize -i raw.imps -o opt.imps --rcm --vamana-locality --csc` | Reorders domain dense IDs via **Reverse Cuthill-McKee (`--rcm`)**, **Vamana Medoid BFS (`--vamana-locality`)**, or **Degree Sorting (`--degree-sort`)** to maximize CPU cache locality, and optionally generates missing CSC reverse indices (`--csc`). |
 | **`snapshot diff`** | `impulse snapshot diff v1.imps v2.imps` | Compares two `.imps` snapshots and reports added/removed domains, relations, node/edge count deltas, and attribute layout changes. |
 | **`snapshot export`** | `impulse snapshot export graph.imps -o out_dir/ --format csv` | Exports the topology of an `.imps` snapshot back to `csv`, `tsv`, or `jsonl` files. |
-| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` tensor archives into 128-byte-aligned `.imps` vector attribute columns. |
+| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` tensor archives into 128-byte-aligned `.imps` vector attribute columns (with optional `--vector-index`). |
 
 ---
 

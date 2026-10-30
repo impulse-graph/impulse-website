@@ -27,7 +27,7 @@ To support sub-microsecond plan caching across Blue/Green snapshot swaps, optimi
 | Stage | When It Runs | Key Optimization Passes | Concrete Impact |
 | :--- | :--- | :--- | :--- |
 | **Stage 1: Snapshot-Agnostic** | Once when a query is registered or parsed | • **AST Normalization & Parameter Binding**<br>• **Constant Folding & CEL Math Inversion**<br>• **Algebraic Type & Monotonicity Inference**<br>• **Monotonic Homomorphism Pushdown** | • Rewrites monotonic math filters ($\sqrt{x} < c \implies x < c^2$) to eliminate per-node `sqrt` calls.<br>• Commutes monotonic functions across reductions ($\max(f(X)) \to f(\max(X))$), evaluating $f$ once instead of $N$ times. |
-| **Stage 2: Snapshot-Bound** | When binding a query to a specific `.imps` file (`< 2 µs`) | • **Zone Map & Nullability Pruning**<br>• **Multiplicity Deduplication Bypass**<br>• **2-Hop Kernel Fusion (`OP_CSR_WALK_2HOP`)**<br>• **Direction Selection (CSR Push vs. CSC Pull)**<br>• **Filter Pushdown & Register Allocation** | • Prunes unreachable branches (`u.age > 250` when `age.max == 114` folds to `FALSE`).<br>• Strips null-bitmap checks when `NullCount == 0`.<br>• Eliminates intermediate bitsets on low-multiplicity 2-hop walks and bypasses deduplication on $1:N$ injective relations. |
+| **Stage 2: Snapshot-Bound** | When binding a query to a specific `.imps` file (`< 2 µs`) | • **Zone Map & Nullability Pruning**<br>• **Multiplicity Deduplication Bypass**<br>• **2-Hop Kernel Fusion (`OP_CSR_WALK_2HOP`)**<br>• **Direction Selection (CSR Push vs. CSC Pull)**<br>• **Multi-Lane Width Selection & ANN Fusion (`v0.9.1`)**<br>• **Filter Pushdown & Register Allocation** | • Prunes unreachable branches (`u.age > 250` when `age.max == 114` folds to `FALSE`).<br>• Strips null-bitmap checks when `NullCount == 0`.<br>• Eliminates intermediate bitsets on low-multiplicity 2-hop walks and bypasses deduplication on $1:N$ injective relations.<br>• Selects minimal bit-sliced lane width (`WIDTH_8`/`16`/`32`/`64`) for $k \le 64$ seeds (`0xC0`..`0xC9`) and fuses `OP_VECTOR_ANN_SEARCH` (`0xCA`, `flags=1`) directly into a `TYPE_LANE_FRONTIER` when a Section 2.6 Vamana (`0x08`) index is present. |
 
 ### Inspecting Bytecode Disassembly (`.impas`)
 
@@ -73,4 +73,4 @@ In the Pure Java 25 engine (`impulse-graph-java`), queries do not sit inside a s
 ## Next Steps
 
 * **[Mathematical & GraphBLAS Foundations](../academic.md)**: Formal semiring algebra, Kleisli composition, $1:1 / 1:N / N:1$ multiplicity proofs, and the CSR/CSC/COO analytical cost model.
-* **[ImpulseVM & `impOps` ISA Specification](../reference/spec/vm-specification.md)**: Normative bytecode instruction set reference (`0x00`..`0x75`).
+* **[ImpulseVM & `impOps` ISA Specification](../reference/spec/vm-specification.md)**: Normative bytecode instruction set reference (`0x00`..`0xCB`).

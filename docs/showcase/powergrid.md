@@ -77,6 +77,24 @@ By compiling the grid topology (`Bus` domain and `Branch` CSR arrays + electrica
 
 Every simulation output was verified against independent third-party **PYPOWER** and **NetworkX** (`networkx.bridges()`) runs, achieving a **100.00% exact topological match** (`561` islanding outages on PEGASE 1354 and `778` on PEGASE 2869).
 
+### 64-Way Bit-Sliced Multi-Lane Contingency Screening (Planned v0.9.1: `0xC0..0xC7`)
+
+While the `v0.9.0` SIMD island detector evaluates one contingency per BFS pass, the **`v0.9.1 (Planned)` Multi-Lane Bit-Sliced Execution** extension (`0xC0..0xC9`) packs **64 independent $N-1$ or $N-2$ branch outage scenarios** into a single 64-bit word per bus (`TYPE_LANE_FRONTIER` = `0x10`, where bit $b \in [0..63]$ represents scenario $b$):
+
+1. **`OP_LANE_INIT_SEEDS` (`0xC0`) & `OP_LANE_SET_EDGE_MASK` (`0xC2`)**: Seeds the baseline component root bus(es) with `active_mask = 0xFFFFFFFFFFFFFFFF` across all 64 lanes and populates `branch_trip_mask[br]` (setting bit $b = 1$ if branch `br` is tripped in scenario $b$, or setting both `branch_trip_mask[i] = active_mask` and `branch_trip_mask[j_base + b] = (1ULL << b)` for 64 simultaneous $N-2$ pairs $(i, j_0 \dots j_{63})$).
+2. **`OP_LANE_CSR_WALK` (`0xC3`)**: Advances all 64 contingency wavefronts in lockstep during a **single CSR adjacency scan** via `uint64_t new_bits = (u_mask & ~trip_mask[br]) & ~visited[v]`, amortizing CSR memory reads and branch prediction overhead by up to $64\times$.
+3. **`OP_LANE_REDUCE_AND` (`0xC7`)**: Fuses the end-of-wave bitwise `AND` reduction (`all_reached &= visited[u]`) and scratch zeroing pass into a single linear sweep, returning a 64-bit islanding bitmask `active_mask & ~all_reached` where bit $b = 1$ iff contingency lane $b$ disconnected the grid.
+
+Empirical results from [`poc_64way_bench.cpp`](https://github.com/impulse-graph/impulse-powergrid/blob/main/src/poc_64way_bench.cpp) on `case1354pegase.imps` ($|V| = 1,354$ buses, $|E| = 1,991$ branches, 100% bitwise parity with baseline):
+
+| Workload (`case1354pegase.imps`) | Execution Mode | 1-Way Zero-Alloc BFS | 64-Way Bit-Parallel (`0xC0..0xC7`) | 64-Way Throughput | Speedup & Verification |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Workload 1: $N-1$ Single-Line Outages** (`1,991` contingencies) | 1 Thread | `7.270 ms` (`273,873 /s`) | **`0.274 ms`** | **`7,259,799 contingencies/s`** | **`26.51x`** vs. Zero-Alloc (**`35.54x`** vs. Baseline; `561` critical branches) |
+| **Workload 2: $N-2$ Double-Line Outages** (`378,100` pairs, Top-200) | 1 Thread | `1,354.52 ms` (`279,139 pairs/s`) | **`30.41 ms`** | **`12,434,824 pairs/s`** | **`44.55x`** vs. 1-Thread Zero-Alloc (`194,329` critical pairs) |
+| **Workload 2: $N-2$ Double-Line Outages** (`378,100` pairs, Top-200) | 10 Threads | `258.84 ms` (`1,460,735 pairs/s`) | **`6.11 ms`** | **`61,857,691 pairs/s`** | **`42.35x`** vs. Zero-Alloc (**`53.77x`** vs. Baseline; **`279,595x`** vs. 1T PYPOWER) |
+| **Workload 4A: 6-Hop Substation Zone MS-BFS** (`1,354` seed buses) | 1 Thread | `1.860 ms` (`727,957 sources/s`) | **`0.533 ms`** | **`2,540,338 sources/s`** | **`3.49x`** (`108,828` zone pairs) |
+| **Workload 4B: Unbounded All-Pairs MS-BFS** (`1,354` seed buses) | 1 Thread | `10.344 ms` (`130,897 sources/s`) | **`1.655 ms`** | **`818,127 sources/s`** | **`6.25x`** (`1,833,316` reachable pairs) |
+
 ---
 
 ## 4. Beyond Power Grids: Where Else Does This Pattern Apply?
