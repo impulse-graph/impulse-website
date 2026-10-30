@@ -21,7 +21,7 @@ This document presents a technical comparison of NornicDB and Impulse Graph Engi
 | **Memory & Storage Model** | KV store backed by BadgerDB (LSM-tree), dynamic Go heap objects (`Node`, `Edge`), in-memory HNSW vector index arrays. | **Zero-Copy Memory-Mapped (`mmap`)**: 128-byte hardware-aligned C-ABI binary layout (AVX-512 / GPU warp coalesced), zero heap allocations. |
 | **Query Engine Architecture** | ANTLR Cypher Parser $\to$ AST $\to$ Query Shape Matcher / Fast-Path Router $\to$ Go Iterator Executor (`pkg/cypher/executor.go`). | Multi-Frontend Compiler Suite (`ImpK`, `ImpLog`) $\to$ Homoiconic S-Expr IR (`ImpScheme`) $\to$ Register Assembly (`ImpAsm`) $\to$ **`ImpulseVM` bytecode (`impOps`)**. |
 | **Execution Strategy** | Pipeline fast-paths (`executor_match_limit_fastpath.go`) bypassing general AST evaluation for matched query shapes. | Low-level register Virtual Machine (`ImpulseVM` registers `R0`..`R63`) executing fixed `impOps` opcodes with OpenMP parallel loops and SIMD primitives. |
-| **Vector & AI Capabilities** | Built-in HNSW vector index, native embedding generation (Metal/CUDA), Qdrant gRPC interface, memory decay/retention policies. | Native SIMD vector attribute operations (`OP_VECTOR_MUL_ATTR`), PyTorch zero-copy tensor integration (`impulse-gnn`), and native neighborhood sampling (`OP_SAMPLE_NEIGHBORS`). |
+| **Vector & AI Capabilities** | Built-in HNSW vector index, native embedding generation (Metal/CUDA), Qdrant gRPC interface, memory decay/retention policies. | Embedded Section 2.6 Vamana ANN index (`IMP_INDEX_VAMANA_ANN = 0x08`, `v0.9.1`) with two-stage `BQ1`/`SQ8`/`FP16` quantized search (`OP_VECTOR_ANN_SEARCH` `0xCA`, `OP_VECTOR_RERANK_DOT` `0xCB`), 64-lane multi-seed expansion (`0xC3`, `0xC6`), PyTorch zero-copy tensor integration (`impulse-gnn`), and native neighborhood sampling (`OP_SAMPLE_NEIGHBORS` `0x60`). |
 | **Network Protocols** | Multi-protocol server: Neo4j Bolt (port 7687), HTTP REST / Admin UI (port 7474), GraphQL, Qdrant gRPC, Nornic gRPC. | Embedded native library (`.so`, `.dylib`, `.dll`, Java 25 FFM) embedded directly into application processes; optional gRPC cloud server (`impulse-platform`). |
 
 ---
@@ -54,7 +54,7 @@ NornicDB relies on BadgerDB (an LSM-tree key-value store in Go) for persistent g
 #### Impulse Binary Snapshot (`.imps`)
 Impulse Graph Engine bypasses key-value stores entirely:
 
-* **Off-Heap Memory Mapping**: Operates directly over 128-byte hardware-aligned binary files (`.imps` ). CSR/CSC topology vectors and SoA attribute matrices are memory-mapped (`mmap`) into process virtual memory.
+* **Off-Heap Memory Mapping**: Operates directly over 128-byte hardware-aligned binary files (`.imps` v0.9.0 / v0.9.1). CSR/CSC topology vectors, SoA attribute matrices, and Section 2.6 Vamana ANN indices (`0x08`) are memory-mapped (`mmap`) into process virtual memory.
 * **Zero GC & Zero Deserialization**: `ImpulseVM` reads raw C-pointers directly off-heap. Zero Go/Java garbage collection pauses or key decoding steps take place during query evaluation.
 
 ---
@@ -85,7 +85,11 @@ While NornicDB is a full database server with MVCC write transactions and Impuls
 
 ### 2. Fused Vector-Graph Traversal Execution
 * **NornicDB Pattern**: `executor_match_vector_cosine_fastpath.go` executes vector similarity search and 1-hop graph neighbor expansion in a single unified execution loop.
-* **Impulse Adaptation**: Impulse can combine vector attribute scaling (`OP_FLOAT_VECTOR_SCALE`) and neighborhood sampling (`OP_SAMPLE_NEIGHBORS`) with `OP_CSR_WALK` to enable zero-copy hybrid vector-graph retrieval in `ImpulseVM`.
+* **Impulse Adaptation (`v0.9.1` Fused Multi-Lane Pipeline)**: Impulse `v0.9.1` implements a four-opcode allocation-free GraphRAG pipeline in `ImpulseVM`:
+  1. **`OP_VECTOR_ANN_SEARCH` (`0xCA`, `flags = 1`)**: Searches the embedded Section 2.6 Vamana ANN index (`IMP_INDEX_VAMANA_ANN = 0x08`) and seeds the Top-$K$ ($K \le 64$) semantic anchors directly into a 64-lane `TYPE_LANE_FRONTIER` register.
+  2. **`OP_LANE_CSR_WALK` (`0xC3`)**: Expands all $K$ semantic anchors simultaneously across 1 to $h$ graph hops in a single bit-sliced CSR pass.
+  3. **`OP_LANE_FILTER_QUORUM` (`0xC6`)**: Extracts consensus/bridge nodes reached by at least $q$ distinct semantic anchors (`popcount(lane_mask[u]) >= q`).
+  4. **`OP_VECTOR_RERANK_DOT` (`0xCB`)**: Gathers exact `Float32[D]` embeddings for the surviving subgraph candidates and computes SIMD cosine/dot scores against the query vector.
 
 ### 3. Procedure Extensions & APOC Algorithm Integration
 * **NornicDB Pattern**: `pkg/cypher/apoc_algorithms.go` embeds standard graph algorithms (PageRank, Community Detection, Path Finding) directly as callable Cypher procedures (`CALL apoc.algo...`).

@@ -26,6 +26,7 @@ ImpScheme uses parenthesized Lisp/Scheme forms. All expressions are evaluated pr
 ### Primitive Data Types
 * `node` (u32 node index)
 * `bitset` (Roaring bitmap / dense bitset handle)
+* `lane-frontier` (8/16/32/64-bit multi-lane bit-sliced frontier handle, `TYPE_LANE_FRONTIER = 0x10`, `v0.9.1`)
 * `graph` (snapshot handle)
 * `int` / `float` / `bool` (scalar primitives)
 
@@ -67,6 +68,18 @@ ImpScheme exposes native `impOps` primitives directly as S-expressions:
 | `(bitset:not a)` | Bitwise NOT complement | `OP_MASK_NOT` (fused into `OP_ROARING_BITMAP_AND_NOT`) |
 | `(bitset:and-not a b)` | Fused Bitwise AND-NOT difference | `OP_ROARING_BITMAP_AND_NOT` (`OP_SET_DIFFERENCE`) |
 | `(g:walk-csr-filtered g f "REL" m)` | Fused CSR Walk & Bitset Mask Filter | `OP_CSR_WALK_FILTERED` |
+| `(lane-init-seeds seed_reg width_flag)` | Initialize `TYPE_LANE_FRONTIER` from up to 64 seed node IDs (`v0.9.1`) | `OP_LANE_INIT_SEEDS` (`0xC0`) |
+| `(lane-init-groups pairs_reg num_groups)` | Initialize `TYPE_LANE_FRONTIER` from `(node_id, group_idx)` pairs (`v0.9.1`) | `OP_LANE_INIT_GROUPS` (`0xC1`) |
+| `(lane-set-edge-mask pairs_reg "REL")` | Attach counterfactual per-edge trip mask for relation `"REL"` (`v0.9.1`) | `OP_LANE_SET_EDGE_MASK` (`0xC2`) |
+| `(lane-walk-csr "REL" [1])` | Bit-sliced forward CSR step (optional `1` enables `FIXPOINT` loop) (`v0.9.1`) | `OP_LANE_CSR_WALK` (`0xC3`) |
+| `(lane-walk-csc "REL" [1])` | Bit-sliced reverse CSC step (optional `1` enables `FIXPOINT` loop) (`v0.9.1`) | `OP_LANE_CSC_WALK` (`0xC4`) |
+| `(lane-prune-mask mode arg0 arg1)` | Prune lane bits (`0` = deny mask, `1` = `ALLOW & ~DENY`, `2` = hub quorum) (`v0.9.1`) | `OP_LANE_PRUNE_MASK` (`0xC5`) |
+| `(lane-filter-quorum min_quorum mask_reg)` | Filter nodes with `popcount(lanes[u] & req_mask) >= min_quorum` into `TYPE_BITSET_HANDLE` (`v0.9.1`) | `OP_LANE_FILTER_QUORUM` (`0xC6`) |
+| `(lane-reduce-and)` | Bitwise AND reduction across all domain nodes (`v0.9.1`) | `OP_LANE_REDUCE_AND` (`0xC7`) |
+| `(lane-reduce-attr attr_id reduce_op)` | Per-lane attribute reduction (`SUM`, `MIN`, `MAX`, `COUNT`, `ARGMIN`, `ARGMAX`) (`v0.9.1`) | `OP_LANE_REDUCE_ATTR` (`0xC8`) |
+| `(lane-set-cover mask_reg mode)` | Greedy minimum witness node cover or 2-node pair cover over `mask_reg` (`v0.9.1`) | `OP_LANE_SET_COVER` (`0xC9`) |
+| `(vector-ann-search q_reg top_k idx_id fused)` | Vamana ANN beam search (`fused = 1` outputs `TYPE_LANE_FRONTIER`) (`v0.9.1`) | `OP_VECTOR_ANN_SEARCH` (`0xCA`) |
+| `(vector-rerank-dot q_reg attr_id metric)` | Exact SIMD similarity reranking (`L2`, `COSINE`, `DOT`) over active frontier (`v0.9.1`) | `OP_VECTOR_RERANK_DOT` (`0xCB`) |
 
 ---
 

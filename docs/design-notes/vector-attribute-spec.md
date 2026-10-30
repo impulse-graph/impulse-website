@@ -10,19 +10,24 @@ While graph databases like NornicDB treat vector embeddings as separate HNSW ind
 
 ## 1. Physical Binary Layout (.imps Specification)
 
-In `.imps` , node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes establishes the following physical layout:
+In `.imps` (`v0.9.0` / `v0.9.1`), node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes—paired with the embedded **Section 2.6 Vamana ANN Index (`IMP_INDEX_VAMANA_ANN = 0x08`, `v0.9.1`)**—establishes the following physical layout:
 
 ```
-Impulse Snapshot (.imps ) - Contiguous SoA Vector Attribute Layout
+Impulse Snapshot (.imps v0.9.0 / v0.9.1) - Contiguous SoA Vector & Vamana ANN Layout
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Page 0 Header & Metadata (4KB, 128-byte aligned)                            │
+│ Page 0 Header & Section 2.6 Index Directory (IMP_INDEX_VAMANA_ANN = 0x08)   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ CSR / CSC Topology Vectors (Row Offsets & Target Column Indices)            │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Node Attribute Matrix: "embedding" (VECTOR_FLOAT32[1536])                   │
+│ Node Attribute Matrix: "embedding" (FLOAT32, dim = 1536)                    │
 │  ├── Node 0: [f32_0, f32_1, ... f32_1535] (6144 Bytes, 128-byte aligned)     │
 │  ├── Node 1: [f32_0, f32_1, ... f32_1535] (6144 Bytes, 128-byte aligned)     │
 │  └── Node N: [f32_0, f32_1, ... f32_1535] (6144 Bytes, 128-byte aligned)     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Section 2.6 Vamana ANN Payload (IMP_INDEX_VAMANA_ANN = 0x08, v0.9.1)        │
+│  ├── VamanaHeader (64B, magic = "VAMA" 0x56414D41, R, L, alpha, medoid_id)  │
+│  ├── Adjacency Slab (128B aligned: N * (R + 1) * uint32_t)                  │
+│  └── Quantized Routing Slab (128B aligned: BQ1 / SQ8 / FP16 codes)          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,51 +42,35 @@ Impulse Snapshot (.imps ) - Contiguous SoA Vector Attribute Layout
 ## 2. Technical Implications Across System Components
 
 ### 2.1 Memory & Storage Efficiency
-* **Quantization Support**: First-class support for `VECTOR_FLOAT16` (bfloat16/fp16) and `VECTOR_INT8` (quantized int8) reduces memory bandwidth and NVMe storage requirements by **2x to 4x**, allowing multi-billion node embedding graphs to fit within system memory budgets.
-* **Cold-Start Elimination**: Because vector matrices are memory-mapped (`mmap`), the OS kernel pages in vector blocks on demand. Cold start time for multi-gigabyte embedding spaces is sub-millisecond ($< 1\,\text{ms}$).
+* **Quantization Support**: First-class support for `VECTOR_FLOAT16` (bfloat16/fp16) and `VECTOR_INT8` (quantized int8), plus compressed Vamana routing codes (`BQ1` 1-bit binary, `SQ8` 8-bit scalar, `FP16` 16-bit float), reduces beam-search memory bandwidth by **2x to 32x**, allowing multi-billion node embedding graphs to fit within L3/DRAM budgets.
+* **Cold-Start Elimination**: Because both the full-precision `Float32[D]` attribute matrix and the `IMP_INDEX_VAMANA_ANN` (`0x08`) index slabs are memory-mapped (`mmap`), the OS kernel pages in vector blocks on demand. Cold start time for multi-gigabyte embedding spaces is sub-millisecond ($< 1\,\text{ms}$).
 
 ### 2.2 Hardware SIMD & GPU Acceleration
 * **AVX-512 / ARM Neon Fused Multiply-Add (FMA)**: Vector dot products, L2 distances, and cosine similarities are executed using SIMD FMA instructions (`vfmadd231ps`). 16 single-precision floats are processed per CPU vector register cycle.
 * **Direct GPU Warp Coalescing**: On NVIDIA GPUs, 128-byte alignment matches 32-thread warp memory access width (4 bytes $\times$ 32 threads = 128 bytes), enabling 100% coalesced memory transactions during GNN neighborhood sampling.
 
-### 2.3 `ImpulseVM` Opcode Extensions (`impOps`)
+### 2.3 Canonical `v0.9.1` Vamana ANN Index (`0x08`) & `ImpulseVM` Opcodes (`0xCA..0xCB`, `0xC3`, `0xC6`)
 
-To execute vector similarity operations without dynamic heap allocations, three new generic opcodes are added to `impOps`:
+In `v0.9.1 (Planned)`, vector retrieval and hybrid GraphRAG execution are standardized around Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`) and the `0xC0..0xCB` Multi-Lane & Vector ANN opcode block (superseding early `0x3A..0x3C` draft numbers, which were assigned to CSR/CSC scalar reductions in `v0.9.0`):
 
-```
-+-----------------------------------------------------------------------------------+
-| Proposed Generic impOps Vector Additions (0x3A .. 0x3C)             |
-+------+--------------------------+--------------------------------------------------+
-| Hex  | Opcode Name              | Operational Summary                              |
-+------+--------------------------+--------------------------------------------------+
-| 0x3A | OP_VECTOR_COSINE_SIM     | SIMD cosine similarity between query and attr.   |
-| 0x3B | OP_VECTOR_TOPK           | Top-K nearest neighbor search over vector attr.  |
-| 0x3C | OP_VECTOR_CSR_WALK_FUSED | Fused SIMD vector similarity + CSR neighbor walk.|
-+------+--------------------------+--------------------------------------------------+
-```
-
-#### Opcode Details
-
-1. `OP_VECTOR_COSINE_SIM R_out_sims, R_nodes, AttrID, QueryVectorReg`
-   * Computes SIMD cosine similarity scores between a query vector in `QueryVectorReg` and the `AttrID` vector attributes of `R_nodes`. Writes float scores to `R_out_sims`.
-
-2. `OP_VECTOR_TOPK R_out_topk, R_nodes, AttrID, QueryVectorReg, K_limit`
-   * Maintains a pre-allocated $K$-element min-heap in VM Scratch Arena, performing a single SIMD scan over `R_nodes` vector attributes to find the Top-$K$ nearest neighbors.
-
-3. `OP_VECTOR_CSR_WALK_FUSED R_out_nodes, R_in_nodes, RelationID, AttrID, QueryVectorReg, Threshold`
-   * Performs a zero-copy CSR walk from `R_in_nodes` over `RelationID`, immediately evaluating vector similarity of target neighbors against `QueryVectorReg` and discarding neighbors below `Threshold` in a single pass.
+| Hex | Symbol (`v0.9.1`) | Operational Summary |
+| :--- | :--- | :--- |
+| **Section 2.6 `0x08`** | **`IMP_INDEX_VAMANA_ANN`** | Embedded DiskANN/Vamana proximity graph: 64-byte `VamanaHeader` (`magic = 0x56414D41` `"VAMA"`, `metric`, `quant_type`, `max_degree_r`, `medoid_node_id`, `alpha`, `ef_construction`), 128B-aligned fixed-stride adjacency slab (`N * (R + 1) * uint32_t`), and 128B-aligned quantized routing codes (`NONE`, `BQ1`, `SQ8`, `FP16`). |
+| **`0xCA`** | **`OP_VECTOR_ANN_SEARCH`** | Executes two-stage quantized Vamana beam search (`BQ1`/`SQ8`/`FP16` routing + exact `Float32[D]` reranking) over an `IMP_INDEX_VAMANA_ANN` index (or falls back to SIMD scan if unindexed). With `flags = 0`, outputs a `TYPE_NODE_VECTOR` of Top-$K$ node IDs; with **`flags = 1`**, directly initializes a 64-lane **`TYPE_LANE_FRONTIER`** (`K <= 64`) where lane $b$ is seeded with the $b$-th nearest anchor node. |
+| **`0xC3` / `0xC6`** | **`OP_LANE_CSR_WALK` / `OP_LANE_FILTER_QUORUM`** | Expands all $K \le 64$ ANN anchor nodes simultaneously across $h$ graph hops in a single bit-sliced CSR pass (`0xC3`), then extracts structural bridge/consensus nodes reached by at least $q$ distinct semantic anchors via `popcount(lane_mask[u]) >= q` (`0xC6`). |
+| **`0xCB`** | **`OP_VECTOR_RERANK_DOT`** | Gathers exact `Float32[D]` embeddings for candidate nodes in `R_CANDIDATES` (bitset or node vector), computes SIMD dot-product / cosine / negative-L2 scores against query vector `R_QUERY_VEC`, and writes a dense `TYPE_FLOAT_VECTOR` score array to `R_DST`. |
 
 ---
 
 ## 3. Comparison: Impulse First-Class Vectors vs. NornicDB / Neo4j / Qdrant
 
-| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` ) |
+| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` `v0.9.0` / `v0.9.1`) |
 | :--- | :--- | :--- |
-| **Vector Storage Model** | Out-of-band HNSW index files or external vector DB engines (Qdrant). | **First-Class SoA Attribute Column**: Contiguous $N \times D$ matrix in `.imps`. |
-| **Graph-Vector Coupling** | Two separate lookups: Vector search $\to$ pointer lookup to graph node KV store. | **Unified Memory Layout**: Graph CSR topology and vector attributes reside in the same `.imps` file. |
+| **Vector Storage Model** | Out-of-band HNSW index files or external vector DB engines (Qdrant). | **First-Class SoA Attribute Column + Embedded Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`)** in a single `.imps` file. |
+| **Graph-Vector Coupling** | Two separate lookups: Vector search $\to$ pointer lookup to graph node KV store. | **Fused Multi-Lane Pipeline**: `OP_VECTOR_ANN_SEARCH (flags=1)` (`0xCA`) $\to$ `OP_LANE_CSR_WALK` (`0xC3`) $\to$ `OP_LANE_FILTER_QUORUM` (`0xC6`) $\to$ `OP_VECTOR_RERANK_DOT` (`0xCB`). |
 | **Memory Allocation** | Dynamic heap allocations (`std::vector`, Go slices) during vector search & graph expansion. | **0 Bytes Allocated**: 100% allocation-free SIMD evaluation via VM Scratch Arenas. |
-| **PyTorch / GNN Interop** | Requires copying vector arrays into PyTorch Tensors (`torch.tensor(data)`). | **Zero-Copy Tensor Slicing**: `torch.from_blob()` over memory-mapped file pointer (`impulse-gnn`). |
-| **Traversal Latency** | $400\,\mu\text{s} \text{ to } 1.5\,\text{ms}$ per hybrid vector + 1-hop query. | **$5\,\mu\text{s} \text{ to } 50\,\mu\text{s}$** per hybrid vector + 1-hop query. |
+| **PyTorch / GNN Interop** | Requires copying vector arrays into PyTorch Tensors (`torch.tensor(data)`). | **Zero-Copy Tensor Slicing**: `torch.from_blob()` / `torch.from_dlpack()` over memory-mapped file pointer (`impulse-gnn`). |
+| **Traversal Latency** | $400\,\mu\text{s} \text{ to } 1.5\,\text{ms}$ per hybrid vector + 1-hop query. | **$5\,\mu\text{s} \text{ to } 50\,\mu\text{s}$** per hybrid vector + multi-hop quorum query. |
 
 ---
 
