@@ -2,7 +2,7 @@
 
 This document formalizes the compilation, analysis, and optimization pipeline for evaluating **Common Expression Language (CEL)** and general query expressions over **Impulse Graph Engine** immutable binary snapshots (`.imps`).
 
-It details how an un-optimized Abstract Syntax Tree (AST) is bound to an immutable snapshot instance, annotated with **exact physical metadata** and **formal algebraic properties**, and transformed into ultra-low-latency, zero-allocation **ImpScheme IR (`.impscm`)**, **ImpAsm (`.impas`)**, and **`impOps` bytecode**.
+It details how an un-optimized Abstract Syntax Tree (AST) is bound to an immutable snapshot instance, annotated with **exact physical metadata** and **formal algebraic properties**, and transformed into deterministic, zero-allocation **ImpScheme IR (`.impscm`)**, **ImpAsm (`.impas`)**, and **`impOps` bytecode**.
 
 ---
 
