@@ -1,9 +1,9 @@
-# Normative Specification: ImpulseVM Virtual Machine & ImpOps Instruction Set
+# Normative Specification: ImpulseVM Virtual Machine & impOps Instruction Set
 
 * **Document Status**: Standard Reference Specification
 * **Target Architecture**: 64-bit Register-based Virtual Machine (off-heap execution focus)
 
-This document defines the formal normative specification for the **ImpulseVM** register machine and its register type system, execution state layout, status flags, and the **ImpOps** bytecode instruction set. All implementations of the ImpulseVM and associated assemblers/compilers **MUST** comply with this specification.
+This document defines the formal normative specification for the **ImpulseVM** register machine and its register type system, execution state layout, status flags, and the **impOps** bytecode instruction set. All implementations of the ImpulseVM and associated assemblers/compilers **MUST** comply with this specification.
 
 ---
 
@@ -85,7 +85,7 @@ Every executable instruction **MUST** be packed into exactly 8 bytes (64 bits), 
 
 | Byte Offset | Field Name | Type | Semantic Role |
 | :--- | :--- | :--- | :--- |
-| `0x00` | `opcode` | `uint8_t` | The ImpOps bytecode opcode identifier (`0x00`..`0xFE`). |
+| `0x00` | `opcode` | `uint8_t` | The impOps bytecode opcode identifier (`0x00`..`0xFE`). |
 | `0x01` | `flags` | `uint8_t` | Instruction modifiers (see §3.3). |
 | `0x02` – `0x03` | `dst_reg` | `uint16_t` | Destination register index (`0`..`63`). |
 | `0x04` – `0x07` | `payload` | `uint32_t` | Operands, constants, offsets, or jump addresses. |
@@ -168,7 +168,7 @@ When evaluating `OP_GATHER_NODE_ATTR`, `OP_GATHER_EDGE_ATTR`, or `OP_LOAD_INDIRE
 
 - If the target attribute is schema-defined as nullable, the VM **MUST** load and bind both the data span and the validity bitmap span to the resulting vector register handle. Any downstream opcodes interacting with that register will then correctly apply the semantics from §5.1, §5.2, or §5.3.
 
-## 6. ImpOps Instruction Set Reference
+## 6. impOps Instruction Set Reference
 
 The VM **MUST** execute bytecode instructions matching the opcode values and rules listed below. If an instruction executes with invalid registers, type mismatches, or out-of-bounds parameters, the VM **MUST** halt execution and return the appropriate `impulse_vm_status_t` error.
 
@@ -587,9 +587,9 @@ Any implementation of the ImpulseVM query interpreter **MUST** conform to the fo
 
 ---
 
-## 8. ImpAs (`.impas`) Assembly Text Format Specification
+## 8. ImpAsm (`.impas`) Assembly Text Format Specification
 
-`ImpAs` (`.impas`) is the human-readable assembly language and polyglot compliance test-vector format for `ImpulseVM`. An `.impas` file consists of two sections (`.data` and `.text`) plus optional `; {{EXPECT: ...}}` post-execution assertions:
+`ImpAsm` (`.impas`) is the human-readable assembly language and polyglot compliance test-vector format for `ImpulseVM`. An `.impas` file consists of two sections (`.data` and `.text`) plus optional `; {{EXPECT: ...}}` post-execution assertions:
 
 ### 8.1 `.data` Section Directives
 * **`.rel <NAME> = <ID>`** / **`.vrel <NAME> = <ID>`**: Binds a physical or virtual relation ID.
@@ -618,5 +618,181 @@ Instructions follow `[address]: <OPCODE_MNEMONIC> <ARG1>, <ARG2>, ...` using reg
 0x04: OP_SET_CARDINALITY R0, R4
 0x05: OP_HALT
 ```
+
+---
+
+## 9. Deterministic Execution Context State Hash (`ICTX` v1 Specification)
+
+To guarantee 100% bitwise cross-engine consensus without floating-point drift, memory pointer discrepancies, or uninitialized padding artifacts, ImpulseVM specifies the **`ICTX` v1 Deterministic State Hash** protocol.
+
+Given a completed VM execution state frame (`impulse_vm_state_t`), execution status code (`int32_t status`), and query execution context (`impulse_vm_context_t`), the C-ABI functions `impulse_vm_state_hash` and `impulse_vm_state_hash_hex` serialize execution state into a canonical binary byte stream and compute its standard SHA-256 cryptographic digest.
+
+### 9.1 Binary Stream Serialization Layout
+
+All multi-byte integer and floating-point values **MUST** be encoded in Little-Endian byte order. The byte stream is structured sequentially as follows:
+
+| Offset / Section | Field / Component | Encoding | Length | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Header** | `magic` | ASCII `"ICTX"` | 4 Bytes | Bytes `0x49, 0x43, 0x54, 0x58`. |
+| | `version` | `uint16_t` LE | 2 Bytes | Protocol version (strictly `1`). |
+| | `reserved` | `uint16_t` LE | 2 Bytes | Reserved padding (strictly `0`). |
+| **2. State Metadata** | `status` | `int32_t` LE | 4 Bytes | VM return status code (`0` = `IMPULSE_VM_OK`, negative = error code). |
+| | `pc` | `uint32_t` LE | 4 Bytes | Final Program Counter value. |
+| | `flags` | `uint64_t` LE | 8 Bytes | 64-bit VM condition flags register (`ZF`, `LT`, `GT`, `EQ`, `ST`, etc.). |
+| **3. Call Stack** | `call_stack_depth` | `uint32_t` LE | 4 Bytes | Number of active subroutine frames (`0`..`8`). |
+| | `call_stack[0..7]` | `uint32_t[8]` LE | 32 Bytes | 8 frame PC slots. Inactive slots ($i \ge \text{depth}$) **MUST** be serialized as `0`. |
+| **4. Architectural Registers** | `register_types[0..63]` & `registers[0..63]` | Interleaved `(uint8_t, uint64_t LE)` | 576 Bytes | For each register $r = 0 \dots 63$: 1 byte `register_types[r]`, followed by 8 bytes `registers[r]`. |
+| **5. Active Handle Dereferencing** | Dynamic handles | Variable | Variable | Evaluated in register index order $r = 0 \dots 63$ (see §9.2). |
+
+### 9.2 Handle Dereferencing Invariants
+
+When register $r$ contains an off-heap object handle, its canonical payload is serialized into the stream based on its type tag:
+
+1. **`TYPE_BITSET_HANDLE` (`0x04`)**:
+   - `cardinality` (`uint64_t` LE): Total count of set bits across the BitSet.
+   - `node_ids` (`uint64_t[cardinality]` LE): Monotonically ascending list of set node IDs.
+   - If the handle is null, out of bounds, or unallocated, `cardinality = 0` is serialized.
+2. **`TYPE_FLOAT_VECTOR` (`0x0C`)**:
+   - `length` (`uint32_t` LE): Number of float elements.
+   - `values` (`float32[length]` LE): IEEE 754 single-precision floats.
+   - **Canonical Float Normalization**: All `NaN` representations are normalized to `0x7FC00000`. Negative zero (`-0.0f`) is normalized to positive zero (`+0.0f`).
+   - If handle is invalid, `length = 0` is serialized.
+3. **`TYPE_DOUBLE_VECTOR` (`0x0D`)**:
+   - `length` (`uint32_t` LE): Number of double elements.
+   - `values` (`float64[length]` LE): IEEE 754 double-precision floats.
+   - **Canonical Double Normalization**: All `NaN` representations are normalized to `0x7FF8000000000000ULL`. Negative zero (`-0.0`) is normalized to positive zero (`+0.0`).
+   - If handle is invalid, `length = 0` is serialized.
+4. **`TYPE_NODE_VECTOR` (`0x05`) & `TYPE_UINT64_VECTOR` (`0x0E`)**:
+   - `length` (`uint32_t` LE): Number of 64-bit integer elements.
+   - `values` (`uint64_t[length]` LE): Contiguous 64-bit elements.
+   - If handle is invalid, `length = 0` is serialized.
+5. **`TYPE_LANE_FRONTIER` (`0x10`)**:
+   - `num_lanes` (`uint32_t` LE): Number of configured logical lanes ($1 \le k \le 64$).
+   - `max_lanes` (`uint32_t` LE): Physical bit-slice capacity (`8`, `16`, `32`, or `64`).
+   - `active_mask` (`uint64_t` LE): Active bitmask indicating live lanes.
+   - `node_count` (`uint32_t` LE): Number of domain nodes.
+   - `lanes` (`uint64_t[node_count]` LE): Dense array of per-node bit-sliced masks.
+   - If handle is invalid, four zero words (`0U`, `0U`, `0ULL`, `0U`) are serialized.
+6. **`TYPE_STRING_VECTOR` (`0x0B`)**:
+   - `count` (`uint32_t` LE): Number of strings.
+   - For each string $j = 0 \dots \text{count}-1$: length `slen` (`uint32_t` LE) followed by `slen` raw UTF-8 bytes.
+7. **`TYPE_VALUE_MAP` (`0x0A`)**:
+   - `count` (`uint32_t` LE): Number of key-value pairs.
+   - For each entry $j = 0 \dots \text{count}-1$: key length `klen` (`uint32_t` LE), `klen` UTF-8 key bytes, and `float32` LE value.
+8. **Scalar and Null Registers**: No extra bytes are appended.
+
+### 9.3 C-ABI State Hash Functions
+
+```c
+/* Compute 32-byte binary SHA-256 digest of VM execution state */
+IMPULSE_API int impulse_vm_state_hash(
+    const impulse_vm_state_t* state,
+    int32_t status,
+    uint8_t hash_out[32]
+);
+
+/* Compute 64-character null-terminated lowercase hexadecimal digest string */
+IMPULSE_API int impulse_vm_state_hash_hex(
+    const impulse_vm_state_t* state,
+    int32_t status,
+    char hex_out[65]
+);
+```
+
+### 9.4 Four-Way Polyglot Validation Harness
+
+The `four_way_validation.py` test harness runs `.impas` test vectors across four independent execution engines:
+1. **C++ Kernel (Optimizations ON)** (`-O3`, Highway SIMD, OpenMP)
+2. **C++ Kernel (Optimizations OFF)** (`-O0`, baseline interpretation)
+3. **Pure Java 25 Engine** (`MemorySegment` off-heap FFM, `jdk.incubator.vector`, `MethodHandle` C2 JIT)
+4. **OCaml Reference Engine** (Normative formal specification AST & bytecode oracle)
+
+All four engines **MUST** produce an identical 64-character lowercase hexadecimal hash. Any hash mismatch immediately fails the validation suite with a register-by-register and bitset diff.
+
+---
+
+## 10. 188 Formal Executable Opcode Contracts & Verification Specification
+
+To eliminate undefined behavior, register aliasing corruptions, and invalid type states at machine-cycle speeds, ImpulseVM specifies **188 Formal Executable Opcode Contracts** covering all 166 ISA opcodes (`0x00`..`0xCB`).
+
+### 10.1 Contract Schema Definition (`ImpulseOpcodeVariantContract`)
+
+Each opcode variant contract defines the static structural layout, dynamic input register type constraints, flag requirements, and post-execution invariant guarantees:
+
+```cpp
+struct ImpulseOpcodeVariantContract {
+    uint8_t        opcode;               // Opcode numeric value (0x00..0xCB)
+    const char*    mnemonic;             // Instruction mnemonic (e.g. "OP_LANE_CSR_WALK")
+    const char*    variant_name;         // Specific variant name (e.g. "OP_LANE_CSR_WALK_STANDARD")
+    uint8_t        flags_mask;           // Relevant bits in inst.flags
+    uint8_t        flags_match;          // Required matching bits for this variant
+    uint8_t        defined_flags_mask;   // All valid flag bits permitted for this opcode
+    uint32_t       fixed_payload_bits;   // Non-register payload bits (rel_id, mode, etc.)
+    RegFieldLayout dst_layout;           // Destination register location
+    RegFieldLayout src_layout;           // Source 1 register location
+    RegFieldLayout aux1_layout;          // Source 2 register location
+    RegFieldLayout aux2_layout;          // Source 3 register location
+    uint32_t       allowed_src_types;    // Bitmask of allowed input types for src
+    uint32_t       allowed_aux1_types;   // Bitmask of allowed input types for aux1
+    uint32_t       allowed_aux2_types;   // Bitmask of allowed input types for aux2
+    uint32_t       output_dst_types;     // Valid resulting type mask for dst_reg
+    bool           allow_zero_skip_aux1; // True if aux1 == 0 skips register checking
+    bool           allow_zero_skip_aux2; // True if aux2 == 0 skips register checking
+    uint64_t       sets_vm_flags_mask;   // Status flags modified by this opcode
+    bool           requires_context;     // True if non-null impulse_vm_context_t is required
+    bool           modifies_dst_state;   // True if dst_reg value or type is modified
+};
+```
+
+### 10.2 Operand Register Field Layouts (`RegFieldLayout`)
+
+Operands inside 64-bit packed instructions are extracted and injected via deterministic layout descriptors:
+
+| Layout Constant | Value | Bit Extraction Expression | Typical Usage |
+| :--- | :--- | :--- | :--- |
+| `RegFieldLayout::NONE` | `0` | None | Instruction does not read this operand. |
+| `RegFieldLayout::DST_REG` | `1` | `inst.dst_reg` | Primary destination register (`0`..`63`). |
+| `RegFieldLayout::PAYLOAD_LOW8` | `2` | `inst.payload & 0xFF` | 8-bit source register in low payload byte. |
+| `RegFieldLayout::PAYLOAD_LOW16` | `3` | `inst.payload & 0xFFFF` | 16-bit register or relation ID. |
+| `RegFieldLayout::PAYLOAD_BYTE1` | `4` | `(inst.payload >> 8) & 0xFF` | Secondary register operand (`aux1`). |
+| `RegFieldLayout::PAYLOAD_BYTE2` | `5` | `(inst.payload >> 16) & 0xFF` | Tertiary register operand (`aux2`). |
+| `RegFieldLayout::PAYLOAD_BYTE3` | `6` | `(inst.payload >> 24) & 0xFF` | Quaternary operand or mode flags. |
+| `RegFieldLayout::PAYLOAD_HIGH16` | `7` | `(inst.payload >> 16) & 0xFFFF` | High 16 bits of payload (rel_id, threshold, count). |
+
+### 10.3 Branchless Type Checking (`IMPULSE_CHECK_REG_TYPE`)
+
+Type checking is performed branchlessly in $\le 2$ CPU cycles using 17-bit register type bitmasks (`IMP_TYPES_*`):
+
+```cpp
+#define IMP_TYPE_BIT(t) (1u << static_cast<uint32_t>(t))
+
+#define IMPULSE_CHECK_REG_TYPE(vm_state, reg, allowed_mask) \
+    do { \
+        if (IMPULSE_UNLIKELY(((1u << static_cast<uint32_t>((vm_state)->register_types[(reg)])) & (allowed_mask)) == 0u)) { \
+            return IMPULSE_VM_ERR_INVALID_REGISTER; \
+        } \
+    } while (0)
+```
+
+### 10.4 Automated 5-Pass Contract Verification Suite
+
+The `test_opcode_contracts.cpp` test suite automatically verifies all 188 contracts through five exhaustive passes:
+
+1. **Pass 1: Disallowed Register Type Rejection**:
+   - Synthesizes instructions with each of the 17 possible register dynamic types (`TYPE_NULL` through `TYPE_LANE_FRONTIER`) injected into `src`, `aux1`, and `aux2`.
+   - Verifies that any type excluded by `allowed_src_types`, `allowed_aux1_types`, or `allowed_aux2_types` immediately returns `IMPULSE_VM_ERR_INVALID_REGISTER`.
+2. **Pass 2: Allowed Type Acceptance & Destination Conformity**:
+   - Executes the opcode with valid input mock operands and verifies that execution returns `IMPULSE_VM_OK`.
+   - Confirms that `vm_state.register_types[dst_reg]` matches `output_dst_types`.
+3. **Pass 3: Out-of-Bounds Register Validation**:
+   - Injects invalid register indices ($r \ge 64$, e.g. `64`, `128`, `255`) into operand positions.
+   - Verifies that the interpreter traps or returns `IMPULSE_VM_ERR_INVALID_REGISTER` without memory access violations.
+4. **Pass 4: In-Place Register Aliasing Safety**:
+   - Tests operand aliasing conditions (`dst == src`, `dst == aux1`, `dst == aux2`, `src == aux1`).
+   - Asserts that in-place mutation does not read overwritten destination state prematurely.
+5. **Pass 5: Null Context & Snapshot Safety**:
+   - For opcodes where `requires_context == true`, executes the instruction with `query_context = nullptr`.
+   - Verifies that the VM safely returns `IMPULSE_VM_ERR_NULL_SNAPSHOT` without null-pointer dereferences.
+
 
 

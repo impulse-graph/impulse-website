@@ -25,7 +25,7 @@ This page tracks the current development status, subsystem readiness, announceme
 | Subsystem / Repository | Status | Readiness | Notes |
 | :--- | :--- | :--- | :--- |
 | **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.9.0`) / `v0.9.1` Planned | [=100% "100%"] | Page-aligned C-ABI layout, 128-byte SIMD alignment, compliance vectors (`tc01`..`tc36`), and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.9.1`) |
-| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java 25, and OCaml reference oracle (`0x00`..`0xCB`) |
+| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java 25, and OCaml reference oracle (`0x00`..`0xCB`) verified via deterministic SHA-256 `ICTX` v1 state hashes (`impulse_vm_state_hash_hex`) and 188 formal opcode contracts |
 | **[Pure Java 25 Engine (`impulse-graph-java`)](reference/java-api.md)** | RC Ready | [=95% "95%"] | 100% Pure Java 25, zero dependencies, FFM off-heap (`MemorySegment`/`Arena`), Vector API, `MethodHandle` C2 JIT, Multi-Lane & Vamana ANN |
 | **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | RC Ready | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
 | **[Multi-Frontend Compiler (`ImpScheme` / `openCypher` / `CEL`)](concepts/compiler-architecture.md)** | RC Ready | [=90% "90%"] | Two-stage optimizer (logical AST rewriting + cost-based physical selection), Multi-Lane width selection & SQLite-style prepared statements |
@@ -55,7 +55,7 @@ Artifacts are built inside GitHub Actions CI pipelines with SLSA Level 3 cryptog
 ## Goals Before `v1.0` Release
 
 - [x] Finalize immutable `.imps` Binary Snapshot Format (`v0.9.0`) specification and 128-byte hardware alignment invariants
-- [x] Achieve 100% four-way polyglot `ImpulseVM` test vector parity (C++ O3, C++ O0, Pure Java 25, OCaml)
+- [x] Achieve 100% four-way polyglot `ImpulseVM` test vector parity (C++ O3, C++ O0, Pure Java 25, OCaml) with deterministic `ICTX` v1 SHA-256 state hashes and 188 formal opcode contracts
 - [x] Implement Lua-inspired register architecture (`R0`..`R63`) and Java 25 `MethodHandle` combinator JIT compilation
 - [x] Remove in-memory delta overlay complexity to dedicate 100% of kernel hot paths to lock-free, read-only `.imps` traversal
 - [x] Launch unified documentation website (`www.impulsegraph.org`) with hosted Java 25 Javadocs and C-ABI references (85% complete)

@@ -86,7 +86,7 @@ To find the outgoing edges for **Node 2**:
 1. Read offset range: `start = row_offsets[2]` ($3$), `end = row_offsets[3]` ($3$).
 2. Because `start == end`, Node 2 has **0 outgoing edges**.
 
-### Why CSR is Lightning Fast
+### CSR Memory Locality and Hardware Prefetch Mechanics
 * **Instant Degree Calculation**: The degree (edge count) of Node $u$ is simply `row_offsets[u + 1] - row_offsets[u]`—an instant scalar subtraction requiring zero edge traversals.
 * **CPU Cache Perfection**: All neighbors of a node sit side-by-side in contiguous memory. The CPU prefetcher loads them into L1 cache in a single memory cycle.
 * **Vector SIMD Friendly**: CPU vector registers (AVX-512, ARM Neon) can process 8 to 16 neighbor IDs simultaneously.

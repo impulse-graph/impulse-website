@@ -365,3 +365,73 @@ IMPULSE_API impulse_status_t impulse_writer_add_index(
     uint64_t payload_feature_mask
 );
 ```
+
+---
+
+## 7. Deterministic State Hashing & Formal Opcode Contracts (`impulse_vm.h` & `impulse_opcode_contracts.hpp`)
+
+### 7.1 Deterministic Execution State Hash (`ICTX` v1)
+
+To verify bitwise consensus across C++ (`-O3`), C++ (`-O0`), Pure Java 25, Rust, and the OCaml reference oracle without floating-point drift or padding discrepancies, `impulse_vm.h` exposes state hashing functions implementing the **`ICTX` v1** protocol:
+
+```c
+/**
+ * @brief Computes a deterministic SHA-256 state hash of the VM execution frame and context.
+ *
+ * Serializes the ICTX v1 binary stream:
+ *  - 8-byte header: Magic "ICTX" (0x494D5053), uint16 version (1), uint16 reserved (0)
+ *  - State metadata: int32 status, uint32 pc, uint64 flags
+ *  - Call stack: uint32 depth, 8 x uint32 frame PCs (inactive frames zeroed)
+ *  - Architectural registers: 64 x (uint8 type, uint64 value LE)
+ *  - Handle dereferencing: canonical bitset node lists, normalized float vectors (NaN normalized
+ *    to 0x7FC00000, -0.0f to +0.0f), double vectors, multi-lane bit-sliced arrays, string vectors,
+ *    and value maps in register index order 0..63.
+ *
+ * @param state Pointer to VM execution state frame.
+ * @param status VM execution status code.
+ * @param hash_out 32-byte buffer receiving the binary SHA-256 digest.
+ * @return 0 on success, negative error code on failure.
+ */
+IMPULSE_API int impulse_vm_state_hash(
+    const impulse_vm_state_t* state,
+    int32_t status,
+    uint8_t hash_out[32]
+);
+
+/**
+ * @brief Computes a deterministic 64-character lowercase hex SHA-256 state digest.
+ *
+ * @param state Pointer to VM execution state frame.
+ * @param status VM execution status code.
+ * @param hex_out Buffer of at least 65 bytes receiving null-terminated hex string.
+ * @return 0 on success, negative error code on failure.
+ */
+IMPULSE_API int impulse_vm_state_hash_hex(
+    const impulse_vm_state_t* state,
+    int32_t status,
+    char hex_out[65]
+);
+```
+
+### 7.2 188 Formal Opcode Contracts (`impulse_opcode_contracts.hpp`)
+
+`impulse-cpp/include/impulse_opcode_contracts.hpp` declares `constexpr` execution contracts for **188 opcode variants** across all 166 ISA instructions (`0x00`..`0xCB`). Each contract enforces register operand layouts (`RegFieldLayout`), dynamic type validity masks, instruction modifier flags, and flag modifications:
+
+```cpp
+#include "impulse_opcode_contracts.hpp"
+
+// Branchless 2-cycle dynamic type validation macro:
+IMPULSE_CHECK_REG_TYPE(vm_state, reg, allowed_mask);
+
+// Access compile-time contract table covering all 188 opcode variants:
+namespace impulse::vm {
+    // Total contracts defined across ISA opcodes (0x00..0xCB):
+    extern const std::array<ImpulseOpcodeVariantContract, 188> g_opcode_contracts;
+
+    // Fast O(1) variant lookup:
+    const ImpulseOpcodeVariantContract* find_opcode_contract(uint8_t opcode, uint8_t flags);
+}
+```
+
+The formal contracts are verified via the 5-pass verification suite in `test_opcode_contracts.cpp` (rejection of disallowed register types, acceptance of valid types and output type conformity, out-of-bounds register safety, in-place register aliasing safety, and null snapshot safety).
+
