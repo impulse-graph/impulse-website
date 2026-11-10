@@ -11,7 +11,7 @@ The showcase applications in the Impulse Graph ecosystem exist for two reasons:
 
 | Industry & Domain | Nodes (Domains) & Edges (Relations) | Core Graph Operation | What Impulse Graph's Speed Makes Practical |
 | :--- | :--- | :--- | :--- |
-| **[Security & ReBAC (Zanzibar)](authz.md)** | `User` $\to$ `Group` $\to$ `Role` $\to$ `Resource` | Fixed-point reachability & early-exit `contains()` | Checking deep, transitive group/folder permissions in-process on **every single API request** (`< 1 µs`) with zero external network hops. |
+| **[Security & ReBAC (Zanzibar)](authz.md)** | `User` $\to$ `Group` $\to$ `Role` $\to$ `Resource` | Fixed-point reachability & zero-allocation BitSet lookups | Checking deep, transitive group/folder permissions in-process on API requests (sub-microsecond in 600k-user RBAC benchmarks) with zero external network hops. |
 | **[FinTech & Anti-Money Laundering](aml.md)** | `Account` $\xrightarrow{\text{TRANSFERRED\_TO}}$ `Account` | Fixed-point cycle detection (`repeatUntilStable`) & `SUM`/`MIN` reductions | Detecting multi-hop circular money-laundering rings and running interactive **"what-if" node-exclusion scenarios** in milliseconds. |
 | **[Electrical Power Grids](powergrid.md)** | `Substation Bus` $\xrightarrow{\text{BRANCH}}$ `Substation Bus` | Exhaustive $N-1$ & $N-2$ edge-removal island detection | Simulating **all 10.5 million $N-2$ dual-line outage combinations** across a continental grid in **24 seconds** instead of **3+ hours**. |
 | **Logistics, Shipping & Aviation** *(Upcoming Showcase)* | `Container` $\to$ `Depot/Port` $\xrightarrow{\text{LEG}}$ `Port` | Constrained multi-hop reachability & `MIN` cost reduction | **Recalculating all empty-container repositioning move options** across a shipping fleet (or airline crew/aircraft recovery routes) in real time when a port or hub is disrupted. |
@@ -23,6 +23,6 @@ The showcase applications in the Impulse Graph ecosystem exist for two reasons:
 ## Explore the Showcases
 
 * **[Authorization (ReBAC / Zanzibar)](authz.md)**: Sub-microsecond in-process permission checks paired with periodic `.imps` Blue/Green snapshot rotation.
-* **[Anti-Money Laundering (AML) & Fraud Rings](aml.md)**: Transitive cycle detection and interactive "what-if" intermediary exclusion using `repeatUntilStable`.
+* **[Anti-Money Laundering (AML) & Fraud Rings](aml.md)**: Algorithmic walkthrough of transitive cycle detection and interactive "what-if" intermediary exclusion using `repeatUntilStable` and CEL predicates.
 * **[Power Grid Stability ($N-1$ & $N-2$ Contingency Simulator)](powergrid.md)**: How zero-copy `.imps` snapshots and SIMD bitsets turn a 3-hour continental grid outage sweep into a 24-second real-time check.
 * **[Graph Neural Networks & PyTorch (`impulse-gnn`)](gnn.md)**: If you live in PyTorch, you'll be right at home—zero-copy `mmap` tensor views, zero `DataLoader` RAM duplication, and high-speed GPU/CPU sparse matrix operations.

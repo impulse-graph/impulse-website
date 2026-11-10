@@ -16,7 +16,7 @@ Because the underlying `.imps` file on disk is immutable, these memory regions a
 
 In a dynamic service environment, new data arrives continuously. Rather than locking the graph to update the base structure, an out-of-band builder writes a new `.imps` file.
 
-When the new file is ready, `SnapshotSwapManager` performs an **atomic pointer swap** (`AtomicReference` in Java, `std::atomic` in C++) to redirect new queries to the new memory map while reference-counting and draining in-flight queries on the previous snapshot:
+When the new file is ready, an atomic pointer swap (`SnapshotSwapManager` utilizing `AtomicReference` in Java, or `std::atomic<const impulse_snapshot_t*>` in C++) redirects new queries to the new memory map while reference-counting and draining in-flight queries on the previous snapshot:
 
 ```java
 SnapshotSwapManager<GraphSnapshot> swapManager = new SnapshotSwapManager<>(initialSnapshot);

@@ -13,7 +13,7 @@ Impulse Graph centers on the **Impulse Binary Snapshot Format (`.imps`)**—an i
    - **Enterprise-Ready**: Strictly **zero third-party runtime dependencies**, **zero JNI / native library dependencies**, and **zero GC pauses** (all CSR/CSC topologies, SoA attributes, bitsets, and the 640-byte `ImpulseVM` register frame live off-heap).
 2. **Native C++20 & C-ABI Engine (`impulse-graph-core`)**:
    - A zero-dependency C++20 and C-ABI kernel (`libimpulse_graph`, `impulse_graph.h`, `impulse_vm.h`) with Highway SIMD and OpenMP parallelization.
-   - Powers native C/C++ applications and the polyglot FFI SDKs (`impulse-rust`, `impulse-python`, `impulse-go`, `impulse-dotnet`, `impulse-node`).
+   - Powers native C/C++ applications and polyglot FFI SDKs (`impulse-python`, `impulse-go`, `impulse-dotnet`, `impulse-node`), and interoperates with the standalone Rust engine crate (`impulse-rust`).
 
 Both engines implement the exact same `ImpulseVM` register architecture (`R0`..`R63`) and `impOps` bytecode instruction set over the same `.imps` binary files, validated to produce 100% bitwise-identical outputs.
 
@@ -95,20 +95,22 @@ Developer inspection, compilation, and layout optimization utilities live in `im
 | **`impulse-benchmarks`** | **Performance & Macro Benchmark Suite**. Reproducible JMH, Google Benchmark, and Python benchmark harnesses. |
 | **`impulse-website`** | **Documentation Portal**. Official documentation website (`www.impulsegraph.org`). |
 | **`impulse-platform`** | **Enterprise Cloud Infrastructure**. Spring Boot gRPC server, Kafka WAL ingestion, GCS/S3 snapshot sync, and RocksDB persistence. |
-| **`impulse-powergrid`** | **Showcase**: Electrical power grid stability engine, CIM XML compiler, and parallel N-1 contingency simulator. |
+| **`impulse-powergrid`** | **Showcase**: Electrical power grid stability engine and parallel N-1 contingency simulator over MATPOWER PEGASE cases. |
 | **`impulse-gnn`** | **Showcase**: Python PyTorch / PyG zero-copy `mmap` tensor integration and SIMD neighborhood sampler. |
-| **`impulse-authz`** | **Showcase**: Relationship-Based Access Control (ReBAC / Zanzibar) authorization server with live CDC sync. |
+| **`impulse-authz`** | **Showcase**: Relationship-Based Access Control (ReBAC / Zanzibar) enterprise permission data model and benchmark suite. |
 
 ---
 
-## 6. Package Registry Distribution Matrix
+## 6. Target Package Registry Distribution Matrix (Staged for v1.0 Release)
+
+The table below outlines target coordinates for the `v1.0` release. During pre-v1.0 development, use local source builds or GitHub Release assets.
 
 | Registry | Ecosystem / Language | Published Artifact Name | Description |
 | :--- | :--- | :--- | :--- |
 | **Maven Central** | Java 25 (JVM) | `org.impulsegraph:impulse-api`<br>`org.impulsegraph:impulse-storage`<br>`org.impulsegraph:impulse-vm`<br>`org.impulsegraph:impulse-compiler`<br>`org.impulsegraph:impulse-builder`<br>`org.impulsegraph:impulse-spec` | Pure Java 25 FFM engine modules (zero runtime dependencies, zero GC pauses). |
 | **Crates.io** | Rust | `impulse-graph` / `impulse-tools` | Zero-dependency Rust engine crate & standalone CLI tools (`impulse-cli`). |
 | **PyPI** | Python | `impulse-graph` | Pre-compiled wheels with NumPy & PyTorch zero-copy `mmap` tensors. |
-| **Go Modules** | Go (`CGo`) | `github.com/impulse-graph/impulse-graph-core/impulse-go` | CGo bindings linked against `libimpulse_graph_static.a`. |
+| **Go Modules** | Go (`CGo`) | `github.com/impulse-graph/impulse-graph/go` | CGo bindings linked against `libimpulse_graph_static.a`. |
 | **NuGet.org** | .NET (C# / F#) | `ImpulseGraph` / `ImpulseGraph.Native` | Managed .NET API and cross-platform native C-ABI binaries. |
 | **npm** | Node.js / Bun | `impulse-graph` | TypeScript definitions & N-API native bindings. |
 | **Vcpkg / Conan** | C / C++20 | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`) & static/shared libraries. |

@@ -207,10 +207,17 @@ The VM **MUST** execute bytecode instructions matching the opcode values and rul
   - **Usage**: Sets up relation slot `slot_id` (specified by `dst_reg`) using raw row offsets and column targets from the inline data binding at byte offset `off_bytes` (lower 16 bits of payload) with node count `node_count` (upper 16 bits of payload).
   - **Note**: The "mock graph" refers to a virtual, inline adjacency matrix defined directly in the thread context's inline bytecode data stream (rather than loaded from a physical `.imps` snapshot file). This is used primarily for isolated assembly unit testing of traversal opcodes.
   - **Outcome**: Bypasses the need to mmap a physical `.imps` snapshot file. Does not modify register values.
+- **`OP_LOAD_INLINE_SET`** (`0x0A`)
+  - **Behavior**: Load an inline BitSet from the inline metadata data stream into `dst_reg`.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_INIT_MOCK_NODE_ATTR`** (`0x0B`)
+  - **Behavior**: Initialize mock node attribute slot using inline bytecode data.
+- **`OP_INIT_MOCK_EDGE_ATTR`** (`0x0C`)
+  - **Behavior**: Initialize mock edge attribute slot using inline bytecode data.
 
 ### 6.2 Traversal and Filter Instructions
 
-All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `OP_CSC_WALK`) follow a common execution behavior:
+All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `OP_CSC_WALK`, `OP_CSR_WALK_2HOP`, `OP_CSR_WALK_STATE`) follow a common execution behavior:
 
 - **Frontier Evaluation & Flag Behavior**: If the source nodes frontier is empty (contains no active node IDs), or if the traversal result set is empty, the VM **MUST** set the Zero Flag (`ZF`) to 1 in the `flags` register. Otherwise, `flags[ZF]` **MUST** be cleared (set to 0).
 - **BitSet Materialization**: By default, Walk opcodes allocate a new off-heap BitSet handle in `dst_reg`. If the `ACCUMULATE` modifier flag is set on the instruction, the result set is unioned directly into the existing BitSet in `dst_reg` without deallocation.
@@ -218,6 +225,14 @@ All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `O
   - **Filters**: Filter-based opcodes (`OP_NODE_FILTER`, `OP_NODE_FILTER_STR_PREFIX`, `OP_CSR_WALK_FILTERED`) check scalar values or prefix matching against attributes loaded from the snapshot's Structure-of-Arrays (SoA) attribute pools. These are mapped into the query context's `attribute_slots[rel_id][attr_id]` during initialization.
   - **Reducers**: Reductions (`OP_CSR_WALK_REDUCE_SUM`, `OP_CSR_WALK_REDUCE`, `OP_REDUCE`) aggregate values over the traversed frontier. Valid reducers are defined by GraphBLAS binary operator IDs (e.g., `BINARY_OP_ADD`, `BINARY_OP_MUL`).
 
+- **`OP_CSR_WALK_2HOP`** (`0x0E`)
+  - **Behavior**: Two-hop fused CSR walk traversing two consecutive relations in a single vectorized pass.
+  - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_CSR_WALK_STATE`** (`0x0F`)
+  - **Behavior**: State-propagating CSR walk updating attached node frontier state vectors.
+  - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CSR_WALK`** (`0x10`)
   - **Behavior**: Traverse relationship edges using Compressed Sparse Row topology. Takes source nodes from `src` (lower 16 bits of payload), follows the relation `rel` (upper 16 bits of payload), and writes target nodes into `dst_reg`.
   - **Usage**: If `src` contains a BitSet handle or single Node ID, it retrieves offsets and column targets from relation slot `rel` and performs a union of targets into `dst_reg`. Respects `ACCUMULATE` modifier flag to append targets.
@@ -255,8 +270,51 @@ All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `O
   - **Behavior**: Verify if relation has a COO layout. Sets `flags[EQ]` accordingly.
 - **`OP_HAS_KEY_CATALOG`** (`0x1C`)
   - **Behavior**: Verify if domain catalog exists. Sets `flags[EQ]` accordingly.
+- **`OP_ADAPTIVE_WALK`** (`0x1D`)
+  - **Behavior**: Dynamically select CSR vs COO traversal strategy based on frontier density.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_CREATE_SCRATCH_INDEX`** (`0x1E`)
+  - **Behavior**: Allocate a temporary scratch index for hash joins or traversal acceleration.
+- **`OP_DROP_SCRATCH_INDEX`** (`0x1F`)
+  - **Behavior**: Deallocate a temporary scratch index.
 
-### 6.3 Set Mathematics and Algebra Instructions
+### 6.3 Vector Predicates, SIMD Masks, and Set Mathematics Instructions
+
+#### 6.3.1 Vector Predicates, SIMD Masks, and Math (`0x20` - `0x2F`)
+
+- **`OP_VEC_CMP_EQ`** (`0x20`)
+  - **Behavior**: Vector element-wise equality comparison returning BitSet mask of matching node IDs.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+- **`OP_VEC_CMP_GT`** (`0x21`)
+  - **Behavior**: Vector element-wise greater-than comparison returning BitSet mask of matching node IDs.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+- **`OP_VEC_CMP_LT`** (`0x22`)
+  - **Behavior**: Vector element-wise less-than comparison returning BitSet mask of matching node IDs.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+- **`OP_VEC_CMP_BETWEEN`** (`0x23`)
+  - **Behavior**: Vector range inclusion comparison returning BitSet mask of nodes within `[low, high]`.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+- **`OP_MASK_AND`** (`0x24`)
+  - **Behavior**: Bitwise AND of two SIMD masks / BitSets.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_MASK_OR`** (`0x25`)
+  - **Behavior**: Bitwise OR of two SIMD masks / BitSets.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_MASK_NOT`** (`0x26`)
+  - **Behavior**: Bitwise NOT (inversion) of a SIMD mask / BitSet up to active domain cardinality.
+  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+- **`OP_VEC_BLEND`** (`0x27`)
+  - **Behavior**: Element-wise blend of two vector registers selected by a BitSet condition mask.
+- **`OP_ASSERT_FINITE`** (`0x2A`)
+  - **Behavior**: Asserts that target numerical register or vector elements are finite (non-NaN, non-Inf). Throws `IMPULSE_VM_ERR_FLOATING_POINT` if non-finite.
+- **`OP_VEC_MATH_UNARY`** (`0x2D`)
+  - **Behavior**: Vectorized unary transcendental/algebraic mathematical evaluation (e.g., `exp`, `log`, `sqrt`, `abs`).
+- **`OP_VEC_MATH_BINARY`** (`0x2E`)
+  - **Behavior**: Vectorized binary transcendental/algebraic mathematical evaluation (e.g., `pow`, `atan2`, `hypot`).
+- **`OP_VEC_MATH_TERNARY`** (`0x2F`)
+  - **Behavior**: Vectorized ternary fused mathematical evaluation (e.g., `lerp`, fused multiply-add `fma`).
+
+#### 6.3.2 Set Mathematics and Algebra Instructions (`0x30` - `0x3D`)
 
 Set math and algebraic instructions are classified based on the number and structure of their operands:
 
@@ -422,7 +480,7 @@ Set math and algebraic instructions are classified based on the number and struc
 ### 6.9 Reserved Opcodes
 The following unallocated opcode ranges in `0x00`–`0xFF` are strictly reserved in `impulse_vm.h`:
 
-- **`OP_RESERVED_0A`** through **`OP_RESERVED_0D`** (`0x0A`–`0x0D`) and **`OP_RESERVED_0F`** (`0x0F`; note `0x0E` is allocated to `OP_CSR_WALK_2HOP`)
+- **`OP_RESERVED_0D`** (`0x0D`)
 - **`OP_RESERVED_28`** through **`OP_RESERVED_29`** (`0x28`–`0x29`) and **`OP_RESERVED_2B`** through **`OP_RESERVED_2C`** (`0x2B`–`0x2C`)
 - **`OP_RESERVED_3E`** through **`OP_RESERVED_3F`** (`0x3E`–`0x3F`; `0x3A`–`0x3D` are allocated to `OP_PROJECT_STATE`, `OP_COALESCE`, `OP_EXTRACT_VALIDITY`, and `OP_VECTOR_TIME_VALID_AT`)
 - **`OP_RESERVED_4C`** through **`OP_RESERVED_4F`** (`0x4C`–`0x4F`)

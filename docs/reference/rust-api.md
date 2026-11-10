@@ -7,8 +7,12 @@ The **Impulse Graph Engine Rust Crate** (`impulse-graph`, located in `impulse-gr
 ## 1. Installation (`Cargo.toml`)
 
 ```toml
+# Local path dependency:
 [dependencies]
-impulse-graph = "0.9"
+impulse-graph = { path = "../impulse-graph-core/impulse-rust" }
+
+# Staged for v1.0 crates.io release:
+# impulse-graph = "0.9"
 ```
 
 | Module | Exported Types & Functions |
@@ -61,19 +65,20 @@ use impulse_graph::reader::SnapshotReader;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = SnapshotReader::open("social_graph.imps")?;
 
-    // Multi-hop fluent traversal with inline CEL filtering
+    // Multi-hop fluent topology traversal
     let reachable_nodes: Vec<u64> = reader
         .traverse(0)
         .out("MEMBER_OF")
         .in_step("MANAGES")
-        .out_filtered("HAS_PERMISSION", "edge.port >= $min_port")
-        .with_param("min_port", 22.0)
+        .out("HAS_PERMISSION")
         .to_vec()?;
 
     println!("Reachable Nodes: {:?}", reachable_nodes);
     Ok(())
 }
 ```
+
+*(Note: Rust `Traversal::to_vec()` currently executes high-performance topology walks. In-kernel CEL evaluation for `out_filtered` is scheduled for upcoming compiler integration).*
 
 ---
 

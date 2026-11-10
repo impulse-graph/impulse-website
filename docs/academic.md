@@ -83,7 +83,7 @@ Each relation in an `.imps` snapshot records its exact degree bounds in the Sect
 | :--- | :--- | :--- | :--- |
 | **$1:1$ (Bijective)** | $\text{Out}(s) \le 1 \land \text{In}(d) \le 1$ | Partial Permutation Matrix $\mathbf{P}$ | Exact distributivity over set intersection ($\cap$) and lossless inverse walk ($\tau^{-1}(\tau(\mathcal{S})) = \mathcal{S}$). |
 | **$1:N$ (Injective)** | $\text{In}(d) \le 1$ (e.g., `Order` $\to$ `LineItem`) | At most 1 incoming edge per target $d$ | **Collision-Free Target Writes**: Two source nodes can never land on the same target $d$. Bypasses monoid reduction $\bigoplus$ and deduplication hashing (`InjectiveDeduplicationBypassPass`). |
-| **$N:1$ (Functional)** | $\text{Out}(s) \le 1$ (e.g., `Account` $\to$ `Owner`) | At most 1 outgoing edge per source $s$ | **Direct 1D Lookup**: Replaces 2-array CSR offset indirection (`row_offsets` + `col_indices`) with a single $O(1)$ dense array lookup `target_id = col_indices[src_id]`. |
+| **$N:1$ (Functional)** | $\text{Out}(s) \le 1$ (e.g., `Account` $\to$ `Owner`) | At most 1 outgoing edge per source $s$ | **Bounded Degree Traversal**: Guarantees at most one neighbor per source node. (Format spec supports direct 1D lookup omitting offsets; runtime evaluates via CSR with degree bounds). |
 | **$M:N$ (General)** | Arbitrary degrees | Sparse CSR / CSC Matrix $\mathbf{A}$ | Full SIMD CSR/CSC vector-matrix scan with monoidal reduction $\bigoplus$. |
 
 ---
@@ -103,7 +103,7 @@ $$T_{\text{Step}} = T_{\text{mem}} + T_{\text{calc}} + T_{\text{reduce}}$$
    • Best for sparse seeds       • Sequential target writes       • Best for full-graph passes
 ```
 
-| Execution Strategy | When Selected (`DirectionSelectionPass`) | Memory & Hardware Behavior |
+| Execution Strategy | Cost Model & Runtime Heuristic (`OP_ADAPTIVE_WALK`) | Memory & Hardware Behavior |
 | :--- | :--- | :--- |
 | **1. CSR Push (`OP_CSR_WALK`)** | **Sparse Frontier ($s / n_{\text{src}} < 5\%$)** | Scans only outgoing edges of the $s$ active source nodes ($O(s \cdot \hat{d}_{\text{out}})$ reads). |
 | **2. CSC Pull (`OP_CSC_WALK`)** | **Medium/Dense Frontier ($5\% \le s / n_{\text{src}} \le 60\%$)** and idempotent monoid ($\lor, \min, \max$) | Iterates sequentially over target nodes $d \in \mathcal{V}_{\text{Dst}}$; writes sequentially to target memory (`0` scatter-write cache misses) and **early-exits** as soon as the first active parent is found. |

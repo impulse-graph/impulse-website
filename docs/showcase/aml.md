@@ -2,6 +2,9 @@
 
 The **Anti-Money Laundering (AML)** showcase demonstrates how Impulse Graph detects deep circular transaction loops ("layering" fraud rings) and enables interactive **"what-if" link analysis** that traditional relational databases struggle to run at scale.
 
+!!! note "Algorithmic Walkthrough"
+    This showcase demonstrates an algorithmic query pattern using the native Impulse Java 25 Fluent API and CEL filter predicates; no external or custom database server is required.
+
 ---
 
 ## 1. The Real-World Problem
@@ -34,7 +37,7 @@ Impulse Graph makes deep multi-hop cycle detection and flow aggregation fast eno
         .toBitSet();
 
     // If the suspect account is in its own >= 1-hop downstream reachable set, a circular ring exists
-    boolean isPartOfFraudRing = reachableAccounts.get(suspectAccountId);
+    boolean isPartOfFraudRing = reachableAccounts.get((int) suspectAccountId);
     ```
 
 ---
@@ -51,15 +54,15 @@ Because a full multi-hop closure runs in sub-milliseconds to milliseconds over m
     // Test whether excluding intermediary 'accountB_Id' and transfers under $10,000 breaks the loop
     boolean cyclePersists = snap.domain("Account")
         .from(suspectAccountId)
-        .out("TRANSFERRED_TO", "tgt.id != $excludedId && edge.amount >= 10000.0")
-        .repeatUntilStable("TRANSFERRED_TO", "tgt.id != $excludedId && edge.amount >= 10000.0")
-        .withParam("excludedId", accountB_Id)
+        .out("TRANSFERRED_TO", "node.id != @excludedId && edge.amount >= 10000.0")
+        .repeatUntilStable("TRANSFERRED_TO", "node.id != @excludedId && edge.amount >= 10000.0")
+        .withParam("@excludedId", accountB_Id)
         .toBitSet()
-        .get(suspectAccountId);
+        .get((int) suspectAccountId);
 
     if (!cyclePersists) {
         System.out.println("Account B is a critical cut-vertex for this fraud ring.");
     }
     ```
 
-Because the `.imps` snapshot is read-only and each query runs in its own pre-allocated workspace, an automated screening job can test **thousands of candidate cut-vertices in parallel** across CPU cores in under a second.
+Because the `.imps` snapshot is read-only and queries execute lock-free across CPU threads, an automated screening job can evaluate candidate cut-vertices concurrently across CPU cores without lock contention or thread synchronization overhead.

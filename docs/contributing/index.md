@@ -4,7 +4,7 @@ Welcome! We are excited to have you contribute to the Impulse Graph Engine. Beca
 
 ## Architecture Rule: Zero Dependencies
 
-The core engine (`impulse-core` in Java, `impulse-cpp`, `impulse-rust`) strictly maintains **zero third-party runtime dependencies**. 
+The core engine (`impulse-storage` and `impulse-vm` in Java, `impulse-cpp`, `impulse-rust`) strictly maintains **zero third-party runtime dependencies**. 
 
 Features like Kafka, Spring Boot, or RocksDB belong in the `impulse-platform` repository. Do not introduce network, parsing, or logging dependencies into the core engine.
 
@@ -17,8 +17,8 @@ git clone --recurse-submodules https://github.com/impulse-graph/impulse-graph-co
 git clone --recurse-submodules https://github.com/impulse-graph/impulse-graph-java.git
 ```
 
-### Pure Java 25 Engine (`impulse-graph-java/`)
-Requires JDK 25+ (or JDK 21 LTS with `--enable-preview`).
+### Pure Java Engine (`impulse-graph-java/`)
+Requires JDK 22+ (JDK 25 recommended for Vector API SIMD enhancements).
 ```bash
 cd impulse-graph-java
 mvn clean test
@@ -54,8 +54,18 @@ python3 tools/run_vm_asm_suite.py
 ```
 
 ### Four-Way Polyglot Validation & Fuzzing (`impulse-verification/`)
+Requires pre-building the C++ kernels (`build_on` and `build_off`) and Java classes:
 ```bash
-cd impulse-verification
+# 1. Build C++ kernels with optimizations ON and OFF
+cd impulse-graph-core/impulse-cpp
+cmake -B build_on -DCMAKE_BUILD_TYPE=Release && cmake --build build_on
+cmake -B build_off -DCMAKE_BUILD_TYPE=Debug -DOPTIMIZATIONS=OFF && cmake --build build_off
+
+# 2. Compile Java classes
+cd ../../impulse-graph-java && mvn compile -DskipTests
+
+# 3. Run Four-Way Validation
+cd ../impulse-verification
 python3 tools/four_way_validation.py
 ```
 

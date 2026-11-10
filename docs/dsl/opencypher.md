@@ -29,20 +29,26 @@ MATCH (d:Disease)-[:DdG]->(g:Gene)<-[:CuG]-(c:Compound)
 // 4. Escaped / Namespaced Relationship Types (Backticks)
 MATCH (d:Disease)-[:`DISGENET::da`]->(g:Gene)
 
-// 5. Bounded Variable-Length Path (*min..max)
+// 5. Bounded Variable-Length Path (*min..max) or Unbounded Kleene Star (*)
 MATCH (u1:User)-[:FOLLOWS*1..3]->(u2:User)
+MATCH (u1:User)-[:FOLLOWS*]->(u2:User)
 
-// 6. Edge Variable Binding (for edge attribute filtering & projection)
+// 6. Multi-Relation Unions and Undirected Steps
+MATCH (u:User)-[:FOLLOWS|FRIENDS_WITH]->(f:User)
+MATCH (a:Account)-[:TRANSFERRED_TO]-(b:Account)
+
+// 7. Edge Variable Binding (for edge attribute filtering & projection)
 MATCH (u:User)-[t:TRANSFERRED_TO]->(a:Account)
 ```
 
 ### 1.2 Compile-Time Guardrails & Intentional Exclusions
-To guarantee sub-millisecond latency and deterministic memory bounds, the compiler enforces four strict rules at parse time:
+To guarantee sub-millisecond latency and deterministic memory bounds, the compiler enforces strict rules at parse time:
 
 1. **Explicit Relationship Types Required**: Every edge in a `MATCH` pattern must declare its relationship type (`-[:OWNS]->`). Untyped edges (`-->` or `-[e]->`) are rejected because each relation in `.imps` is stored as an isolated CSR/CSC matrix.
 2. **No Disconnected Cartesian Products**: Disconnected patterns like `MATCH (a:User), (b:Account)` are rejected at compile time to prevent $O(M \times N)$ cross-joins.
-3. **Bounded Variable-Length Paths**: Variable-length paths must specify an explicit upper bound (`*2`, `*1..4`, or `*..3`). Unbounded `*` wildcards are rejected in openCypher (use the Fluent API's `.repeatUntilStable(...)` or [ImpLog Datalog](implog.md) for unbounded fixed-point closures).
+3. **Variable-Length Path Bounds**: Variable-length paths support bounded hops (`*2`, `*1..4`, `*..3`) or pure unbounded Kleene star (`*`, which lowers to `ScmFixpoint` / `OP_FIXPOINT_START`). Open-ended ranges without an upper bound (e.g. `*1..`) are rejected at parse time.
 4. **Read-Only Execution**: Mutation and DDL clauses (`CREATE`, `MERGE`, `SET`, `DELETE`, `CREATE INDEX`) are rejected—updates are handled via [out-of-band `.imps` snapshot rebuilds](../getting-started/handling-mutations.md).
+5. **Analytical Frontier Focus**: Clauses such as `OPTIONAL MATCH`, `WITH`, `UNWIND`, `CALL`, and algorithmic functions like `shortestPath()` are not supported. Projections in `RETURN` focus on target domain entities (`RETURN c`, `RETURN c.id`, `RETURN count(c)`). Arbitrary expressions or multi-variable Cartesian projections are not supported.
 
 ---
 

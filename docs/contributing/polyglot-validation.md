@@ -42,7 +42,7 @@ Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanni
 
 The `impulse-graph-spec` repository provides the foundational test suite.
 
-### 2.1 Physical Binary Snapshot Vectors (`tc01` – `tc36`)
+### 2.1 Physical Binary Snapshot Vectors (`tc01` – `tc38`)
 * **Positive Vectors (`tc01`–`tc16`, `tc19`–`tc24`, `tc31`)**: Validates 4KB Page 0 alignment, 128-byte hardware vector alignment, CSR/CSC layouts, raw/delta-vbyte/simdcomp encodings, key types (UUID128, string, int64), and Structure-of-Arrays (SoA) attribute fields.
 * **Negative & Corruption Vectors (`tc17`–`tc18`, `tc25`–`tc30`, `tc32`–`tc36`)**: Validates SHA-256 binary corruption traps, unsupported feature flags, out-of-bounds section offsets, missing UTF-8 null terminators, and payload truncation handling.
 
@@ -98,7 +98,7 @@ The specification formalizes **188 opcode contracts** across all 166 ISA instruc
 | **Engine Kernel Logic** | `impulse-cpp`, `impulse-rust`, `impulse-graph-java` | Bytecode opcode execution, bitset operations, SIMD matrix multiplication, memory mapping, algorithm correctness. |
 | **FFI Binding Marshaling** | `impulse-python`, `impulse-go`, `impulse-node`, `impulse-dotnet` | C-ABI function call signature safety, struct padding, string conversion, pointer lifecycle, GC safety, exception propagation. |
 
-Running 100% of all 80+ VM test vectors through every binding wrapper on *every single PR build* is redundant for catching engine bugs. Instead, we enforce a **Tiered Binding Strategy**.
+Running 100% of all 400+ VM test vectors (currently 418) through every binding wrapper on *every single PR build* is redundant for catching engine bugs. Instead, we enforce a **Tiered Binding Strategy**.
 
 ---
 

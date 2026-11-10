@@ -425,11 +425,8 @@ IMPULSE_CHECK_REG_TYPE(vm_state, reg, allowed_mask);
 
 // Access compile-time contract table covering all 188 opcode variants:
 namespace impulse::vm {
-    // Total contracts defined across ISA opcodes (0x00..0xCB):
-    extern const std::array<ImpulseOpcodeVariantContract, 188> g_opcode_contracts;
-
-    // Fast O(1) variant lookup:
-    const ImpulseOpcodeVariantContract* find_opcode_contract(uint8_t opcode, uint8_t flags);
+    // Retrieve all 188 formal opcode contracts across opcodes 0x00..0xCB:
+    std::vector<ImpulseOpcodeVariantContract> get_all_opcode_contracts();
 }
 ```
 

@@ -1,12 +1,16 @@
 # Python & PyTorch SDK Reference (`impulse-graph`)
 
-The `impulse-graph` Python SDK embeds the native C++20 `ImpulseVM` kernel via `pybind11` and exposes zero-copy `mmap` access to `.imps` binary snapshots, NumPy array views, and PyTorch `torch.from_dlpack` tensor descriptors.
+The `impulse-graph` Python SDK embeds the native C++20 `ImpulseVM` kernel via `pybind11` and exposes zero-copy `mmap` access to `.imps` binary snapshots via the Python buffer protocol, NumPy array views (`np.frombuffer`), and PyTorch tensor interop (`torch.from_numpy`, `torch.sparse_csr_tensor`).
 
 ---
 
 ## 1. Installation
 
 ```bash
+# Pre-release / local development build:
+pip install ./impulse-graph-core/impulse-python
+
+# Or install pre-built wheels (staged for v1.0 PyPI release):
 pip install impulse-graph
 ```
 

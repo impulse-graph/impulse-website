@@ -99,23 +99,25 @@ Evaluating a 4-hop drug-repurposing traversal (`Disease::DOID:10652 -> [:DaG] ->
 | *Comparison: PyTorch Geometric (PyG)* | *In-Memory CSR Tensor* | *`850.0 µs`* (`0.85 ms`) | *`46.2x` slower (`450 ms` cold load)* |
 | *Comparison: Python NetworkX* | *In-Memory Python Dicts* | *`42,100.0 µs`* (`42.1 ms`) | *`2,288x` slower (`1,850 ms` cold load)* |
 
+*Note on Python baseline comparisons: PyTorch Geometric (PyG 2.4.0) and NetworkX (3.2.1) benchmarks were executed in-process on Python 3.11 under macOS ARM64 using pre-loaded CSR adjacency tensors and in-memory adjacency dictionaries respectively.*
+
 ---
 
 ## 3. Enterprise Service Reality: JSON Serialization Is Slower Than the Graph Query
 
 Why is `1.65x` of C++20 wholly suitable for demanding enterprise workloads? Because in real-world microservice architectures (Spring Boot, REST/gRPC APIs, ReBAC authorization servers), **formatting the response into JSON consumes far more CPU time than the Impulse Graph query itself.**
 
-When we profiled enterprise ReBAC authorization and navigation queries with **Java Flight Recorder (JFR)** and ran a 100,000-operation side-by-side benchmark (`JsonVsCsrBenchmarkRunner`) comparing off-heap CSR query evaluation against Jackson (`ObjectMapper`) JSON serialization to `/dev/null`:
+When we profiled enterprise ReBAC authorization and navigation queries with **Java Flight Recorder (JFR)** and ran a 100,000-operation in-process side-by-side benchmark (`JsonVsCsrBenchmarkRunner`) comparing off-heap CSR query evaluation against Jackson (`ObjectMapper`) JSON serialization to `/dev/null` over an enterprise directory corpus of 600,000 user entities with realistic hierarchical permissions:
 
 | Operation (100,000-Request Benchmark) | Average Latency | Relative CPU Cost vs. CSR Query (`large`) |
 | :--- | :---: | :--- |
-| **Impulse Java 25 Multi-Hop CSR Query (`small` profile)** | **`0.026 µs`** (`26 ns`) | `0.047x` (**`73.4x` faster than JSON stream**) |
-| **Impulse Java 25 Multi-Hop CSR Query (`medium` profile)** | **`0.088 µs`** (`88 ns`) | `0.159x` (**`21.7x` faster than JSON stream**) |
-| **Impulse Java 25 Multi-Hop CSR Query (`large`, 600k users)** | **`0.552 µs`** (`552 ns`) | **`1.00x` Baseline** |
+| **Impulse Java 25 Multi-Hop CSR Query (`small` corpus)** | **`0.026 µs`** (`26 ns`) | `0.047x` (**`73.4x` faster than JSON stream**) |
+| **Impulse Java 25 Multi-Hop CSR Query (`medium` corpus)** | **`0.088 µs`** (`88 ns`) | `0.159x` (**`21.7x` faster than JSON stream**) |
+| **Impulse Java 25 Multi-Hop CSR Query (`large` corpus, 600k users)** | **`0.552 µs`** (`552 ns`) | **`1.00x` Baseline** |
 | **Jackson Streaming JSON Serialization (`/dev/null`)** | **`1.908 µs`** (`1,908 ns`) | **`3.46x` MORE CPU than the graph query** |
 | **Jackson JSON String + UTF-8 Byte Output (`/dev/null`)** | **`2.558 µs`** (`2,558 ns`) | **`4.63x` MORE CPU than the graph query** |
 
-While the Impulse Graph engine executes SIMD integer vector reads and bitwise `OR` reductions in L1/L2 cache with zero heap allocations, Jackson must allocate heap buffers, inspect DTO fields, and encode integers and UUIDs into UTF-8 JSON characters. When serializing the HTTP response takes `3.5x–73x` longer than traversing the graph, the Pure Java 25 engine gives enterprise teams near-C++ memory-bandwidth speed with **zero JNI deployment complexity** and **zero inherited CVEs**.
+While the Impulse Graph engine executes SIMD vector reads and bitwise `OR` reductions in L1/L2 cache with zero heap allocations, Jackson must allocate heap buffers, inspect DTO fields, and encode integers and UUIDs into UTF-8 JSON characters. When serializing the HTTP response takes `3.5x–73x` longer than traversing the graph, the Pure Java 25 engine gives enterprise teams near-C++ memory-bandwidth speed with **zero JNI deployment complexity** and **zero inherited CVEs**.
 
 ---
 
@@ -134,29 +136,49 @@ java --enable-preview --add-modules jdk.incubator.vector --enable-native-access=
      -jar impulse-platform.jar
 ```
 
-### 3. Java 25 Vector API (`IntVector.SPECIES_PREFERRED` SIMD)
-Target neighbor gathering in `RelationSnapshot.java` uses hardware-adaptive SIMD vector tiles (`IntVector.fromMemorySegment` with `IntVector.SPECIES_PREFERRED`), automatically dispatching **128-bit ARM NEON** instructions on Apple Silicon / AWS Graviton and **256-bit AVX2 / 512-bit AVX-512** instructions on x86_64 servers:
+### 3. Java 25 Vector API (`FloatVector.SPECIES_PREFERRED` SIMD)
+Fused edge attribute filtering in `RelationSnapshot.java` uses hardware-adaptive SIMD vector tiles (`FloatVector.fromMemorySegment` with `FLOAT_SPECIES`), automatically dispatching **128-bit ARM NEON** instructions on Apple Silicon / AWS Graviton and **256-bit AVX2 / 512-bit AVX-512** instructions on x86_64 servers when neighbor degree meets the optimization threshold (`count >= 64`):
 
 ```java
-// RelationSnapshot.java SIMD Vector Gathering
-private static final VectorSpecies<Integer> INT_SPECIES = IntVector.SPECIES_PREFERRED;
+// RelationSnapshot.java SIMD Vectorized Edge Filtering
+private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
 
-public void copyTargetsSimd(int nodeId, BitSet outBs) {
-    long baseByteOffset = (long) start * 4;
-    int vectorBytes = INT_SPECIES.vectorByteSize();
+public void copyTargetsSimdFilteredFloat(int nodeId, MemorySegment attrSegment,
+                                         float threshold, byte cmpOp, ImpulseBitSet outBs) {
+    long start = readEdgeIndex(rowOffsetsSegment, nodeId);
+    long end = readEdgeIndex(rowOffsetsSegment, nodeId + 1);
+    int count = (int) (end - start);
+    if (count <= 0) return;
 
-    if ((segAddr % vectorBytes) == 0 && count >= INT_SPECIES.length()) {
-        int i = 0, loopBound = INT_SPECIES.loopBound(count);
-        for (; i < loopBound; i += INT_SPECIES.length()) {
-            IntVector vec = IntVector.fromMemorySegment(
-                INT_SPECIES, columnTargetsSegment, baseByteOffset + i * 4L, ByteOrder.LITTLE_ENDIAN
+    int i = 0;
+    if (nodeIdWidth == 4 && count >= OptimizerConfig.SIMD_PREDICATE_EVAL_MIN_DEGREE_THRESHOLD) {
+        int upperBound = FLOAT_SPECIES.loopBound(count);
+        VectorOperators.Comparison op = switch (cmpOp) {
+            case CMP_GT -> VectorOperators.GT;
+            case CMP_GTE -> VectorOperators.GE;
+            case CMP_LT -> VectorOperators.LT;
+            case CMP_LTE -> VectorOperators.LE;
+            case CMP_EQ -> VectorOperators.EQ;
+            case CMP_NEQ -> VectorOperators.NE;
+            default -> VectorOperators.GE;
+        };
+
+        for (; i < upperBound; i += FLOAT_SPECIES.length()) {
+            var vecAttr = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES, attrSegment, (start + i) * 4L, ByteOrder.LITTLE_ENDIAN
             );
-            for (int lane = 0; lane < INT_SPECIES.length(); lane++) {
-                outBs.set(vec.lane(lane));
+            var mask = vecAttr.compare(op, threshold);
+            for (int lane = 0; lane < FLOAT_SPECIES.length(); lane++) {
+                if (mask.laneIsSet(lane)) {
+                    outBs.set(columnTargetsSegment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, start + i + lane));
+                }
             }
         }
-        for (; i < count; i++) {
-            outBs.set(columnTargetsSegment.getAtIndex(JAVA_INT_UNALIGNED, start + i));
+    }
+    for (; i < count; i++) {
+        float val = attrSegment.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, start + i);
+        if (matches(val, cmpOp, threshold)) {
+            outBs.set(columnTargetsSegment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, start + i));
         }
     }
 }

@@ -60,10 +60,10 @@ You can compile an `.imps` file in two ways:
     }
     ```
 
-    Compile the `.imps` snapshot and inspect its 128-byte-aligned sections:
+    Compile the `.imps` snapshot and inspect its 128-byte-aligned sections (using `impulse-graph` or the `impulse` alias):
     ```bash
-    impulse build --manifest manifest.json -o social.imps
-    impulse snapshot inspect social.imps
+    impulse-graph build --manifest manifest.json -o social.imps
+    impulse-graph snapshot inspect social.imps
     ```
 
 === "Java 25 (`SnapshotBuilder`)"

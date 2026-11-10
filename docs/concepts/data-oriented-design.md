@@ -114,7 +114,7 @@ if (u_lanes != 0) {
 }
 ```
 
-* **64 Walks per CSR Read**: Because `row_offsets[u]` and `col_indices[e]` are fetched once from memory and shared across all 64 bitwise lanes, memory bandwidth is amortized across up to 64 simultaneous traversals. In the Pure Java 25 `MultiLaneVmBenchmarkTest` (`50,000` nodes, `400,000` edges, 2-hop walk), wall-clock latency remains nearly flat at **`~0.23 ms`** from $L=1$ to $L=64$ lanes, scaling effective throughput from **`2,229.5 Effective Lane-MTEPS`** ($L=1$) to **`138,979.4 Effective Lane-MTEPS`** ($L=64$, a **`62.3x`** throughput multiplier over sequential single-lane execution).
+* **64 Walks per CSR Read**: Because `row_offsets[u]` and `col_indices[e]` are fetched once from memory and shared across all 64 bitwise lanes, memory bandwidth is amortized across up to 64 simultaneous traversals. In the Pure Java 25 `MultiLaneVmBenchmarkTest` (`50,000` nodes, `500,000` edges, 2-hop walk), wall-clock latency remains nearly flat at **`~0.23 ms`** from $L=1$ to $L=64$ lanes, scaling effective throughput from **`2,229.5 Effective Lane-MTEPS`** ($L=1$) to **`138,979.4 Effective Lane-MTEPS`** ($L=64$, a **`62.3x`** throughput multiplier over sequential single-lane execution).
 * **Locality-Preserving Node Reordering (`--vamana-locality`)**: For hybrid vector-graph workloads using Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.9.1`), running `impulse opt --vamana-locality` reorders dense Node IDs by a BFS traversal from the Vamana medoid $m^*$, permuting the CSR/CSC arrays, `[N, D]` `FLOAT32` embeddings, and Vamana adjacency/quantized slabs in lockstep so neighbor expansions during greedy beam search (`OP_VECTOR_ANN_SEARCH` `0xCA`) hit adjacent cache lines.
 
 ---
