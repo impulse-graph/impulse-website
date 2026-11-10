@@ -33,8 +33,12 @@ ImpScheme uses parenthesized Lisp/Scheme forms. All expressions are evaluated pr
 ### Core Language Forms
 
 ```scheme
-;; Defining a Query Function
-(define-query (fn-name [arg1 : type1] [arg2 : type2]) -> return-type
+;; Top-Level Program Block
+(program
+  body ...)
+
+;; Defining a Named Query
+(define-query query-name
   body ...)
 
 ;; Lexical Bindings
@@ -42,14 +46,15 @@ ImpScheme uses parenthesized Lisp/Scheme forms. All expressions are evaluated pr
       [var2 val2])
   body ...)
 
-;; Variable Mutation
+;; Variable Assignment
 (set! var val)
 
 ;; Return Form
 (return expr)
 
-;; Conditional Branching
-(if condition then-expr else-expr)
+;; Transitive Closures & Fixed-Point Loops
+(fixpoint "RELATION" max-iters body ...)
+(loop-while condition body ...)
 ```
 
 ---
@@ -60,14 +65,13 @@ ImpScheme exposes native `impOps` primitives directly as S-expressions:
 
 | ImpScheme Form | Functionality | Target `impOps` Opcode |
 | :--- | :--- | :--- |
-| `(bitset:from node)` | Create bitset from root node ID | `OP_INIT_INPUT_SET` |
-| `(g:walk-csr g frontier "REL")` | Advance 1-hop across relation via CSR | `OP_CSR_WALK` |
-| `(g:walk-csc g frontier "REL")` | Reverse 1-hop traversal via CSC | `OP_CSC_WALK` |
-| `(bitset:and a b)` | Bitwise AND intersection | `OP_ROARING_BITMAP_AND` (`OP_SET_INTERSECT`) |
-| `(bitset:or a b)` | Bitwise OR union | `OP_ROARING_BITMAP_OR` (`OP_SET_UNION`) |
-| `(bitset:not a)` | Bitwise NOT complement | `OP_MASK_NOT` (fused into `OP_ROARING_BITMAP_AND_NOT`) |
-| `(bitset:and-not a b)` | Fused Bitwise AND-NOT difference | `OP_ROARING_BITMAP_AND_NOT` (`OP_SET_DIFFERENCE`) |
-| `(g:walk-csr-filtered g f "REL" m)` | Fused CSR Walk & Bitset Mask Filter | `OP_CSR_WALK_FILTERED` |
+| `(csr-walk "REL")` | Advance 1-hop across relation via forward CSR | `OP_CSR_WALK` |
+| `(csc-walk "REL")` | Reverse 1-hop traversal via CSC | `OP_CSC_WALK` |
+| `(csr-walk-2hop "R1" "R2")` | Fused 2-hop forward traversal | `OP_CSR_WALK_2HOP` |
+| `(set:intersect a b)` | Bitset intersection (AND) | `OP_ROARING_BITMAP_AND` (`OP_SET_INTERSECT`) |
+| `(set:union a b)` | Bitset union (OR) | `OP_ROARING_BITMAP_OR` (`OP_SET_UNION`) |
+| `(set:difference a b)` | Bitset difference (AND-NOT) | `OP_ROARING_BITMAP_AND_NOT` (`OP_SET_DIFFERENCE`) |
+| `(collect-bitset)` | Materialize surviving frontier into output register | `OP_COLLECT_BITSET` |
 | `(lane-init-seeds seed_reg width_flag)` | Initialize `TYPE_LANE_FRONTIER` from up to 64 seed node IDs (`v0.9.1`) | `OP_LANE_INIT_SEEDS` (`0xC0`) |
 | `(lane-init-groups pairs_reg num_groups)` | Initialize `TYPE_LANE_FRONTIER` from `(node_id, group_idx)` pairs (`v0.9.1`) | `OP_LANE_INIT_GROUPS` (`0xC1`) |
 | `(lane-set-edge-mask pairs_reg "REL")` | Attach counterfactual per-edge trip mask for relation `"REL"` (`v0.9.1`) | `OP_LANE_SET_EDGE_MASK` (`0xC2`) |
@@ -83,46 +87,42 @@ ImpScheme exposes native `impOps` primitives directly as S-expressions:
 
 ---
 
-## 3. Code Example: Multi-Hop BFS Reachability
+## 3. Code Example: Transitive Reachability in ImpScheme
 
 ```scheme
 ;; ====================================================================
-;; Multi-Hop BFS Reachability Check in ImpScheme (.impscm)
+;; Transitive Reachability in ImpScheme (.impscm)
 ;; ====================================================================
-
-(define-query (bfs-reachability [g : graph] [start : node] [target : node])
-  (let ([frontier (bitset:from start)]
-        [visited (bitset:from start)])
-
-    ;; Perform 1-hop CSR walk and remove visited nodes
-    (set! frontier (bitset:and-not (g:walk-csr g frontier "FOLLOWS") visited))
-    (set! visited (bitset:or visited frontier))
-
-    (return #t)))
+(program
+  (fixpoint "FOLLOWS" 100
+    (csr-walk "FOLLOWS"))
+  (collect-bitset))
 ```
 
 ---
 
 ## 4. Automatic Vector Fusion Passes
 
-The ImpScheme compiler performs term rewriting optimization passes before register allocation.
+The ImpScheme compiler performs algebraic AST optimization passes before bytecode emission and register allocation.
 
-### Example: Fusing `AND` + `NOT` into `OP_ROARING_BITMAP_AND_NOT`
+### Example: Fusing Consecutive 1-Hop Walks into `OP_CSR_WALK_2HOP`
 
-When the compiler encounters:
+When the compiler encounters two consecutive 1-hop walks over low-multiplicity relations:
 ```scheme
-(bitset:and next-nodes (bitset:not visited))
+(program
+  (csr-walk "ORDER_CONTAINS_PRODUCT")
+  (csr-walk "PRODUCT_HAS_TAG")
+  (collect-bitset))
 ```
 
-The AST term rewriter collapses it to:
+The Stage 2 optimizer pass fuses them into a single 2-hop kernel:
 ```scheme
-(bitset:and-not next-nodes visited)
+(program
+  (csr-walk-2hop "ORDER_CONTAINS_PRODUCT" "PRODUCT_HAS_TAG")
+  (collect-bitset))
 ```
 
-Generating a single hardware-accelerated Roaring Bitset operation:
-```assembly
-OP_ROARING_BITMAP_AND_NOT R8, R9, R11
-```
+Emitting `OP_CSR_WALK_2HOP` to traverse both hops without materializing an intermediate bitset.
 
 ---
 
@@ -132,12 +132,14 @@ Using the `impulse-graph` CLI:
 
 ```bash
 # 1. Compile .impscm source to canonical .impas assembly text
-impulse compile reachability.impscm -o reachability.impas
+impulse-graph compile reachability.impscm -o reachability.impas
 
-# 2. Inspect intermediate AST S-Expressions
-impulse compile reachability.impscm --emit-ir
+# 2. Assemble .impas text into binary bytecode (.impb)
+impulse-graph assemble -i reachability.impas -o reachability.impb
 
-# 3. Assemble .impas text into binary bytecode (.impb)
+# 3. Execute compiled bytecode program against a snapshot
+impulse-graph run --snapshot production.imps --bytecode reachability.impb
+```
 impulse assemble -i reachability.impas -o reachability.impb
 
 # 4. Execute query program against snapshot

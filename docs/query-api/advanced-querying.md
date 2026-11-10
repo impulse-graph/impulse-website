@@ -34,7 +34,7 @@ List<String> activeAncestors = groups.fromKey("grp_engineering_west")
         .out("TRANSFERRED_TO")
         .repeatUntilStable("TRANSFERRED_TO")
         .toBitSet()
-        .get(suspectId);
+        .get((int) suspectId);
     ```
 
 ### 1.2 Bounded Hop Expansion (`repeat(n, relation)`)
@@ -167,7 +167,7 @@ List<String> factoryKeys = snap.domain("User")
 
 ---
 
-## 4. Multi-Lane Bit-Sliced Traversals, Quorum & Outage Screening (Planned v0.9.1)
+## 4. Multi-Lane Bit-Sliced Traversals, Quorum & Outage Screening (v0.9.1 Feature Showcase)
 
 Standard 1-bit frontiers (`TYPE_BITSET_HANDLE` `0x04`) collapse all seed nodes into a single boolean union ($\bigcup_i \text{Reach}(s_i)$), erasing per-seed provenance after the first hop. **Multi-Lane Bit-Sliced Execution (`TYPE_LANE_FRONTIER = 0x10`, opcodes `0xC0..0xC9`)** generalizes the frontier into an adaptive $W$-bit unsigned word per node (`WIDTH_8` $\le 8$, `WIDTH_16` $\le 16$, `WIDTH_32` $\le 32$, `WIDTH_64` $\le 64$ lanes, with automatic $\lceil K / 64 \rceil$ multi-batch chunking for $K > 64$), propagating up to 64 independent traversals in a single CSR/CSC pass.
 
@@ -229,7 +229,7 @@ In the companion N-64 transmission line contingency benchmark (`OP_LANE_SET_EDGE
 
 ---
 
-## 5. Hybrid Vector ANN Search & Exact SIMD Reranking (Planned v0.9.1)
+## 5. Hybrid Vector ANN Search & Exact SIMD Reranking (v0.9.1 Feature Showcase)
 
 For GraphRAG, biomedical knowledge graphs, and semantic entity retrieval, Impulse embeds **Single-Layer Vamana / DiskANN Proximity Graphs (`IMP_INDEX_VAMANA_ANN = 0x08`)** directly into Section 2.6 of the `.imps` file so vector search and symbolic CSR/CSC graph walks share the **exact same $0 \dots N_d-1$ dense domain node IDs** with zero ID translation:
 

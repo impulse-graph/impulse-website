@@ -57,11 +57,11 @@ An `.imps` file is written sequentially in five hardware-aligned sections:
 │ Section 2: Shared String Table, Domain Catalog & Relation Directory        │
 │   Global UTF-8 string pool, Domain descriptors (N_d, width), Relation IDs  │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ Section 3: Relation Topology Blocks (128-Byte Aligned)                     │
-│   Per-relation CSR (row_offsets[], col_indices[]) & optional CSC transpose │
+│ Section 3: Relation Topology & Edge Attribute Blocks (128-Byte Aligned)    │
+│   Per-relation CSR (row_offsets[], col_indices[]), CSC & edge attributes   │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ Section 4: Node & Edge SoA Attribute & Key Index Blocks (128-Byte Aligned) │
-│   Contiguous scalar columns, [N, D] vector tensors, MPHF & Null bitmaps    │
+│ Section 4: Node SoA Attribute & Key Index Blocks (128-Byte Aligned)        │
+│   Contiguous scalar columns, [N, D] vector tensors, Key Catalog & Indices  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Section 5: Footer & Integrity Block (EOF)                                  │
 │   Key-value build metadata, SHA-256 payload checksum, 16-byte "IMPS" Magic │

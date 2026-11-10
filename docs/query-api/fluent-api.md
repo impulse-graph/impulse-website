@@ -21,12 +21,12 @@ Because every Node Domain (`User`, `Account`, `Product`) has its own independent
 
 | Seed Method (Java 25 `DomainView`) | Python / Rust Equivalent | Description |
 | :--- | :--- | :--- |
-| `.all()` | `vm.QueryBuilder().input_set()` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
-| `.from(long id)` | `snap.traverse(id)` | Seeds a single dense node ID. |
-| `.from(long... ids)` | `vm.QueryBuilder` bitset seed | Seeds a batch of dense node IDs. |
+| `.all()` | `snap.domain(d).all()` / `input_set()` | Seeds the frontier with **all $N_d$ nodes** ($0 \dots N_d - 1$) in the domain. |
+| `.from(long id)` | `snap.domain(d).from_node(id)` / `traverse(id)` | Seeds a single dense node ID. |
+| `.from(long... ids)` | `snap.domain(d).from_nodes(ids)` | Seeds a batch of dense node IDs. |
 | `.from(ImpulseBitSet bits)` | `vm.QueryBuilder` bitset seed | Seeds from a pre-computed off-heap BitSet. |
-| `.fromKey(String key)` | `snap.resolve_dense_id` $\to$ `traverse(id)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
-| `.fromKeys(String... keys)` | `vm.QueryBuilder().load_keys(keys)` | Resolves a batch of external business keys to dense IDs. |
+| `.fromKey(String key)` | `snap.domain(d).from_key(key)` | Resolves an external business key (`String`, `UUID`, `int64`) to its dense ID via the domain's key catalog. |
+| `.fromKeys(String... keys)` | `snap.domain(d).from_keys(keys)` | Resolves a batch of external business keys to dense IDs. |
 
 ---
 
@@ -47,7 +47,7 @@ Each language SDK exposes an idiomatic traversal and/or VM `QueryBuilder` interf
 | **Collect Business Keys** | `.toKeyList()` | `snap.resolve_keys_batch(d, ids)` | — | `.mapDenseToKeys()` | `qb.mapDenseToKeys()` (Node) |
 | **Collect Off-Heap BitSet**| `.toBitSet()` | `vm.QueryBuilder.collect_bitset()` | — | `.collectBitset()` | `CollectBitset(reg)` / `collectBitset()` |
 | **Count Surviving Nodes** | `.count()` | `.count()` | `.count()?` | `.cardinality()` | `SetCardinality(s, d)` / `cardinality()` |
-| **Test Single Target** | `.contains(id)` | `.contains(id)` | `snap.is_reachable(rel, s, t)` | `res.testBitset(ctx, id)` | `IsReachable(...)` / `isReachable(...)` |
+| **Test Single Target** | `.toBitSet().get((int) id)` | `.contains(id)` | `snap.is_reachable(rel, s, t)` | `res.testBitset(ctx, id)` | `IsReachable(...)` / `isReachable(...)` |
 | **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | — | `impulse_compile_to_impas` | — |
 | **Multi-Lane Sub-Builder (`v0.9.1`)** | `snap.domain(d).multiLane()` | `snap.domain(d).multi_lane()` | — | `snap.domain(d).multiLane()` / `qb.laneInitSeeds(...)` | — |
 | **Vector ANN & Rerank (`v0.9.1`)** | `snap.domain(d).vectorSearch(...)` | `snap.domain(d).vector_search(...)` | `snap.vamana_ann_search(...)` | `snap.domain(d).vectorSearch(...)` / `.rerank(...)` | — |
@@ -123,7 +123,8 @@ try (Arena arena = Arena.ofConfined()) {
         .repeatUntilStable("PARENT_GROUP")
         .out("HAS_PERMISSION", "edge.scope == $scope")
         .withParam("scope", "doc:write")
-        .contains(targetDocumentDenseId);
+        .toBitSet()
+        .get((int) targetDocumentDenseId);
     ```
 
 === "Python"

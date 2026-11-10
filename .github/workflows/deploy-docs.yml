@@ -3,6 +3,8 @@ name: Deploy Documentation to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,14 +13,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout impulse-website
@@ -31,6 +30,7 @@ jobs:
         with:
           repository: impulse-graph/impulse-graph-java
           token: ${{ secrets.GH_PAT || github.token }}
+          submodules: recursive
           path: impulse-graph-java
         continue-on-error: true
 
@@ -39,6 +39,7 @@ jobs:
         with:
           repository: impulse-graph/impulse-graph-core
           token: ${{ secrets.GH_PAT || github.token }}
+          submodules: recursive
           path: impulse-graph-core
         continue-on-error: true
 
@@ -78,15 +79,25 @@ jobs:
         working-directory: impulse-graph-core/impulse-cpp
         run: |
           sudo apt-get update && sudo apt-get install -y doxygen
+          mkdir -p build/docs
           doxygen Doxyfile
           mkdir -p ../../impulse-website/site/doxygen
           cp -R build/docs/html/* ../../impulse-website/site/doxygen/
 
       - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: impulse-website/site
 
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

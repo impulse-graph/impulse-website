@@ -65,8 +65,8 @@ func main() {
 Provides deterministic `IDisposable` off-heap management (`Snapshot`, `VmContext`, `QueryBuilder`, `Query`, `ExecutionResult`) across Linux (`x64`/`arm64`), macOS (`arm64`), and Windows (`x64`).
 
 ```bash
-dotnet add package ImpulseGraph
-dotnet add package ImpulseGraph.Native
+# Reference local project or build from source (NuGet package publication planned for v1.0):
+dotnet add reference path/to/impulse-graph-core/impulse-dotnet/ImpulseGraph.csproj
 ```
 
 ```csharp
@@ -103,7 +103,8 @@ Console.WriteLine($"VM Status: {result.Status}, R2 Handle: {result.GetRegister(2
 Built on N-API (`node-addon-api`) with zero external npm dependencies and full TypeScript declarations (`index.d.ts`). Exposes `Snapshot` (with fluent `.traverse(startNode)`), `VmContext` (with `Float32Array` / `Float64Array` / `BigUint64Array` vector views), `VmState`, `QueryBuilder`, `CompiledQuery`, and `Writer`.
 
 ```bash
-npm install impulse-graph
+# Build native add-on from source (npm registry publication planned for v1.0):
+cd impulse-graph-core/impulse-node && npm install && npm run build
 ```
 
 ```typescript
@@ -144,7 +145,8 @@ try {
 | **Open `.imps`** | `impulse.OpenSnapshot(path)` | `new Snapshot(path)` | `new Snapshot(path)` |
 | **Domain / Relation Count** | `snap.DomainCount()` / `RelationCount()` | `snap.DomainCount` / `RelationCount` | — |
 | **Direct CSR Check** | `snap.IsReachable(rel, src, tgt)` | `snap.IsReachable(rel, src, tgt)` | `snap.isReachable(srcDom, src, tgtDom, tgt)` |
-| **Zero-Copy CSR Buffers** | `snap.GetRelationBuffers(rel)` | `snap.GetRelationEntry(rel)` | `snap.traverse(startNode)` |
+| **Zero-Copy CSR Buffers** | `snap.GetRelationBuffers(rel)` | — *(Direct pointers via FFI)* | — *(Off-heap VM buffers)* |
+| **Fluent Traversal API** | — | — | `snap.traverse(node)` |
 | **VM Context** | `impulse.NewVMContext(snap)` | `new VmContext(snap)` | `new VmContext(snap)` |
 | **Seed Input Node** | `qb.InputNode(dstReg)` | `qb.InputNode(dstReg)` | `qb.inputNode(dstReg)` |
 | **Forward Walk (CSR)** | `qb.WalkEdge(relId, dstReg)` | `qb.WalkEdge(relId, dstReg)` | `qb.walkEdge(relId, flags)` |

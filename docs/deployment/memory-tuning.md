@@ -62,14 +62,16 @@ if (holder != null) {
 }
 
 // Ingestion / Refresh Path (Atomic Pointer Swap)
-try (Arena newArena = Arena.ofShared()) {
-    var newLoaded = BinarySnapshotLoader.loadSnapshot(Path.of("graph_v2.imps"), newArena);
-    GraphSnapshot newSnapshot = newLoaded.getGraph();
+// Note: The new Arena must NOT be closed in a try-with-resources block here.
+// SnapshotSwapManager takes ownership of the arena/snapshot reference and
+// asynchronously closes it once all active queries on the prior generation have drained.
+Arena newArena = Arena.ofShared();
+var newLoaded = BinarySnapshotLoader.loadSnapshot(Path.of("graph_v2.imps"), newArena);
+GraphSnapshot newSnapshot = newLoaded.graph();
 
-    // Atomically swap current pointer. Spawns a virtual thread that spins
-    // until oldHolder activeReaders reaches 0, then cleanly calls close().
-    swapManager.swap(newSnapshot);
-}
+// Atomically swap current pointer. Spawns a virtual thread that awaits
+// until the old epoch activeReaders reaches 0, then cleanly calls close().
+swapManager.swap(newSnapshot);
 ```
 
 ---
@@ -119,10 +121,9 @@ java --enable-preview \
      --add-modules jdk.incubator.vector \
      --enable-native-access=ALL-UNNAMED \
      -XX:+UnlockDiagnosticVMOptions \
-     -XX:UseAVX=3 \
+     -XX:UseAVX=3 \                  # x86-64 only; omit on ARM64 / Apple Silicon
      -XX:+UseLargePages \
      -XX:LargePageSizeInBytes=2m \
-     -XX:+UseTransparentHugePages \
      -XX:+UseZGC \
      -XX:+ZGenerational \
      -Xms2g -Xmx4g \
@@ -136,11 +137,13 @@ java --enable-preview \
 | **`--enable-preview`** | Enables preview features (FFM on Java 21 LTS baseline). Mandatory for preview compilation. |
 | **`--add-modules jdk.incubator.vector`** | Binds the SIMD Vector API module for AVX-512, AVX2, and ARM Neon vector instruction synthesis. |
 | **`--enable-native-access=ALL-UNNAMED`** | Grants zero-overhead off-heap native memory segment access and unmapping permissions. |
-| **`-XX:UseAVX=3`** | Enables AVX-512 instruction generation on Intel/AMD x86-64 processors. Sets `PREFERRED_VECTOR_BIT_WIDTH = 512`. |
+| **`-XX:UseAVX=3`** | Enables AVX-512 instruction generation on Intel/AMD x86-64 processors (omit on ARM64 / Apple Silicon / AWS Graviton). Sets `PREFERRED_VECTOR_BIT_WIDTH = 512`. |
 | **`-XX:+UseLargePages`**<br>**`-XX:LargePageSizeInBytes=2m`** | Configures 2MB huge pages for JVM metadata and code cache, reducing TLB miss latency. |
-| **`-XX:+UseTransparentHugePages`** | Advises the Linux kernel to back memory-mapped pages with Transparent Huge Pages (THP). |
 | **`-XX:+UseZGC -XX:+ZGenerational`** | Low-latency generational garbage collection with sub-millisecond pauses for carrier and query threads. |
 | **`-Xms2g -Xmx4g`** | **Lean Heap Sizing**: Sets a small heap (2–4 GB). Allocating large heaps (e.g. `-Xmx32g`) locks physical RAM away from the OS Page Cache, degrading `.imps` zero-copy I/O throughput. |
+
+> [!NOTE] Off-Heap Memory and `-XX:MaxDirectMemorySize`
+> `FileChannel.map` creates memory-mapped segments backed directly by the operating system page cache. Memory-mapped I/O is governed by OS virtual memory limits (`vm.max_map_count`) and available physical RAM, and is **not** bounded or constrained by the JVM's `-XX:MaxDirectMemorySize` flag.
 
 ### 4.3 Engine Optimization Thresholds (`OptimizerConfig`)
 

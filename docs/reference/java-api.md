@@ -2,7 +2,7 @@
 
 The **Pure Java 25 Engine** (`impulse-graph-java`) is a standalone, zero-dependency implementation of the Impulse Graph Engine and `ImpulseVM`. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` C2 JIT combinators.
 
-Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **memory-bandwidth and cache-line bound**, `impulse-graph-java` executes within **`1.5x–2.0x` of the Native C++20 kernel** (specifically **`1.65x`** on 1.47B-edge `twitter-2010` BFS: `240.29 ms` Java vs. `145.00 ms` C++) with a **JFR-verified zero-allocation hot path** (`0.00 ms` GC pauses). In enterprise microservices, JFR profiling shows that Jackson JSON serialization of the query response (`1.91 µs – 2.56 µs`) consumes **`3.5x to 73x` more CPU time** than the Impulse Graph query itself (`0.026 µs – 0.552 µs`)—making Pure Java 25 wholly suitable for demanding enterprise workloads without JNI wrappers or inherited CVEs. See **[Benchmarks](../benchmarks.md)** for full details.
+Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **memory-bandwidth and cache-line bound**, `impulse-graph-java` executes within **`1.5x–2.0x` of the Native C++20 kernel** (specifically **`1.65x`** on 1.47B-edge `twitter-2010` BFS: `240.29 ms` Java vs. `145.00 ms` C++) with a **JFR-verified zero-allocation hot path** (`0.00 ms` GC pauses). In enterprise microservice benchmarks simulating multi-hop ReBAC authorization queries against a realistic directory corpus of 600,000 users, JFR profiling shows that Jackson JSON serialization of the query response (`1.91 µs – 2.56 µs`) consumes **`3.5x to 73x` more CPU time** than the Impulse Graph query itself (`0.026 µs – 0.552 µs`)—making Pure Java 25 wholly suitable for demanding enterprise workloads without JNI wrappers or inherited CVEs. See **[Benchmarks](../benchmarks.md)** for full details.
 
 !!! info "Interactive Aggregated Javadocs"
     Browse the full multi-module HTML Javadoc site at [**`/javadoc/index.html`**](/javadoc/index.html).
@@ -13,15 +13,19 @@ Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **me
 | [**`org.impulsegraph.api.traversal`**](/javadoc/org/impulsegraph/api/traversal/package-summary.html) | `impulse-api` | Kleisli frontier pipeline (`DomainView`, `Traversal<T>`, `Reducer`) |
 | [**`org.impulsegraph.api.statement`**](/javadoc/org/impulsegraph/api/statement/package-summary.html) | `impulse-api` | SQLite-style prepared statements (`ImpulseStatement`, `RowReader`) |
 | [**`org.impulsegraph.api.bitset`**](/javadoc/org/impulsegraph/api/bitset/package-summary.html) | `impulse-api` | Zero-copy off-heap bitsets (`ImpulseBitSet`, `OffHeapBitSet`) |
+| [**`org.impulsegraph.compiler.ast`**](/javadoc/org/impulsegraph/compiler/ast/package-summary.html) | `impulse-api` | AST node representations and lexical bindings |
 | [**`org.impulsegraph.storage.csr`**](/javadoc/org/impulsegraph/storage/csr/package-summary.html) | `impulse-storage` | `BinarySnapshotLoader`, `GraphSnapshot`, `SnapshotSwapManager` |
 | [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery`, `VmQueryContext`, `VmLaneFrontier`, `VmMultiLaneHandlers` |
-| [**`org.impulsegraph.compiler.ast`**](/javadoc/org/impulsegraph/compiler/ast/package-summary.html) · [**`cypher`**](/javadoc/org/impulsegraph/compiler/cypher/package-summary.html) · [**`cel`**](/javadoc/org/impulsegraph/compiler/cel/package-summary.html) · [**`passes`**](/javadoc/org/impulsegraph/compiler/passes/package-summary.html) · [**`emitter`**](/javadoc/org/impulsegraph/compiler/emitter/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes, and bytecode emitter |
+| [**`cypher`**](/javadoc/org/impulsegraph/compiler/cypher/package-summary.html) · [**`cel`**](/javadoc/org/impulsegraph/compiler/cel/package-summary.html) · [**`passes`**](/javadoc/org/impulsegraph/compiler/passes/package-summary.html) · [**`emitter`**](/javadoc/org/impulsegraph/compiler/emitter/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes, and bytecode emitter |
 | [**`org.impulsegraph.builder.api`**](/javadoc/org/impulsegraph/builder/api/package-summary.html) | `impulse-builder` | Streaming `SnapshotBuilder`, `DomainDefinition`, `RelationDefinition` |
 | [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format FFM memory layouts and protocol constants |
 
 ---
 
 ## 1. Maven & Gradle Coordinates (`org.impulsegraph`)
+
+!!! note "Pre-v1.0 Source Installation & Central Staging"
+    Official releases will be published to Maven Central upon the `v1.0` general release. For current builds, install artifacts to your local `~/.m2` repository with `mvn clean install -DskipTests` from `~/impulse/impulse-graph-java`.
 
 === "Maven (`pom.xml`)"
     ```xml

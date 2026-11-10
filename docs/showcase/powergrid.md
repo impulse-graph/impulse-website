@@ -63,7 +63,7 @@ By compiling the grid topology (`Bus` domain and `Branch` CSR arrays + electrica
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1. PYPOWER / NetworkX (Single-Thread)** | 20,000 pairs | 95,073.19 ms (95.1 s) | 210 pairs/sec | 4,753 $\mu\text{s}$ | **1.0x Baseline** |
 | **2. PYPOWER / NetworkX (Multi-Thread 10C)** | 20,000 pairs | 20,231.41 ms (20.2 s) | 989 pairs/sec | 1,011 $\mu\text{s}$ | **4.7x Faster** |
-| **3. Impulse SIMD C++20 (Multi-Thread 10C)** | **378,100 pairs** *(Top 200 $\times E$)* | **263.06 ms (0.26 s)** | **1,437,286 pairs/sec** | **0.69 $\mu\text{s}$** (`0.6957 µs`) | **6,833x Throughput** (`361.4x` less wall time for `18.9x` more pairs) |
+| **3. Impulse SIMD C++20 (Multi-Thread 10C)** | **378,100 pairs** *(Top 200 $\times E$)* | **263.06 ms (0.26 s)** | **1,437,286 pairs/sec** | **0.69 $\mu\text{s}$** (`0.6957 µs`) | **1,453x vs 10C PYPOWER** (`6,833x` vs 1C baseline; `361.4x` less wall time for `18.9x` more pairs) |
 
 !!! note "Throughput vs. Wall-Clock Speedup"
     In the comparison above, the PYPOWER baseline was capped at `20,000` $N-2$ pairs due to execution time (`95.1 s` single-thread, `20.2 s` on 10 cores), whereas the Impulse C++20 10-core run evaluated all `378,100` top-branch $N-2$ pairs in **`263.06 ms`**—completing **`18.9x` more contingency pairs** in **`361.4x` less total wall-clock time**, representing a **`6,833x` per-pair throughput speedup** (`1,437,286 pairs/sec` vs. `210 pairs/sec`, or **`1,453x`** vs. 10-core PYPOWER).
@@ -85,7 +85,7 @@ While the `v0.9.0` SIMD island detector evaluates one contingency per BFS pass, 
 2. **`OP_LANE_CSR_WALK` (`0xC3`)**: Advances all 64 contingency wavefronts in lockstep during a **single CSR adjacency scan** via `uint64_t new_bits = (u_mask & ~trip_mask[br]) & ~visited[v]`, amortizing CSR memory reads and branch prediction overhead by up to $64\times$.
 3. **`OP_LANE_REDUCE_AND` (`0xC7`)**: Fuses the end-of-wave bitwise `AND` reduction (`all_reached &= visited[u]`) and scratch zeroing pass into a single linear sweep, returning a 64-bit islanding bitmask `active_mask & ~all_reached` where bit $b = 1$ iff contingency lane $b$ disconnected the grid.
 
-Empirical results from [`poc_64way_bench.cpp`](https://github.com/impulse-graph/impulse-powergrid/blob/main/src/poc_64way_bench.cpp) on `case1354pegase.imps` ($|V| = 1,354$ buses, $|E| = 1,991$ branches, 100% bitwise parity with baseline):
+Empirical results from [`poc_64way_bench.cpp`](https://github.com/impulse-graph/impulse-powergrid/blob/feat/poc-64way-bit-parallel-bench/src/poc_64way_bench.cpp) on `case1354pegase.imps` ($|V| = 1,354$ buses, $|E| = 1,991$ branches, 100% bitwise parity with baseline):
 
 | Workload (`case1354pegase.imps`) | Execution Mode | 1-Way Zero-Alloc BFS | 64-Way Bit-Parallel (`0xC0..0xC7`) | 64-Way Throughput | Speedup & Verification |
 | :--- | :--- | :--- | :--- | :--- | :--- |

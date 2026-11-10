@@ -35,8 +35,8 @@ can_view(U, D) :- member(U, G), doc_viewer(D, G), !account_locked(U).
 | **Conjunction (Join)** | `H(X, Z) :- R1(X, Y), R2(Y, Z).` | Sequential CSR / CSC walk (`OP_CSR_WALK` / `OP_CSC_WALK`). |
 | **Disjunction (Union)**| `H(X, Y) :- R1(X, Y) ; R2(X, Y).`| Bitset union (`OP_SET_UNION` / `OP_ROARING_BITMAP_OR`). |
 | **Stratified Negation**| `H(X) :- R(X), !Banned(X).` | Bitset difference (`OP_ROARING_BITMAP_AND_NOT`). |
-| **Lattice Aggregation**| `Dist(X, Y, min(C)) :- ...` | Monoidal in-flight reduction ($\bigoplus$) at target nodes. |
 | **Bound Query Goal** | `?- can_view("usr_alice", Doc).` | **Magic Sets** rewrite pushing the seed binding to the root walk. |
+| **Lattice Aggregation (Roadmap)** | `Dist(X, Y, min(C)) :- ...` | Monoidal in-flight reduction ($\bigoplus$) at target nodes (expressed via Fluent API `.outWithState`). |
 
 ---
 
@@ -46,8 +46,8 @@ can_view(U, D) :- member(U, G), doc_viewer(D, G), !account_locked(U).
    * Recursive rules never re-traverse edges from already-visited nodes. Each iteration expands only the newly discovered delta frontier $\Delta \mathcal{S}_t$ and subtracts $\mathcal{S}_{\text{visited}}$ via a single `OP_ROARING_BITMAP_AND_NOT` instruction until $\Delta \mathcal{S}_{t+1} = \emptyset$.
 2. **Magic Sets Goal-Directed Rewriting**:
    * When a query binds a specific entity (e.g., `?- can_view("usr_alice", Doc)`), the compiler rewrites the recursive rules so `ImpulseVM` expands **only the subgraph reachable from `"usr_alice"`** rather than materializing group memberships for every user in the snapshot.
-3. **Lattice Datalog ($\text{Datalog}^\mathcal{L}$)**:
-   * Supports monotonic semiring aggregations (`min`, `max`, `sum`) directly inside recursive rules (e.g., shortest-path distance `shortest(X, Y, min(C1 + C2))`) with guaranteed termination under Tarski's Fixed-Point Theorem.
+3. **Lattice Datalog ($\text{Datalog}^\mathcal{L}$ — Planned Roadmap)**:
+   * Formal semiring aggregations (`min`, `max`, `sum`) inside recursive rule heads are scheduled for `v1.0.0`. In `v0.9.0`, monotonic reductions are evaluated with zero heap allocations using the Fluent Traversal API (`.outWithState(...)`) and VM opcodes `OP_CSR_WALK_REDUCE` / `OP_MXV`.
 
 ---
 
@@ -112,4 +112,4 @@ You can compile and execute `.implog` programs directly inside your application 
     ```
 
 !!! note
-    **Java `@ImpLogRule` Annotation Roadmap**: Direct in-process Java compilation of `.implog` strings and `@ImpLogRule` annotations is scheduled for `v1.0.0` (currently supported natively in the C/C++20 kernel via `IMPULSE_LANG_IMPLOG` and in the `impulse compile` CLI).
+    **In-Process Java Execution & Annotations**: In-process compilation of `.implog` rule strings is supported directly in Java via `ImpLogCompiler.compileToExecutable(rules, snap, arena)`. Compile-time Java source annotations (`@ImpLogRule`) are scheduled for the `v1.0.0` release.

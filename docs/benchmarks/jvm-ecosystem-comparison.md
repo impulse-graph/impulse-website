@@ -25,11 +25,13 @@ Evaluated on **Apple Silicon M-Series (ARM64 NEON, 10 Threads)** over the **6.04
 | JVM Distribution | FFM (`MemorySegment`) Support | Vector API (`jdk.incubator.vector`) SIMD | Cold-Start Acceleration Mechanism | Primary Production Target |
 | :--- | :--- | :--- | :--- | :--- |
 | **OpenJDK 25 (HotSpot C2)** | Full (`AMD64` & `ARM64`) | Full (`AVX-512`, `AVX2`, `ARM NEON`) | **Project Leyden AOT Cache** (`-XX:AOTCache`) | Reference standard for Linux/macOS/Windows enterprise deployments |
-| **Amazon Corretto 25** | Full (`AMD64` & `ARM64`) | Full (`AVX-512`, `AVX2`, `ARM NEON` / SVE) | **Project Leyden AOT Cache** (`-XX:AOTCache`) | AWS EC2 Graviton3 / Graviton4 (`ARM64` Neoverse) & EKS |
-| **Oracle GraalVM JIT (JVM Mode)** | Full (`AMD64` & `ARM64`) | Full (Graal Vectorizer + Vector API) | JVM CDS / AOT Cache | Compute-intensive graph analytics (PageRank, Connected Components) |
+| **Amazon Corretto 25** | Full (`AMD64` & `ARM64`) | Full (`AVX-512`, `AVX2`, `ARM NEON` / SVE) | AppCDS / Project Leyden (Roadmap) | AWS EC2 Graviton3 / Graviton4 (`ARM64` Neoverse) & EKS |
+| **Oracle GraalVM JIT (JVM Mode)** | Full (`AMD64` & `ARM64`) | Full (Graal Vectorizer + Vector API) | AppCDS / JVM AOT Cache | Compute-intensive graph analytics (PageRank, Connected Components) |
 | **GraalVM Native Image (`native-image`)** | **AMD64 (`x86_64`) Only** (`-H:+ForeignAPISupport`; unsupported on `ARM64`) | Experimental on `native-image` | AOT Native Binary (No JVM warmup) | Serverless / CLI containers on `x86_64` Linux |
-| **Azul Platform Prime (Zing)** | Full (`x86_64` & `ARM64` Linux) | LLVM Falcon JIT auto-vectorization + Vector API | Falcon ReadyNow! profile log | Strict SLA financial trading & fraud services with large auxiliary heaps (C4 GC) |
-| **Eclipse OpenJ9 / IBM Semeru** | Supported (JDK 21+) | Supported via OMR JIT | Shared Classes Cache (`-Xshareclasses`) | Memory-constrained Kubernetes pod packing where minimal base JVM RSS is required |
+| **Azul Platform Prime (Zing)** \* | Full (`x86_64` & `ARM64` Linux) | LLVM Falcon JIT auto-vectorization + Vector API | Falcon ReadyNow! profile log | Strict SLA financial trading & fraud services with large auxiliary heaps (C4 GC) |
+| **Eclipse OpenJ9 / IBM Semeru** \* | Supported (JDK 21+) | Partial / Scalar Fallback in OMR JIT | Shared Classes Cache (`-Xshareclasses`) | Memory-constrained Kubernetes pod packing where minimal base JVM RSS is required |
+
+*\* Note: Azul Platform Prime and Eclipse OpenJ9 characterizations reflect architectural compatibility and vendor feature matrices; empirical benchmark tables above were recorded strictly on OpenJDK 25 HotSpot and Oracle GraalVM.*
 
 ---
 
