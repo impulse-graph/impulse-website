@@ -1,6 +1,6 @@
 # Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)
 
-If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (`impulse-graph-tooling`)** is the fastest way to build, inspect, validate, and optimize snapshots.
+If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (`impulse-graph-core/impulse-cli`)** is the fastest way to build, inspect, validate, and optimize snapshots.
 
 !!! tip
     **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
@@ -29,7 +29,7 @@ Under the hood, `impulse build` automatically:
 brew install impulse-graph/tap/impulse-cli
 
 # Or build directly from source (Rust 1.80+)
-cargo install --git https://github.com/impulse-graph/impulse-graph-tooling.git
+cargo install --git https://github.com/impulse-graph/impulse-graph-core.git --bin impulse-graph impulse-graph-tooling
 ```
 
 ---
