@@ -37,10 +37,11 @@ The ecosystem is partitioned into specialized repositories located at `~/impulse
 
 | Repository Name | Role & Description | Primary Tech Stack | Primary Directory |
 | :--- | :--- | :--- | :--- |
-| **`impulse-graph-core`** | **Core Engine Kernel & FFI Bindings**. Contains the C++20 zero-copy memory-mapped kernel, Rust core engine crate (`impulse-rust`), and multi-language FFI bindings (Python, C#, Go, Node.js). | C++20, Rust, Python, C#, Go, Node.js | `~/impulse/impulse-graph-core/` |
-| **`impulse-graph-spec`** | **Binary Snapshot Specification & Test Vectors**. Canonical C-ABI Binary Snapshot v0.9.0 normative format specification (`docs/FORMAT_SPECIFICATION.md`) and cross-language compliance test vectors (`tc01`..`tc36`). | Markdown, Python | `~/impulse/impulse-graph-spec/` |
-| **`impulse-graph-java`** | **Java 21 LTS & Java 22+ Core Engine**. Standalone dual-target Java 21 LTS (preview) and Java 22+ / Java 25 LTS (standard) Foreign Function & Memory (FFM) off-heap snapshot engine & Impulse VM interpreter (`impulse-api`, `impulse-core`, `impulse-spec`). | Java 21 LTS / Java 22+ (FFM/Vector API), Maven | `~/impulse/impulse-graph-java/` |
-| **`impulse-graph-tooling`** | **Developer Utilities & ImpVM Suite**. Contains `impulse assemble`, `impulse disassemble`, `impulse run`, `impulse compile`, `impulse inspect`, and `impulse opt`. | C++20, Rust, Go, CMake | `~/impulse/impulse-graph-tooling/` |
+| **`impulse-graph-spec`** | **Binary Snapshot Specification & Test Vectors**. Canonical C-ABI Binary Snapshot v0.9.0 normative format specification (`docs/FORMAT_SPECIFICATION.md`), opcode contracts, and compliance test vectors (`tc01`..`tc37`, `vm-impas/`). | Markdown, Python | `~/impulse/impulse-graph-spec/` |
+| **`impulse-graph-core`** | **Core Engine Kernel, CLI Tooling & FFI Bindings**. Contains the C++20 zero-copy memory-mapped kernel (`impulse-cpp`), Rust core engine crate (`impulse-rust`), standalone CLI & developer tooling (`impulse-cli`), and multi-language FFI bindings (Python, C#, Go, Node.js). | C++20, Rust, Python, C#, Go, Node.js | `~/impulse/impulse-graph-core/` |
+| **`impulse-graph-java`** | **Java 21 LTS & Java 22+ Core Engine**. Standalone dual-target Java 21 LTS (preview) and Java 22+ / Java 25 LTS (standard) Foreign Function & Memory (FFM) off-heap snapshot engine & Impulse VM interpreter (`impulse-api`, `impulse-core`, `impulse-spec`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`). | Java 21 LTS / Java 22+ (FFM/Vector API), Maven | `~/impulse/impulse-graph-java/` |
+| **`impulse-ocaml`** | **Normative Reference Engine & Formal Oracle**. Pure functional OCaml reference implementation of the `ImpulseVM` ISA and `ICTX` v1 deterministic state hash. | OCaml, Dune | `~/impulse/impulse-ocaml/` |
+| **`impulse-verification`** | **Polyglot Verification & Differential Fuzzing Suite**. Four-way polyglot validation suite (`tools/four_way_validation.py`), contract-guided differential fuzzer (`tools/fuzz_vm_contracts.py`), and cross-compiler parity harness (`tools/cross_compiler_parity.py`). | Python, Java | `~/impulse/impulse-verification/` |
 | **`impulse-benchmarks`** | **Performance & Macro Benchmark Suite**. Reproducible benchmark harnesses comparing Impulse Graph against Neo4j, NetworkX, PyTorch Geometric, MATPOWER, and OpenFGA. | Java (JMH), C++ (Google Bench), Python | `~/impulse/impulse-benchmarks/` |
 | **`impulse-website`** | **Documentation Portal & Landing Page**. Official documentation site (`docs.impulsegraph.io`) built with Material for MkDocs. | Markdown, MkDocs Material, YAML | `~/impulse/impulse-website/` |
 | **`impulse-platform`** | **Enterprise Cloud Infrastructure**. Standalone Spring Boot gRPC server, Kafka WAL ingestion, GCS/S3 cloud snapshot sync, Kubernetes leader election, and RocksDB local persistence. | Java 25, Spring Boot, K8s, Kafka | `~/impulse/impulse-platform/` |
@@ -74,7 +75,7 @@ When modifying or implementing code across any repository in `~/impulse/`, enfor
 * **Impulse VM Architecture**: Register-based opcode Virtual Machine (`ImpulseVM`) executing `impOps` bytecode instructions (`OP_CSR_WALK`, `OP_CSC_WALK`, `OP_MXV`, `OP_CC_AFFOREST`, `OP_COLLECT_BITSET`) with OpenMP intra-instruction parallelization and Java 25 `MethodHandle` JIT combinators.
 
 ### 3.5 Distributables & Standalone Packaging Guidelines
-* **Static Core Engine Linking**: All `impulse-graph-tooling` executables (`impulse-opt`, `impulse-compile`, `impulse-inspect`, `impulse-run`) MUST statically embed the core Impulse Graph C-ABI kernel (`libimpulse_graph_static.a` / `.lib`) when building release distributables (`.deb`, `.rpm`, `.msi`, `.pkg`, `tar.gz`).
+* **Static Core Engine Linking**: All `impulse-cli` executables (`impulse-graph` / `impulse`) MUST statically embed the core Impulse Graph C-ABI kernel (`libimpulse_graph_static.a` / `.lib`) when building release distributables (`.deb`, `.rpm`, `.msi`, `.pkg`, `tar.gz`).
 * **Linux C Runtime (`glibc` vs `musl`)**: Release packages (`.deb`, `.rpm`) target `glibc >= 2.28` for standard Linux distros. Portable container tarballs target `musl-libc` fully static (`-static`) for zero-dependency execution in `scratch` / Alpine containers.
 * **macOS Distribution (`.pkg` / Homebrew)**: Embeds static engine kernel; links system `libc++.dylib` and `libSystem.B.dylib` (guaranteed on macOS 11.0+).
 * **Windows Packaging (`.msi` / `.zip`)**: Built with MSVC `/MT` (Static C++ Runtime `LIBCMT.lib`) to eliminate Visual C++ Redistributable runtime installer requirements.
@@ -156,11 +157,11 @@ $$\text{Pipeline} = \text{Anchor}(D_0, F_0, S_0) \gg= T_1 \gg= T_2 \dots \gg= T_
 * **Failure Classification of Imperative Substitutes**: Falling back to manual imperative client-side loops or iterative buffer lookups is considered an architectural failure.
 * **Honest Engine Capability Reporting**: If a requested traversal feature, state projection expression, or query capability is not yet implemented end-to-end in the current engine/VM runtime, AI agents MUST directly, explicitly, and honestly state that **it is not currently possible given engine functionality**, rather than fabricating imperative workarounds as a substitute.
 ### 3.17 Official Tooling Mandate for Snapshot Generation
-* **Strict Usage of `impulse-graph-tooling`**: When building or regenerating `.imps` zero-copy binary snapshot files from datasets, AI agents MUST exclusively use the official `impulse-graph-tooling` CLI utilities (e.g., `impulse build`, `impulse generate`). 
+* **Strict Usage of `impulse-cli`**: When building or regenerating `.imps` zero-copy binary snapshot files from datasets, AI agents MUST exclusively use the official `impulse-graph-core/impulse-cli` CLI utilities (e.g., `impulse build`, `impulse generate`). 
 * **Prohibition of Ad-hoc Generators**: Agents MUST NEVER use ad-hoc Python, C++, or shell scripts to directly write or manipulate the binary bytes of `.imps` files, as this leads to corrupted string pools, missing auxiliary sections (like CSC), and `BufferOverflow` crashes in the `impulse inspect` tool.
 
 ### 3.18 Four-Way Polyglot VM Parity, Strict Output Identity & Test Vector Integrity
-* **Primary Base-Level VM Check**: The Four-Way Polyglot Validation Suite (`impulse-graph-spec/tools/four_way_validation.py`) is the primary ground-truth regression and compliance check across all ImpulseVM engine implementations:
+* **Primary Base-Level VM Check**: The Four-Way Polyglot Validation Suite (`impulse-verification/tools/four_way_validation.py`) is the primary ground-truth regression and compliance check across all ImpulseVM engine implementations:
   1. **C++ Kernel (Optimizations ON)** (`build_on/libimpulse_graph.dylib` / `.so`)
   2. **C++ Kernel (Optimizations OFF)** (`build_off/libimpulse_graph.dylib` / `.so`)
   3. **Java 25 Core Engine** (FFM Off-Heap & `jdk.incubator.vector` SIMD)
@@ -202,13 +203,11 @@ cargo test
 mvn clean test
 ```
 
-### Four-Way Polyglot VM Validation Suite (`impulse-graph-spec/tools/four_way_validation.py`)
+### Four-Way Polyglot VM Validation Suite (`~/impulse/impulse-verification/`)
 ```bash
-IMPULSE_LIB_PATH_ON="/Users/jesse/impulse/impulse-graph-core/impulse-cpp/build_on/libimpulse_graph.dylib" \
-IMPULSE_LIB_PATH_OFF="/Users/jesse/impulse/impulse-graph-core/impulse-cpp/build_off/libimpulse_graph.dylib" \
-python3 impulse-graph-spec/tools/four_way_validation.py
+python3 impulse-verification/tools/four_way_validation.py
 ```
-*(Optionally pass a pattern or filename filter as an argument to test specific vectors, e.g. `python3 impulse-graph-spec/tools/four_way_validation.py tc12`)*
+*(Optionally pass a pattern or filename filter as an argument to test specific vectors, e.g. `python3 impulse-verification/tools/four_way_validation.py tc12`)*
 
 ### Opcode Test Coverage Suite (`~/impulse/impulse-graph-spec/`)
 ```bash
@@ -220,9 +219,10 @@ python3 tools/run_vm_asm_suite.py
 cat docs/FORMAT_SPECIFICATION.md
 ```
 
-### Developer Tools (`~/impulse/impulse-graph-tooling/`)
+### Developer CLI Tools (`~/impulse/impulse-graph-core/impulse-cli/`)
 ```bash
-cmake -B build && cmake --build build
+cargo build --release
+./target/release/impulse-graph inspect --file snapshot.imps
 ```
 
 ### Documentation Site (`~/impulse/impulse-website/`)

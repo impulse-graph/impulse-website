@@ -1,6 +1,6 @@
 # CLI Reference (`impulse` / `impulse-graph`)
 
-Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-tooling`). Every release binary statically embeds `libimpulse_graph_static.a`.
+Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-core/impulse-cli`). Every release binary statically embeds `libimpulse_graph_static.a`.
 
 !!! important
     **Command Naming Convention**:

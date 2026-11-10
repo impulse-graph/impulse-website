@@ -30,7 +30,7 @@ This page tracks the current development status, subsystem readiness, announceme
 | **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | RC Ready | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
 | **[Multi-Frontend Compiler (`ImpScheme` / `openCypher` / `CEL`)](concepts/compiler-architecture.md)** | RC Ready | [=90% "90%"] | Two-stage optimizer (logical AST rewriting + cost-based physical selection), Multi-Lane width selection & SQLite-style prepared statements |
 | **[Documentation Portal (`impulse-website`)](index.md)** | Active | [=85% "85%"] | Core guides, specifications, Javadocs & C-ABI references live; remaining tutorials in progress |
-| **[Developer CLI Suite (`impulse-graph-tooling`)](reference/cli.md)** | Beta | [=85% "85%"] | Standalone `impulse build`, `inspect`, `validate`, `compile`, `assemble`, `disassemble`, `run`, `attach-embeddings`, `bench-vector`, `opt --vamana-locality` |
+| **[Developer CLI Suite (`impulse-cli`)](reference/cli.md)** | Beta | [=85% "85%"] | Standalone `impulse build`, `inspect`, `validate`, `compile`, `assemble`, `disassemble`, `run`, `attach-embeddings`, `bench-vector`, `opt --vamana-locality` (`impulse-graph-core/impulse-cli`) |
 | **[Polyglot Language SDKs](software-modules.md)** | Beta | [=80% "80%"] | Python (`pybind11` / NumPy / PyTorch), Rust (`impulse-rust`), Go (`CGo`), .NET/C# (`P/Invoke`), Node.js (`N-API`) |
 
 ---

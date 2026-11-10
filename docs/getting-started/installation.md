@@ -77,11 +77,15 @@ Choose your language ecosystem below:
     pip install impulse-graph
     ```
 
-## Developer CLI (`impulse-graph-tooling`)
+## Developer CLI (`impulse-cli`)
 
-The CLI toolchain (`impulse build`, `impulse compile`, `impulse run`, `impulse snapshot inspect`, `impulse snapshot validate`) can be run via Docker or installed as a standalone static binary:
+The CLI toolchain (`impulse build`, `impulse compile`, `impulse run`, `impulse snapshot inspect`, `impulse snapshot validate`) lives in `impulse-graph-core/impulse-cli` and can be run via Docker or installed as a standalone binary:
 
 ```bash
+# Run via Docker
 docker pull ghcr.io/impulse-graph/impulse-tools:latest
 docker run --rm -v $(pwd):/data ghcr.io/impulse-graph/impulse-tools:latest impulse snapshot inspect /data/snapshot.imps
+
+# Or build from source (Rust 1.80+)
+cargo install --git https://github.com/impulse-graph/impulse-graph-core.git --bin impulse-graph impulse-graph-tooling
 ```
