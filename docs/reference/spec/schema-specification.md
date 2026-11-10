@@ -1,6 +1,6 @@
 # Schema & Manifest Specification (`manifest.yaml` / `schema.yaml`)
 
-This document defines the declarative schema and multi-tablespace manifest format (`manifest.yaml` / `schema.yaml` / `manifest.json`) used across the Impulse Graph Engine ecosystem.
+This document defines the declarative schema and multi-tablespace manifest format (`manifest.yaml` / `schema.yaml` / `manifest.json`, originating from the Layer 0 normative `.imps.schema.yaml` specification) used across the Impulse Graph Engine ecosystem.
 
 A schema file serves four roles:
 
