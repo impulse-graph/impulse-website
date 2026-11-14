@@ -14,7 +14,7 @@
 
 Think of it as **"SQLite meets Apache Arrow for Graph Analytics"**:
 
-* **Single-File, Zero-Copy Snapshots (`.imps`)**: Compile your graph once into a 128-byte-aligned `.imps` file. Mount 10 MB or 10 TB in **< 1 millisecond** via a single OS `mmap` call—no database server to manage, no deserialization, and no heap loading.
+* **Single-File, Zero-Copy Snapshots (`.imps`)**: Compile your graph once into a 128-byte-aligned `.imps` file. Mount snapshots (from 10 MB to multi-terabyte files) in **< 1 millisecond** via an $O(1)$ OS `mmap` call—no database server to manage, no deserialization, and no heap loading.
 * **Zero Allocations in the Hot Query Path**: The exact memory required for a query is deterministically known at `prepare` time, pre-allocated, and passed in—enabling an **allocation-free, lock-free, GC-free hot query path** and massive concurrency.
 * **Zero Runtime Dependencies (Zero Inherited CVEs)**: Both first-class engines—**100% Pure Java 25** and **Native C++20 / C-ABI**—have zero third-party runtime dependencies.
 
@@ -42,7 +42,7 @@ flowchart TD
     IMPS["Impulse Binary Snapshot (.imps)\n4KB Header + 128B-Aligned CSR / CSC / SoA"]
 
     IMPS --> JAVA["1. Pure Java 25 Engine (impulse-graph-java)\nFFM Off-Heap MemorySegment + Vector API SIMD\nMethodHandle JIT Fusion • Zero GC • Zero CVEs"]
-    IMPS --> CABI["2. Native C++20 & C-ABI Engine (impulse-graph-core)\nC++20 Kernel + SQLite-Style C-ABI (impulse_graph.h)\nPowers Python, C++, Rust, Go, C#, and Node.js"]
+    IMPS --> CABI["2. Native C++20 & C-ABI Engine (impulse-graph-core)\nC++20 Kernel + SQLite-Style C-ABI (impulse_graph.h)\nPowers Python, Go, C#, Node.js (with standalone Rust crate)"]
 ```
 
 | Capability | Pure Java 25 Engine (`impulse-graph-java`) | Native C++20 / C-ABI Engine (`impulse-graph-core`) |
@@ -53,7 +53,7 @@ flowchart TD
 | **SIMD Vectorization** | Java Vector API (`jdk.incubator.vector`) | Google Highway (`AVX-512`, `AVX2`, `ARM NEON`) & OpenMP |
 | **Runtime Dependencies** | **Zero** (Zero inherited CVEs) | **Zero** (Zero inherited CVEs) |
 | **Hot-Path Allocations** | **Zero GC pauses** (100% off-heap topology & VM state) | **Zero heap allocations** (caller-allocated scratch + output buffer) |
-| **Ecosystem Target** | **Java 25, Kotlin, Scala 3** | **Python (NumPy/PyTorch), C/C++, Rust, Go, C#/.NET, Node.js** |
+| **Ecosystem Target** | **Java 25, Kotlin, Scala 3** | **Python (NumPy/PyTorch), C/C++, Go, C#/.NET, Node.js (and standalone Rust)** |
 
 !!! tip "Wait — Isn't Java Inherently Slower Than C++?"
     Traditional Java graph libraries are slow because they allocate millions of `Node` and `Edge` objects on the JVM heap, suffering from pointer chasing and Stop-The-World GC pauses.
@@ -61,7 +61,7 @@ flowchart TD
     Once Impulse Graph moves the topology off-heap into 128-byte-aligned CSR/CSC arrays (`MemorySegment`) and scans them with the Java 25 Vector API (`jdk.incubator.vector`), **the limiting factor that dominates query speed is physical memory bandwidth and CPU cache-line transfers—not the language runtime:**
 
     * **Within `1.5x–2.0x` of Native C++20**: On the 1.47-billion-edge `twitter-2010` graph (10 threads), the Native C++20 kernel completes full-graph BFS in **`145.00 ms`** and the warmed Pure Java 25 engine completes it in **`240.29 ms` (`1.65x`)**—with **zero heap allocations** on the hot path (verified via Java Flight Recorder). The remaining `1.65x` delta comes down to JVM safepoint polls, `MemorySegment` bounds checks, and `ForkJoinPool` vs. OpenMP scheduling.
-    * **JSON Serialization Takes Longer Than the Query**: In enterprise microservices, JFR profiling and benchmarks across 600,000 users show that evaluating a multi-hop authorization query takes **`0.026 µs – 0.552 µs`**, whereas **serializing the result into JSON via Jackson takes `1.91 µs – 2.56 µs` (`3.5x to 73x` longer than the graph query itself)**.
+    * **JSON Serialization Takes Longer Than the Query**: In enterprise microservice benchmarks simulating multi-hop RBAC/ReBAC authorization queries against a realistic corpus of 600,000 users and associated permissions, JFR profiling shows that query evaluation takes only **`0.026 µs – 0.552 µs`**, whereas **serializing the result into JSON via Jackson takes `1.91 µs – 2.56 µs` (`3.5x to 73x` longer than the graph query itself)**.
     * Pure Java 25 is wholly suitable for demanding enterprise workloads—delivering sub-microsecond traversals with zero JNI wrappers, zero GC pauses, and zero inherited CVEs. See **[Why Impulse Graph?](concepts/why-impulse.md)** and **[Benchmarks](benchmarks.md)**.
 
 ### One VM, Every Query Style & Language

@@ -74,7 +74,7 @@ try (Arena queryArena = Arena.ofConfined();
 ```
 
 ### 2.2 Native C-ABI Deterministic Scratch Buffer (`impulse_stmt_buffer_size`)
-In the C-ABI runtime (`impulse_graph.h`), prepared statements compute their exact scratch and output buffer requirement at `prepare` time based on the active snapshot's domain cardinalities:
+In the C-ABI runtime (`impulse_vm.h`), prepared statements compute their exact scratch and output buffer requirement at `prepare` time based on the active snapshot's domain cardinalities:
 
 ```c
 // Query exact buffer requirement for the current snapshot generation

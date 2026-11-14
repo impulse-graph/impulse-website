@@ -38,7 +38,8 @@ Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), see
     ```python
     with Snapshot("banking.imps") as snap:
         recipient_accounts = (
-            snap.traverse(start_node=101, catalog={"OWNS": 0, "TRANSFERRED_TO": 1})
+            snap.domain("User")
+                .from_node(101)
                 .out("OWNS")
                 .out("TRANSFERRED_TO")
                 .to_list()
@@ -109,4 +110,4 @@ For declarative `openCypher` queries, prepare a statement once and execute it wi
 
 !!! tip
     **When to Use Ad-Hoc Compilation vs. Pre-Prepared Statements**:
-    Because the entire Impulse compiler pipeline (AST $\to$ Stage 1 & 2 Optimizer $\to$ `impOps` Bytecode $\to$ Java 25 `MethodHandle` JIT) completes in **under 10 microseconds**, compiling analytical queries directly with concrete constants unlocks aggressive **compile-time Zone Map branch pruning** (`age > 250` $\to$ `FALSE`) and **constant folding** that generic `$param` placeholders cannot exploit until bind time. Use pre-prepared statements for high-QPS request handlers (100K+ QPS), and feel free to compile ad-hoc fluent or CEL queries for analytical sweeps.
+    Because the entire Impulse compiler pipeline (AST $\to$ Stage 1 & 2 Optimizer $\to$ `impOps` Bytecode $\to$ Java 25 `MethodHandle` JIT) completes in microseconds on modern hardware, compiling analytical queries directly with concrete constants unlocks aggressive **compile-time Zone Map branch pruning** (`age > 250` $\to$ `FALSE`) and **constant folding** that generic `$param` placeholders cannot exploit until bind time. Use pre-prepared statements for high-QPS request handlers (100K+ QPS), and feel free to compile ad-hoc fluent or CEL queries for analytical sweeps.

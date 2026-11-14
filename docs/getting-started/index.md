@@ -9,7 +9,7 @@ Instead of running a heavyweight database server or deserializing files into mil
 1. **You build an immutable `.imps` Binary Snapshot file** containing strongly-typed domains, 128-byte-aligned CSR/CSC adjacency matrices, and columnar Structure-of-Arrays (SoA) node and edge attributes.
 2. **You memory-map (`mmap`) the `.imps` file** directly into your application in under a millisecond—with zero parsing and zero heap object allocation.
 3. **You execute queries off-heap** using either of Impulse's **two equivalent, first-class engines**:
-   - **Pure Java 25 Engine (`impulse-graph-java`)**: A 100% pure Java 25 implementation (FFM `MemorySegment`/`Arena`, Vector API, and `MethodHandle` JIT combinators) with **zero runtime dependencies (zero inherited CVEs)**, **zero JNI wrappers**, and **zero GC pauses**.
+   - **Pure Java Engine (`impulse-graph-java`)**: A 100% pure Java implementation supporting Java 21 LTS (preview) and Java 22+ / 25 (FFM `MemorySegment`/`Arena`, Vector API, and `MethodHandle` JIT combinators) with **zero runtime dependencies (zero inherited CVEs)**, **zero JNI wrappers**, and **zero GC pauses**.
    - **Native C++20 / C-ABI Engine (`impulse-graph-core`)**: A zero-dependency C++20 and SQLite-style C-ABI kernel (`libimpulse_graph`) that powers Python, C/C++, Rust, Go, .NET/C#, and Node.js.
 
 ---
@@ -51,7 +51,7 @@ Because intermediate results are collapsed into a fixed-size per-domain set at e
 
 ## Step-by-Step Guide
 
-1. **[Installation](installation.md)**: Add the Pure Java 25 Maven/Gradle dependencies, C/C++ CMake package, Python wheel, or standalone Rust CLI (`impulse`).
+1. **[Installation](installation.md)**: Add the Pure Java Maven/Gradle dependencies, C/C++ CMake package, Python wheel, or standalone Rust CLI (`impulse-graph`, or aliased as `impulse`).
 2. **[Quickstart](quickstart.md)**: Build an `.imps` file (from CSVs with `impulse build` or in Java) and run your first traversal in < 20 lines of code.
 3. **[Core Concepts & Glossary](core-concepts.md)**: A visual primer on CSR/CSC matrices, per-domain dense IDs ($0 \dots N_d-1$), domain-to-domain set reduction, and SoA attributes.
 4. **[Building Snapshots (Java)](building-snapshots.md)**: A step-by-step tutorial building `.imps` snapshots programmatically in Java and streaming from relational databases via JDBC.

@@ -38,6 +38,7 @@ if [[ -f "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp/Doxyfile" ]] && comman
   echo "[3/3] Generating C-ABI & C++20 Doxygen HTML from impulse-graph-core..."
   (
     cd "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp"
+    mkdir -p build/docs
     doxygen Doxyfile
   )
   mkdir -p "${WEBSITE_DIR}/site/doxygen"

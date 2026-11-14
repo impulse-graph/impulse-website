@@ -2,6 +2,8 @@
 
 **Impulse Graph Engine** embeds a zero-dependency **Google Common Expression Language (CEL)** compiler across all query frontends (Fluent API, openCypher, ImpLog, and ImpK), powering both **boolean predicate filtering (`WHERE` / `.filter`)** and **state / column projections (`.outWithState` / `.project` / `RETURN`)**.
 
+*(Note: Impulse CEL implements the analytical and vectorized math subset of Google CEL—including scalar and vector arithmetic, comparisons, bitwise logic, ternary branching, in-list membership, and 46 SIMD math functions. General CEL protobuf message descriptors, dynamic map literals, and list comprehensions like `.all()` or `.map()` are not included).*
+
 ---
 
 ## 1. Two Roles: Predicate Filters vs. Column Projections
@@ -59,4 +61,4 @@ Before bytecode emission, CEL expressions are simplified by the Stage 1 optimize
 | `x * 1 + 0` / `!(!edge.valid)` | `x` / `(get-attr edge "valid")` | Identity & double-negation elimination |
 | `true ? src.score : tgt.score` | `(get-attr src "score")` | Dead branch elimination |
 | `sqrt(edge.distance) < 10.0` | `edge.distance < 100.0` | Monotonic function inversion (eliminates `sqrt` in inner loop) |
-| `node.age > 250` *(when Zone Map `age.max == 114`)* | `false` *(prunes entire walk)* | Stage 2 Zone Map contradiction pruning |
+| `node.age > 250` *(when Zone Map `age.max == 114`)* | `false` *(prunes entire walk)* | Stage 1 Zone Map contradiction pruning |

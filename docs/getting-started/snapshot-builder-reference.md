@@ -1,6 +1,6 @@
 # Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)
 
-If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (`impulse-graph-tooling`)** is the fastest way to build, inspect, validate, and optimize snapshots.
+If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (binary: `impulse-graph`, aliased as `impulse`)** in `impulse-graph-core/impulse-cli` is the fastest way to build, inspect, validate, and optimize snapshots.
 
 !!! tip
     **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
@@ -25,11 +25,12 @@ Under the hood, `impulse build` automatically:
 ### Installing the `impulse` CLI
 
 ```bash
-# macOS / Linux (Homebrew)
-brew install impulse-graph/tap/impulse-cli
+# Install from source (Rust 1.80+)
+git clone https://github.com/impulse-graph/impulse-graph-core.git
+cargo install --path impulse-graph-core/impulse-cli
 
-# Or build directly from source (Rust 1.80+)
-cargo install --git https://github.com/impulse-graph/impulse-graph-tooling.git
+# Alias for 'impulse':
+alias impulse="impulse-graph"
 ```
 
 ---
@@ -193,7 +194,7 @@ with Snapshot("banking.imps") as snap:
 
 If your data lives in **Apache Parquet** (exported from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyTorch Geometric (PyG)**, `impulse build` reads `.parquet` files natively—including **fixed-size vector embeddings (`FixedSizeListArray`)** and **nullable Arrow validity bitmaps**.
 
-Once compiled into an `.imps` file, your PyTorch training script memory-maps the graph in `< 1 ms` via `torch.from_dlpack()`, sharing a single physical OS page cache across all `DataLoader` workers with **zero RAM duplication**—even on graphs larger than physical system RAM.
+Once compiled into an `.imps` file, your PyTorch training script memory-maps the graph in `< 1 ms` via `torch.from_numpy()` over the shared C-ABI buffer, sharing a single physical OS page cache across all `DataLoader` workers with **zero RAM duplication**—even on graphs larger than physical system RAM.
 
 ### Step 1: Export Node & Edge Tables to Parquet (Python / PyArrow)
 
@@ -351,7 +352,7 @@ Each object in `"relations"` defines a directed edge relation from `src_domain` 
 | `src_column` | `string` | No | Column name for the source node key. Defaults to `"src"` (or column `0` in CSV/TSV). |
 | `tgt_column` | `string` | No | Column name for the target node key. Defaults to `"tgt"` (or column `1` in CSV/TSV). |
 | `include_csc` | `bool` | No | When `true`, builds both forward **CSR** and reverse **CSC** topologies so `.in(...)` reverse walks execute in $O(1)$ offset lookup time. Defaults to `false`. |
-| `encoding` | `string` | No | Target adjacency list encoding: `"raw"` (default uncompressed arrays), `"elias_fano"` (monotone gap compression), or `"bic"` (Binary Interpolative Coding). |
+| `encoding` | `string` | No | Target adjacency list encoding: `"raw"` (default uncompressed arrays). Compressed gap encodings (`"elias_fano"`, `"bic"`) are planned for future specifications. |
 | `attributes` | `AttributeDef[]` | No | List of edge attribute columns to extract from `file` and reorder alongside the CSR edges. |
 
 ### 4.3 `attributes[]` Schema & Supported Data Types
@@ -377,7 +378,7 @@ Both domains and relations accept an `"attributes"` array where each element has
 | `"int8"`, `"int16"`, `"int32"`, `"int64"` | Signed 8 / 16 / 32 / 64-bit integer array | `Int8`, `Int16`, `Int32`, `Int64` |
 | `"uint8"`, `"uint16"`, `"uint32"`, `"uint64"` | Unsigned 8 / 16 / 32 / 64-bit integer array | `UInt8`, `UInt16`, `UInt32`, `UInt64` |
 | `"float16"`, `"float32"`, `"float64"` | IEEE-754 16 / 32 / 64-bit float array | `Float16`, `Float32`, `Float64` |
-| `"bool"` / `"boolean"` | Bit-packed boolean array (`1 bit` per element) | `Boolean` |
+| `"bool"` / `"boolean"` | 8-bit boolean array (`1 byte` per element, `INT8` `0x01`). (Note: Nullability bitmaps for nullable attributes are bit-packed at 1 bit per element). | `Boolean` |
 | `"timestamp_ms"`, `"timestamp_ns"`, `"date32"` | 64-bit epoch timestamp (`ms` / `ns`) or 32-bit days | `Timestamp(Millisecond/Second/Microsecond/Nanosecond)`, `Date32`, `Date64` |
 | `"string"` | Variable-length UTF-8 (`VAR_STRING` `0x0B`): per-column 128B-aligned `uint32_t offsets[K+1]` array + contiguous UTF-8 byte blob in Section 4 (note: Section 2 Shared String Pool stores only schema catalog identifiers) | `Utf8`, `LargeUtf8` |
 | `"uuid"` | 128-bit (`16-byte`) fixed-width binary UUID (`FIXED_BYTES` `0x0A`, `dim = 16`) | `FixedSizeBinary(16)` or UUID string |

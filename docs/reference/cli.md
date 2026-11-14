@@ -1,6 +1,6 @@
 # CLI Reference (`impulse` / `impulse-graph`)
 
-Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-tooling`). Every release binary statically embeds `libimpulse_graph_static.a`.
+Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-core/impulse-cli`). The CLI is implemented in Rust and statically links the core C++ engine kernel (`libimpulse_graph_static.a`).
 
 !!! important
     **Command Naming Convention**:
@@ -41,7 +41,7 @@ impulse-graph (symlinked as `impulse`)
 │   ├── compile (or build)       # Compile DSL (.impscm/.impk/.implog/.cypher) -> .impas or .impb
 │   ├── assemble                 # Assemble .impas text -> .impb binary bytecode
 │   ├── disassemble              # Disassemble .impb binary bytecode -> annotated .impas
-│   └── inspect                  # Inspect .impb instruction counts, registers, and opcodes
+│   └── inspect                  # Disassemble and inspect .impb bytecode instructions
 │
 └── impulse crypto               # Ed25519 Cryptographic Attestation
     ├── keygen                   # Generate Ed25519 keypair (.priv / .pub)
@@ -138,7 +138,7 @@ impulse generate --profile graph500 --scale 14 --edge-factor 16 -o synthetic.imp
 ## 3. Query Execution & Compiler Commands (`impulse run` & `impulse compiler`)
 
 ```bash
-# 1. Compile openCypher, ImpLog, ImpK, or ImpScheme to annotated .impas assembly (or emit IR with --emit-ir)
+# 1. Compile openCypher, ImpLog, ImpK, or ImpScheme to annotated .impas assembly
 impulse compile query.impscm -o query.impas
 
 # 2. Assemble .impas text into binary .impb bytecode (-i / --input required)

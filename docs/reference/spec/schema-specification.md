@@ -1,12 +1,12 @@
-# Schema & Manifest Specification (`.imps.schema.yaml`)
+# Schema & Manifest Specification (`manifest.yaml` / `schema.yaml`)
 
-This document defines the declarative YAML/JSON schema and multi-tablespace manifest format (`.imps.schema.yaml` / `manifest.yaml`) used across the Impulse Graph Engine ecosystem.
+This document defines the declarative schema and multi-tablespace manifest format (`manifest.yaml` / `schema.yaml` / `manifest.json`, originating from the Layer 0 normative `.imps.schema.yaml` specification) used across the Impulse Graph Engine ecosystem.
 
 A schema file serves four roles:
 
-1. **Snapshot Compilation (`impulse snapshot build` & `SnapshotBuilder`)**: Configures per-domain integer widths (`uint16`, `uint32`, `uint64`), key catalogs, CSR/CSC indices, relation multiplicities, and 128-byte-aligned Structure-of-Arrays (SoA) attributes.
+1. **Snapshot Compilation (`impulse-graph build` & `SnapshotBuilder`)**: Configures per-domain integer widths (`uint16`, `uint32`, `uint64`), key catalogs, CSR/CSC indices, relation multiplicities, and 128-byte-aligned Structure-of-Arrays (SoA) attributes. File-based batch compilation in `impulse-graph build` parses `manifest.json` ingestion manifests.
 2. **Compile-Time Query Validation**: Verifies domain names, relation endpoints (`SrcDomainID` $\to$ `TgtDomainID`), and attribute types before emitting `impOps` bytecode.
-3. **Code Generation (`impulse-codegen`, Maven/Gradle plugins)**: Generates strongly-typed domain views and POJOs.
+3. **Code Generation (`impulse-codegen`, Maven/Gradle plugins)**: Generates strongly-typed domain views and `QueryBuilder` classes.
 4. **Multi-Tablespace Composite Loading**: Maps logical domains and relations across multiple `.imps` files (supported in the Java 25 engine via `BinarySnapshotLoader.loadFromManifest(Path manifestPath, Arena arena)`, while C-ABI `impulse_snapshot_open` maps single `.imps` files directly and multi-snapshot federated C-ABI queries are targeted for post-`v1.0`).
 
 ---
@@ -28,17 +28,17 @@ domains:
     denseId: uint32            # 0..N_d-1 addressing width (uint16 | uint32 | uint64)
     key: uuid                  # External primary key type (int32 | int64 | uuid | string | bytes)
     attributes:
-      account_status: { type: "FixedString(8)", nullable: false }
-      display_name:   { type: "VarString",      nullable: false }
-      embedding:      { type: "Float32",        dimension: 128 }
+      account_status: "FixedString(8)"
+      display_name:   "VarString"
+      embedding:      "Float32"
 
   Product:
     tablespace: core_identity
     denseId: uint32
     key: string
     attributes:
-      price:          { type: "Float32",        nullable: false }
-      category_code:  { type: "Int16",          nullable: true }
+      price:          "Float32"
+      category_code:  "Int16?"
 
 relations:
   PURCHASED:
@@ -48,8 +48,8 @@ relations:
     direction: [out, in]       # Generates both CSR (forward) and CSC (reverse)
     cardinality: many_to_many  # many_to_many | many_to_one | one_to_many | one_to_one
     attributes:
-      timestamp: { type: "TimestampMs" }
-      amount:    { type: "Float32" }
+      timestamp: "TimestampMs"
+      amount:    "Float32"
 
 virtual_relations:
   ENGAGED_WITH:
@@ -82,7 +82,7 @@ Every directed relation explicitly binds a `source` domain and `target` domain:
 | :--- | :--- | :--- |
 | **`source` / `target`** | Domain names | Maps source dense IDs ($0 \dots N_{\text{src}}-1$) to target dense IDs ($0 \dots N_{\text{tgt}}-1$). |
 | **`direction`** | `[out]`, `[in]`, `[out, in]` | `out` builds forward **CSR**; `in` builds reverse **CSC** transpose. |
-| **`cardinality`** | `many_to_many` *(default)*<br>`many_to_one`<br>`one_to_many`<br>`one_to_one` | - **`many_to_many` (`M:N`)**: Standard CSR/CSC (`row_offsets` + `col_indices`).<br>- **`many_to_one` (`M:1`)**: Omits `csrRowOffsets`; stores flat target array `col_indices[N]` ($O(1)$ lookup, no deduplication needed).<br>- **`one_to_many` (`1:M`)**: Forward CSR; reverse CSC omits offsets.<br>- **`one_to_one` (`1:1`)**: Bi-directional flat direct arrays ($O(1)$ lookup). |
+| **`cardinality`** | `many_to_many` *(default)*<br>`many_to_one`<br>`one_to_many`<br>`one_to_one` | - **`many_to_many` (`M:N`)**: Standard CSR/CSC (`row_offsets` + `col_indices`).<br>- **`many_to_one` (`M:1`)**: Format supports omitting `csrRowOffsets` for flat target arrays `col_indices[N]` (runtime engines currently evaluate traversals via CSR/CSC).<br>- **`one_to_many` (`1:M`)**: Forward CSR; reverse CSC layout.<br>- **`one_to_one` (`1:1`)**: Format supports bi-directional direct arrays (runtime engines currently evaluate traversals via CSR/CSC). |
 | **`virtual_relations`** | List of `1..65,536` physical relations | Zero-storage super-relation; expands across constituent relations and unions bitsets at query time. |
 
 ---

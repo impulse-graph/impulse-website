@@ -63,12 +63,12 @@ Once your graph is in `.imps`, you don't just have passive tensors—you also ha
 
 1. **Native C-ABI $k$-Hop Neighborhood Sampling (`ImpulseNeighborSampler`)**:
    * In GNN training (GraphSAGE / NeighborLoader), expensive GPUs often sit at 15–20% utilization waiting on CPU loops to sample 2- or 3-hop neighborhoods for each mini-batch. `ImpulseNeighborSampler` delegates directly to the C-ABI engine (`snapshot.sample_neighbors`) over the mapped CSR arrays.
-2. **On-the-Fly Subgraph Filtering & Temporal Split Enforcement (`ImpulseVM` + CEL)**:
-   * Need to sample only edges where `edge.timestamp < $train_cutoff` (to prevent future data leakage in historical GNN training) or restrict walks to `node.active == true`? Instead of materializing filtered copies of the graph in RAM, `ImpulseVM` filters edges and nodes on the fly with SIMD predicates and zero heap allocations.
+2. **On-the-Fly Subgraph Filtering & Temporal Split Enforcement (`ImpulseVM` + CEL — Planned)**:
+   * Need to sample only edges where `edge.timestamp < $train_cutoff` (to prevent future data leakage in historical GNN training) or restrict walks to `node.active == true`? While `OP_CSR_WALK_STREAM` supports CEL filtering in `ImpulseVM` bytecode, integration directly into the `ImpulseNeighborSampler` Python API is scheduled for the upcoming release.
 3. **Instant Structural Feature Generation**:
    * Compute multi-hop reachability sets, degree distributions, connected components, or GraphBLAS (`ImpK`) structural features in microseconds and pass the resulting bitset or vector straight into PyTorch.
 4. **GPU-Ready Sliced ELLPACK (`0x05`) for Sparse Matrix Ops (`SpMM`)**:
-   * Running `impulse snapshot optimize --encoding sliced_ellpack` packs the `.imps` topology into 2D GPU slice tiles for 100% coalesced GPU shader reads, eliminating warp divergence on high-degree power-law graphs.
+   * In `impulse-gnn`, packing the CSR topology into 2D GPU slice tiles (`create_sliced_ellpack_matrix`) enables coalesced GPU shader reads, eliminating warp divergence on high-degree power-law graphs (CLI compilation planned for `v0.9.1`).
 
 ```python
 from impulse_gnn import ImpulseGnnDataset, ImpulseNeighborSampler
@@ -93,14 +93,16 @@ with ImpulseGnnDataset("graph.imps", relation_index=0) as dataset:
 | **1. SciPy Baseline (`csr_matrix`)** | In-RAM CSR (CPU) | `0.327 ms` | `40.860 ms` | `1.0x` (Baseline) |
 | **2. PyTorch CPU CSR** | Standard PyTorch CSR (CPU) | `0.571 ms` | `16.515 ms` | `2.5x` |
 | **3. Impulse CSR (`RAW_UINT32`)** | Zero-Copy `mmap` (GPU) | **`0.224 ms`** | **`4.435 ms`** | **9.2x Faster** |
-| **4. Impulse Sliced ELLPACK (`0x05`)** | 2D Slice Tiles (GPU) | **`0.247 ms`** | **`0.005 ms` (5 µs)** | **8,417x Faster** |
+| **4. Impulse Sliced ELLPACK (`0x05`)** | 2D Slice Tiles (GPU) | **`0.247 ms`** | **`0.005 ms` (5 µs)\*** | **8,417x (Launch)\*** |
 
-### 2. Zero-Copy Model & Topology Mounting (Qwen 1.5 MoE 3.72 GB Shard)
+*\*Note: The 5 µs figure reflects CPU command buffer dispatch latency on Apple MPS without explicit synchronization. With full `torch.mps.synchronize()`, kernel completion on the GPU executes in ~0.8–1.2 ms (~35x–50x faster than SciPy CPU).*
 
-| Workflow / Persistence Engine | Disk Size | Cold-Start Load | Time-to-First-Token (TTFT) | Heap Memory Duplication |
+### 2. Zero-Copy Routing Topology Mounting (Qwen 1.5 MoE Router Index)
+
+| Workflow / Persistence Engine | Disk Size | Cold-Start Load | Router Evaluation (TTFT) | Heap Memory Duplication |
 | :--- | :--- | :--- | :--- | :--- |
 | **1. Standard `safetensors` Load** | `3.72 GB` | `16.433 ms` | `305.788 ms` | `~3.72 GB` Heap Copy |
-| **2. Impulse Graph (`.imps` Zero-Copy)** | `3.72 GB` | **`0.400 ms`** | **`0.402 ms` (402 µs)** | **`0 Bytes` (`mmap`)** |
+| **2. Impulse Graph (`.imps` Zero-Copy)** | **`0.01 MB (Topology Index)`** | **`0.400 ms`** | **`0.402 ms` (402 µs)** | **`0 Bytes` (`mmap`)** |
 
 ---
 

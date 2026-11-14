@@ -28,7 +28,7 @@ graph TD
 
 Because memory-mapping large `.imps` files is an $O(1)$ OS operation, rotating to a fresh snapshot never blocks active reader threads:
 
-1. **Out-of-Band Build**: A background worker or `impulse-platform` pipeline writes a new `.imps` snapshot file (`Snapshot B`) to disk.
+1. **Out-of-Band Build**: A background worker (using the `impulse-graph build` CLI or `SnapshotBuilder` ingestion pipeline) writes a new `.imps` snapshot file (`Snapshot B`) to disk.
 2. **Atomic Reference Swap**: The application memory-maps `Snapshot B` and calls `swapManager.swap(newSnapshot)`, atomically updating the active reference.
 3. **Zero Downtime & Lock-Free Draining**: Queries already in flight complete against `Snapshot A`. Once the last reader releases its reference, `Snapshot A`'s `Arena` is closed and unmapped.
 

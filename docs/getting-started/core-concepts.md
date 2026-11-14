@@ -199,21 +199,20 @@ In production databases, entities rarely have continuous 0-indexed integer IDs. 
 * **String Business Keys**: `"USR-98421"`, `"alice@example.com"`
 * **Sparse Relational IDs**: `102, 594, 100024, 8847192`
 
-### How the Primary Key Index Works
-When constructing a domain in `SnapshotBuilder`, you can enable the primary key index:
+### How Key Mapping Works
+When compiling snapshots from CSV/Parquet manifests with the standalone `impulse-graph build` CLI, the compiler builds a compact Section 4 hash index mapping external string/UUID keys to dense IDs ($0 \dots N_d-1$). 
+
+In Java ingestion pipelines, external database keys are translated during stream generation using an `IdMapper<K>`:
 
 ```java
-DomainDefinition.builder(100_000L)
-    .idWidth(PrimitiveWidth.UINT32)
-    .withPrimaryKeyIndex(true)
-    .build();
+// Map external database keys (e.g. Long, String, UUID) to continuous 0..N-1 dense IDs:
+IdMapper<String> userMapper = new IdMapper<>();
+long aliceDenseId = userMapper.getOrCreateId("alice@example.com"); // 0
 ```
 
-The builder writes a compact, zero-copy reverse index inside the `.imps` file that maps `External String/UUID Key -> Dense ID (0 .. N-1)`.
-
-* **At Query Time**: You can resolve `"alice@example.com"` to Dense ID `0` in a single lookup.
+* **At Ingestion Time**: External keys are mapped to continuous $0 \dots N_d-1$ integers.
 * **During Traversal**: All multi-hop vector traversals execute entirely on fast primitive integers.
-* **At Result Materialization**: You can map target Dense IDs back to external business keys when returning results to your API callers.
+* **At Result Materialization**: You map target Dense IDs back to external business keys when returning results to your API callers.
 
 ---
 

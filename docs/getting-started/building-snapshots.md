@@ -135,7 +135,6 @@ try (Statement stmt = conn.createStatement();
 // Define the User domain with the exact cardinality
 DomainDefinition userDomain = DomainDefinition.builder(userMapper.size())
         .idWidth(PrimitiveWidth.UINT32)       // 32-bit node IDs (up to ~4.29 billion nodes)
-        .withPrimaryKeyIndex(true)            // Embed reverse index so you can query by database key later
         .build();
 ```
 
@@ -146,7 +145,7 @@ DomainDefinition userDomain = DomainDefinition.builder(userMapper.size())
     - `UINT16` (2 bytes): domains under 65,536 nodes
     - `UINT32` (4 bytes): the standard default, up to ~4.29 billion nodes
     - `UINT64` (8 bytes): for multi-billion node domains
-- **`withPrimaryKeyIndex(true)`** — Embeds a reverse index in the `.imps` file so you can resolve original database keys (user_id, UUIDs, emails) to dense IDs at query time.
+- **`IdMapper<K>`** — Maps your application's external database keys (user_id, UUIDs, emails) to internal 0-indexed dense IDs during ingestion.
 
 ---
 
@@ -201,21 +200,20 @@ RelationDefinition ownsRelation = RelationDefinition.builder("User", "Account")
 - **`Topology.CSR` (Compressed Sparse Row)** — Stores forward edges. Enables queries like `snap.domain("User").from(userId).out("OWNS")`. CSR is the standard forward topology required by `SnapshotBuilder` for forward `.out(...)` walks (while at the `.imps` binary specification level all topology sections—`CSR`, `CSC`, `COO`—are optional, e.g., for `M:1` / `1:1` direct arrays or CSC-only / virtual relations probed via `OP_HAS_CSR`).
 - **`Topology.CSC` (Compressed Sparse Column)** — Stores reverse (incoming) edges. Enables queries like `snap.domain("Account").from(accountId).in("OWNS")` (*"Who owns this account?"*). CSC is optional.
 
-### TRANSFERRED_TO: Account → Account (with `amount` Edge Attribute)
+### TRANSFERRED_TO: Account → Account (Topology & Attribute Staging)
 
-Edges can also carry columnar attributes (stored as parallel 128-byte-aligned Structure-of-Arrays vectors indexed by edge position $0 \dots E-1$). Here we attach an `amount` property (`DataType.F64`) to `TRANSFERRED_TO`:
+Edges can also carry columnar attributes (stored as parallel 128-byte-aligned Structure-of-Arrays vectors indexed by edge position $0 \dots E-1$).
 
 ```java
 RelationDefinition transferRelation = RelationDefinition.builder("Account", "Account")
         .addTopology(Topology.CSR, CompressionScheme.RAW)
         .addTopology(Topology.CSC, CompressionScheme.RAW)
         .dataSource(transferEdgeDataSource)
-        .addAttribute("amount", transferAmountSource) // Edge property: transfer amount (F64)
         .build();
 ```
 
-!!! tip
-    **Real-World Transfer Metadata**: In a production financial graph, you would typically attach additional edge attributes alongside `amount`—such as `.addAttribute("timestamp", transferTimestampSource)` (`DataType.TIMESTAMP_MS`) for temporal window filtering, `channel`, or `status`. Because Impulse stores edge attributes in Structure-of-Arrays (SoA) layout, a query that only filters on `edge.amount > 1000.0` scans only the contiguous `amount[]` column and never touches `timestamp[]` or `channel[]` in memory.
+!!! note "Columnar Attribute Compilation"
+    In `impulse-builder` v0.9.0, `StreamingSnapshotWriter` serializes high-speed CSR and CSC adjacency matrices with zero heap memory overhead. Compiling complex columnar edge attributes (`amount`, `timestamp`) and primary key reverse hash indices into Section 2/4 is currently supported via the standalone `impulse-graph build` CLI tool from CSV/Parquet manifests (see [Snapshot Builder Reference](snapshot-builder-reference.md)), with full Java builder streaming attribute integration staged for upcoming releases.
 
 ---
 
@@ -561,22 +559,28 @@ try (Arena arena = Arena.ofShared()) {
     BinarySnapshotLoader.LoadedSnapshot loaded = 
             BinarySnapshotLoader.loadSnapshot(snapshotFile, arena);
 
-    ImpulseGraphSnapshot graph = loaded.getGraph();
+    ImpulseGraphSnapshot graph = loaded.graph();
 
-    // 2-hop traversal seeded by business key ("101") and returning destination account business keys:
-    // User(101) -[:OWNS]-> Account -[:TRANSFERRED_TO (amount >= 1000.0)]-> Destination Account Keys
+    // 2-hop traversal seeded by business key (resolved via userMapper)
+    // User(101) -[:OWNS]-> Account -[:TRANSFERRED_TO]-> Destination Accounts
     DomainView users = graph.domain("User");
+    long userDenseId = userMapper.getId(101L);
 
-    List<String> destinationAccountKeys = users.fromKey("101")
+    List<Long> destinationAccounts = users.from(userDenseId)
             .out("OWNS")
-            .out("TRANSFERRED_TO", "edge.amount >= 1000.0")
-            .toKeyList();
+            .out("TRANSFERRED_TO")
+            .toList();
 
-    System.out.println("Destination account keys (transfers >= $1,000): " + destinationAccountKeys);
+    // Map destination dense IDs back to external database keys:
+    List<Long> destinationAccountKeys = destinationAccounts.stream()
+            .map(accountMapper::getKey)
+            .toList();
+
+    System.out.println("Destination account keys: " + destinationAccountKeys);
 }
 ```
 
-Because we configured `.withPrimaryKeyIndex(true)` on both `User` and `Account` domains in Steps 1 and 2, the engine resolves `"101"` to its internal dense ID at the start of the query, executes the multi-hop CSR walks and SIMD edge filter strictly over dense IDs, and translates only the final matching `Account` dense IDs back to their external business keys (`"7008"`, etc.) on `.toKeyList()`.
+During traversal, the engine executes multi-hop CSR walks strictly over primitive dense IDs in off-heap memory, and the application maps destination IDs back to external business keys using `accountMapper`. (When snapshots are compiled via the `impulse-graph build` CLI with Section 4 index tables, string key resolution can also be performed via `snap.domain("User").fromKey(...)`).
 
 ---
 
@@ -618,7 +622,7 @@ Yes:
 builder.withSignature(privateKey, certificateChain);
 ```
 
-The signature is embedded in the footer and verified by `BinarySnapshotLoader`.
+The signature is embedded into the `.imps` footer trailer. Cryptographic verification can be performed using `impulse-graph snapshot validate --verify-signature`, while `BinarySnapshotLoader` validates structural page alignment, header checksums, and version tags.
 
 ---
 
