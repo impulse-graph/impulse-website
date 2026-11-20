@@ -49,10 +49,10 @@ Each language SDK exposes an idiomatic traversal and/or VM `QueryBuilder` interf
 | **Count Surviving Nodes** | `.count()` | `.count()` | `.count()?` | `.cardinality()` | `SetCardinality(s, d)` / `cardinality()` |
 | **Test Single Target** | `.toBitSet().get((int) id)` | `.contains(id)` | `snap.is_reachable(rel, s, t)` | `res.testBitset(ctx, id)` | `IsReachable(...)` / `isReachable(...)` |
 | **Disassemble `.impas`** | `.toImpAsm()` | `.to_impas()` | — | `impulse_compile_to_impas` | — |
-| **Multi-Lane Sub-Builder (`v0.9.1`)** | `snap.domain(d).multiLane()` | `snap.domain(d).multi_lane()` | — | `snap.domain(d).multiLane()` / `qb.laneInitSeeds(...)` | — |
-| **Vector ANN & Rerank (`v0.9.1`)** | `snap.domain(d).vectorSearch(...)` | `snap.domain(d).vector_search(...)` | `snap.vamana_ann_search(...)` | `snap.domain(d).vectorSearch(...)` / `.rerank(...)` | — |
+| **Multi-Lane Sub-Builder (`v0.10.0`)** | `snap.domain(d).multiLane()` | `snap.domain(d).multi_lane()` | — | `snap.domain(d).multiLane()` / `qb.laneInitSeeds(...)` | — |
+| **Vector ANN & Rerank (`v0.10.0`)** | `snap.domain(d).vectorSearch(...)` | `snap.domain(d).vector_search(...)` | `snap.vamana_ann_search(...)` | `snap.domain(d).vectorSearch(...)` / `.rerank(...)` | — |
 
-!!! tip "Multi-Lane Bit-Sliced Traversals & Hybrid Vector Search (`v0.9.1`)"
+!!! tip "Multi-Lane Bit-Sliced Traversals & Hybrid Vector Search (`v0.10.0`)"
     For simultaneous 8/16/32/64-lane provenance tracking (`snap.domain(d).multiLane()`), $N-1$/$N-2$ contingency edge masking, and Vamana ANN (`IMP_INDEX_VAMANA_ANN = 0x08`) `vectorSearch` + SIMD `.rerank(...)`, see **[State Projections, Reducers & Loops (§4–§5)](advanced-querying.md)**.
 
 !!! note

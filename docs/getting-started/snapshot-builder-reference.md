@@ -386,7 +386,7 @@ Both domains and relations accept an `"attributes"` array where each element has
 
 !!! note
     **Primary Key Catalog vs. Programmatic & Vector Secondary Indices (`Section 2.6`)**:
-    When `impulse build` compiles a `manifest.json`, it automatically builds the primary key lookup index (`_domain_index`) and attribute min/max metadata for each domain. Embedded DiskANN/Vamana vector indices (`0x08` `IMP_INDEX_VAMANA_ANN`, `v0.9.1`) can be built directly from the CLI via `--embeddings <SPEC>` and `--vector-index <SPEC>` on `impulse build`, `impulse snapshot attach-embeddings`, or `impulse snapshot optimize`. Additional secondary indices (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitset, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval, `0x08` VamanaANN) can also be constructed programmatically via the C-ABI (`impulse_index_build_*` + `impulse_writer_add_index` in `impulse_index.h`) or Rust `SnapshotWriter::add_index` / `SnapshotWriter::add_built_vamana_index`.
+    When `impulse build` compiles a `manifest.json`, it automatically builds the primary key lookup index (`_domain_index`) and attribute min/max metadata for each domain. Embedded DiskANN/Vamana vector indices (`0x08` `IMP_INDEX_VAMANA_ANN`, `v0.10.0`) can be built directly from the CLI via `--embeddings <SPEC>` and `--vector-index <SPEC>` on `impulse build`, `impulse snapshot attach-embeddings`, or `impulse snapshot optimize`. Additional secondary indices (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitset, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval, `0x08` VamanaANN) can also be constructed programmatically via the C-ABI (`impulse_index_build_*` + `impulse_writer_add_index` in `impulse_index.h`) or Rust `SnapshotWriter::add_index` / `SnapshotWriter::add_built_vamana_index`.
 
 ---
 
@@ -420,7 +420,7 @@ To guarantee 128-byte hardware alignment, well-formed Section 2 Shared String Po
 
 For systems engineers inspecting or integrating with the binary format at the specification level:
 
-1. **Normative Binary Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x0009`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
+1. **Normative Binary Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x000A`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
 2. **Validate with the CLI**: Verify any generated `.imps` file against the normative compliance rules using:
    ```bash
    impulse snapshot validate output.imps --strict-alignment

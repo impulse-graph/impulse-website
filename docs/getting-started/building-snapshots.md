@@ -213,7 +213,7 @@ RelationDefinition transferRelation = RelationDefinition.builder("Account", "Acc
 ```
 
 !!! note "Columnar Attribute Compilation"
-    In `impulse-builder` v0.9.0, `StreamingSnapshotWriter` serializes high-speed CSR and CSC adjacency matrices with zero heap memory overhead. Compiling complex columnar edge attributes (`amount`, `timestamp`) and primary key reverse hash indices into Section 2/4 is currently supported via the standalone `impulse-graph build` CLI tool from CSV/Parquet manifests (see [Snapshot Builder Reference](snapshot-builder-reference.md)), with full Java builder streaming attribute integration staged for upcoming releases.
+    In `impulse-builder` v0.10.0, `StreamingSnapshotWriter` serializes high-speed CSR and CSC adjacency matrices with zero heap memory overhead. Compiling complex columnar edge attributes (`amount`, `timestamp`) and primary key reverse hash indices into Section 2/4 is currently supported via the standalone `impulse-graph build` CLI tool from CSV/Parquet manifests (see [Snapshot Builder Reference](snapshot-builder-reference.md)), with full Java builder streaming attribute integration staged for upcoming releases.
 
 ---
 

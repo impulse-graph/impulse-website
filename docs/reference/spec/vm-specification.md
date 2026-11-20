@@ -59,7 +59,7 @@ To ensure off-heap memory safety and prevent undefined behavior during FFI calls
 | `0x0D` | `TYPE_DOUBLE_VECTOR` | Integer handle pointing to an off-heap double array. |
 | `0x0E` | `TYPE_UINT64_VECTOR` | Integer handle pointing to an off-heap uint64 array. |
 | `0x0F` | `TYPE_FRONTIER_STATE` | Integer handle pointing to a frontier with attached per-node state. |
-| `0x10` | `TYPE_LANE_FRONTIER` | Integer handle pointing to a pooled multi-lane 8/16/32/64-bit bit-sliced frontier buffer (`uint8_t[N]`..`uint64_t[N]`) with optional counterfactual edge trip masks (`v0.9.1`). |
+| `0x10` | `TYPE_LANE_FRONTIER` | Integer handle pointing to a pooled multi-lane 8/16/32/64-bit bit-sliced frontier buffer (`uint8_t[N]`..`uint64_t[N]`) with optional counterfactual edge trip masks (`v0.10.0`). |
 
 ---
 
@@ -133,7 +133,7 @@ The native engine library **MUST** export standard C-linkage FFI methods to inte
 2. `impulse_vm_context_destroy(impulse_vm_context_t* ctx)`: Safely deallocates all off-heap arenas.
 3. `impulse_vm_context_acquire_bitset(impulse_vm_context_t* ctx)`: Returns a free BitSet slot handle index.
 4. `impulse_vm_context_release_bitset(impulse_vm_context_t* ctx, size_t handle)`: Clears and frees a BitSet handle for reuse.
-5. `impulse_vm_context_acquire_lane_frontier(impulse_vm_context_t* ctx)` & `impulse_vm_context_release_lane_frontier(impulse_vm_context_t* ctx, size_t handle)`: Acquires and releases pooled `TYPE_LANE_FRONTIER` (`0x10`) slots in the VM context (`v0.9.1`), paired with C-ABI inspection accessors `impulse_vm_context_lane_frontier_num_lanes(ctx, handle)`, `impulse_vm_context_lane_frontier_width(ctx, handle)`, `impulse_vm_context_lane_frontier_active_mask(ctx, handle)`, `impulse_vm_context_lane_frontier_node_count(ctx, handle)`, and `impulse_vm_context_lane_frontier_data(ctx, handle)`.
+5. `impulse_vm_context_acquire_lane_frontier(impulse_vm_context_t* ctx)` & `impulse_vm_context_release_lane_frontier(impulse_vm_context_t* ctx, size_t handle)`: Acquires and releases pooled `TYPE_LANE_FRONTIER` (`0x10`) slots in the VM context (`v0.10.0`), paired with C-ABI inspection accessors `impulse_vm_context_lane_frontier_num_lanes(ctx, handle)`, `impulse_vm_context_lane_frontier_width(ctx, handle)`, `impulse_vm_context_lane_frontier_active_mask(ctx, handle)`, `impulse_vm_context_lane_frontier_node_count(ctx, handle)`, and `impulse_vm_context_lane_frontier_data(ctx, handle)`.
 
 ---
 
@@ -489,7 +489,7 @@ The following unallocated opcode ranges in `0x00`–`0xFF` are strictly reserved
 - **`OP_RESERVED_6D`** through **`OP_RESERVED_6F`** (`0x6D`–`0x6F`)
 - **`OP_RESERVED_76`** through **`OP_RESERVED_7F`** (`0x76`–`0x7F`; `0x80`–`0x8F` are allocated to columnar gather and multiplicity fast-path opcodes)
 - **`OP_RESERVED_96`** through **`OP_RESERVED_9F`** (`0x96`–`0x9F`; `0x90`–`0x95` are allocated to output materialization and dense walk opcodes)
-- **`OP_RESERVED_CC`** through **`OP_RESERVED_FE`** (`0xCC`–`0xFE`; `0xA0`–`0xBF` are allocated to §6.10 Edge Stream Shader instructions, `0xC0`–`0xCB` are allocated in `v0.9.1` to §6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN instructions, and `0xFF` is reserved for the 128-bit `OP_EXTENSION_PAYLOAD` marker per §3.2.1)
+- **`OP_RESERVED_CC`** through **`OP_RESERVED_FE`** (`0xCC`–`0xFE`; `0xA0`–`0xBF` are allocated to §6.10 Edge Stream Shader instructions, `0xC0`–`0xCB` are allocated in `v0.10.0` to §6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN instructions, and `0xFF` is reserved for the 128-bit `OP_EXTENSION_PAYLOAD` marker per §3.2.1)
   - **Behavior**: Execution of any reserved opcode **MUST** immediately halt virtual machine execution and return the status `IMPULSE_VM_ERR_RESERVED_OPCODE` (`10`).
 
 ### 6.10 Edge Stream Shader Instructions (`0xA0` - `0xBF`)
@@ -532,9 +532,9 @@ Edge Stream Shaders enable execution of inline Common Expression Language (CEL) 
 - **`OP_STREAM_SCATTER_REDUCE`** (`0xBF`)
   - **Behavior**: Scatters and accumulates `S[src]` into `float_vector[v]` using the specified monoid (`0 = SUM, 1 = MAX, 2 = MIN`).
 
-### 6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN Instructions (`0xC0` - `0xCB`) [Planned for `v0.9.1`]
+### 6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN Instructions (`0xC0` - `0xCB`) (`v0.10.0`)
 
-> **Specification Versioning Note**: While `v0.9.0` freezes the baseline `0x00`..`0xBF` ISA, `v0.9.1` (Planned) activates the additive `0xC0`..`0xCB` instruction block and `TYPE_LANE_FRONTIER` (`0x10`) register tag across all four polyglot engines.
+> **Specification Versioning Note**: Specification `v0.10.0` freezes the baseline `0x00`..`0xBF` ISA and activates the `0xC0`..`0xCB` instruction block and `TYPE_LANE_FRONTIER` (`0x10`) register tag across all four polyglot engines.
 
 Multi-Lane Bit-Sliced Execution generalizes single-bit frontier propagation (`1` bit per node) into $W$-bit lane masks ($W \in \{8, 16, 32, 64\}$ bits per node), enabling up to 64 independent traversals, counterfactual edge-outage contingencies, or concept-group expansions in a single memory-bandwidth-bound pass over the CSR/CSC topology.
 

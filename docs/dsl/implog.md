@@ -47,7 +47,7 @@ can_view(U, D) :- member(U, G), doc_viewer(D, G), !account_locked(U).
 2. **Magic Sets Goal-Directed Rewriting**:
    * When a query binds a specific entity (e.g., `?- can_view("usr_alice", Doc)`), the compiler rewrites the recursive rules so `ImpulseVM` expands **only the subgraph reachable from `"usr_alice"`** rather than materializing group memberships for every user in the snapshot.
 3. **Lattice Datalog ($\text{Datalog}^\mathcal{L}$ — Planned Roadmap)**:
-   * Formal semiring aggregations (`min`, `max`, `sum`) inside recursive rule heads are scheduled for `v1.0.0`. In `v0.9.0`, monotonic reductions are evaluated with zero heap allocations using the Fluent Traversal API (`.outWithState(...)`) and VM opcodes `OP_CSR_WALK_REDUCE` / `OP_MXV`.
+   * Formal semiring aggregations (`min`, `max`, `sum`) inside recursive rule heads are scheduled for `v1.0.0`. In `v0.10.0`, monotonic reductions are evaluated with zero heap allocations using the Fluent Traversal API (`.outWithState(...)`) and VM opcodes `OP_CSR_WALK_REDUCE` / `OP_MXV`.
 
 ---
 

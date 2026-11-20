@@ -54,7 +54,7 @@ impulse-graph (symlinked as `impulse`)
 ## 2. Snapshot Data Commands (`impulse snapshot`)
 
 ### `impulse snapshot build` (or `impulse build`)
-Compiles CSV, TSV, or Apache Parquet files into a 4KB-page-aligned, 128-byte-section-aligned `.imps` snapshot using a declarative `manifest.json` (see [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)). Optionally attaches external embedding matrices (`--embeddings <SPEC>`) and builds embedded Section 2.6 Vamana ANN indices (`--vector-index <SPEC>`, `IMP_INDEX_VAMANA_ANN = 0x08`, `v0.9.1`):
+Compiles CSV, TSV, or Apache Parquet files into a 4KB-page-aligned, 128-byte-section-aligned `.imps` snapshot using a declarative `manifest.json` (see [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)). Optionally attaches external embedding matrices (`--embeddings <SPEC>`) and builds embedded Section 2.6 Vamana ANN indices (`--vector-index <SPEC>`, `IMP_INDEX_VAMANA_ANN = 0x08`, `v0.10.0`):
 
 ```bash
 # Standard build from manifest.json

@@ -10,10 +10,10 @@ While graph databases like NornicDB treat vector embeddings as separate HNSW ind
 
 ## 1. Physical Binary Layout (.imps Specification)
 
-In `.imps` (`v0.9.0` / `v0.9.1`), node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes—paired with the embedded **Section 2.6 Vamana ANN Index (`IMP_INDEX_VAMANA_ANN = 0x08`, `v0.9.1`)**—establishes the following physical layout:
+In `.imps` (`v0.10.0`), node and edge attributes are stored in contiguous attribute pools. Elevating `VECTOR_FLOAT32[D]`, `VECTOR_FLOAT16[D]`, and `VECTOR_INT8[D]` to first-class datatypes—paired with the embedded **Section 2.6 Vamana ANN Index (`IMP_INDEX_VAMANA_ANN = 0x08`, `v0.10.0`)**—establishes the following physical layout:
 
 ```
-Impulse Snapshot (.imps v0.9.0 / v0.9.1) - Contiguous SoA Vector & Vamana ANN Layout
+Impulse Snapshot (.imps v0.10.0) - Contiguous SoA Vector & Vamana ANN Layout
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ Page 0 Header & Section 2.6 Index Directory (IMP_INDEX_VAMANA_ANN = 0x08)   │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -24,7 +24,7 @@ Impulse Snapshot (.imps v0.9.0 / v0.9.1) - Contiguous SoA Vector & Vamana ANN La
 │  ├── Node 1: [f32_0, f32_1, ... f32_1535] (6144 Bytes, 128-byte aligned)     │
 │  └── Node N: [f32_0, f32_1, ... f32_1535] (6144 Bytes, 128-byte aligned)     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Section 2.6 Vamana ANN Payload (IMP_INDEX_VAMANA_ANN = 0x08, v0.9.1)        │
+│ Section 2.6 Vamana ANN Payload (IMP_INDEX_VAMANA_ANN = 0x08, v0.10.0)        │
 │  ├── VamanaHeader (64B, magic = "VAMA" 0x56414D41, R, L, alpha, medoid_id)  │
 │  ├── Adjacency Slab (128B aligned: N * (R + 1) * uint32_t)                  │
 │  └── Quantized Routing Slab (128B aligned: BQ1 / SQ8 / FP16 codes)          │
@@ -49,11 +49,11 @@ Impulse Snapshot (.imps v0.9.0 / v0.9.1) - Contiguous SoA Vector & Vamana ANN La
 * **AVX-512 / ARM Neon Fused Multiply-Add (FMA)**: Vector dot products, L2 distances, and cosine similarities are executed using SIMD FMA instructions (`vfmadd231ps`). 16 single-precision floats are processed per CPU vector register cycle.
 * **Direct GPU Warp Coalescing**: On NVIDIA GPUs, 128-byte alignment matches 32-thread warp memory access width (4 bytes $\times$ 32 threads = 128 bytes), enabling 100% coalesced memory transactions during GNN neighborhood sampling.
 
-### 2.3 Canonical `v0.9.1` Vamana ANN Index (`0x08`) & `ImpulseVM` Opcodes (`0xCA..0xCB`, `0xC3`, `0xC6`)
+### 2.3 Canonical `v0.10.0` Vamana ANN Index (`0x08`) & `ImpulseVM` Opcodes (`0xCA..0xCB`, `0xC3`, `0xC6`)
 
-In `v0.9.1 (Planned)`, vector retrieval and hybrid GraphRAG execution are standardized around Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`) and the `0xC0..0xCB` Multi-Lane & Vector ANN opcode block (superseding early `0x3A..0x3C` draft numbers, which were assigned to CSR/CSC scalar reductions in `v0.9.0`):
+In `v0.10.0`, vector retrieval and hybrid GraphRAG execution are standardized around Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`) and the `0xC0..0xCB` Multi-Lane & Vector ANN opcode block (superseding early `0x3A..0x3C` draft numbers, which were assigned to CSR/CSC scalar reductions in `v0.10.0`):
 
-| Hex | Symbol (`v0.9.1`) | Operational Summary |
+| Hex | Symbol (`v0.10.0`) | Operational Summary |
 | :--- | :--- | :--- |
 | **Section 2.6 `0x08`** | **`IMP_INDEX_VAMANA_ANN`** | Embedded DiskANN/Vamana proximity graph: 64-byte `VamanaHeader` (`magic = 0x56414D41` `"VAMA"`, `metric`, `quant_type`, `max_degree_r`, `medoid_node_id`, `alpha`, `ef_construction`), 128B-aligned fixed-stride adjacency slab (`N * (R + 1) * uint32_t`), and 128B-aligned quantized routing codes (`NONE`, `BQ1`, `SQ8`, `FP16`). |
 | **`0xCA`** | **`OP_VECTOR_ANN_SEARCH`** | Executes two-stage quantized Vamana beam search (`BQ1`/`SQ8`/`FP16` routing + exact `Float32[D]` reranking) over an `IMP_INDEX_VAMANA_ANN` index (or falls back to SIMD scan if unindexed). With `flags = 0`, outputs a `TYPE_NODE_VECTOR` of Top-$K$ node IDs; with **`flags = 1`**, directly initializes a 64-lane **`TYPE_LANE_FRONTIER`** (`K <= 64`) where lane $b$ is seeded with the $b$-th nearest anchor node. |
@@ -64,7 +64,7 @@ In `v0.9.1 (Planned)`, vector retrieval and hybrid GraphRAG execution are standa
 
 ## 3. Comparison: Impulse First-Class Vectors vs. NornicDB / Neo4j / Qdrant
 
-| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` `v0.9.0` / `v0.9.1`) |
+| Feature / Metric | NornicDB / Neo4j / Qdrant | Impulse Graph Engine (`.imps` `v0.10.0`) |
 | :--- | :--- | :--- |
 | **Vector Storage Model** | Out-of-band HNSW index files or external vector DB engines (Qdrant). | **First-Class SoA Attribute Column + Embedded Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`)** in a single `.imps` file. |
 | **Graph-Vector Coupling** | Two separate lookups: Vector search $\to$ pointer lookup to graph node KV store. | **Fused Multi-Lane Pipeline**: `OP_VECTOR_ANN_SEARCH (flags=1)` (`0xCA`) $\to$ `OP_LANE_CSR_WALK` (`0xC3`) $\to$ `OP_LANE_FILTER_QUORUM` (`0xC6`) $\to$ `OP_VECTOR_RERANK_DOT` (`0xCB`). |

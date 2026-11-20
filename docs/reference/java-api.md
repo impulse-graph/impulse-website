@@ -143,9 +143,9 @@ try (ImpulseStatement stmt = snap.prepare(
 
 ---
 
-## 4. Multi-Lane Bit-Sliced Execution & Pool Management (`org.impulsegraph.vm`) [Planned v0.9.1]
+## 4. Multi-Lane Bit-Sliced Execution & Pool Management (`org.impulsegraph.vm`) (v0.10.0)
 
-In `v0.9.1`, `org.impulsegraph.vm` implements the **Multi-Lane Bit-Sliced Execution (`0xC0..0xC9`)** and **Hybrid Vector ANN (`0xCA..0xCB`)** ISA extensions with zero hot-path heap allocations via thread-local `VmQueryContext` buffer pools.
+In `v0.10.0`, `org.impulsegraph.vm` implements the **Multi-Lane Bit-Sliced Execution (`0xC0..0xC9`)** and **Hybrid Vector ANN (`0xCA..0xCB`)** ISA extensions with zero hot-path heap allocations via thread-local `VmQueryContext` buffer pools.
 
 ### 4.1 `VmLaneFrontier` & `LaneWidth` (`TYPE_LANE_FRONTIER = 0x10`)
 `VmLaneFrontier` represents a pooled vertical bit-sliced frontier where each node $u \in [0, N_d)$ holds up to 64 parallel lane bits alongside optional per-relation counterfactual edge trip masks:

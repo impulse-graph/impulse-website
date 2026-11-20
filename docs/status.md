@@ -6,8 +6,8 @@ This page tracks the current development status, subsystem readiness, announceme
 
 ## Latest Announcements
 
-!!! tip "`v0.9.1` (Planned) — Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`) & Embedded Vamana ANN (`0x08`, `0xCA`..`0xCB`)"
-    Building on the frozen `v0.9.0` baseline (`Version = 0x0009`, magic `IMPS`, `0x00`..`0xBF` ISA), **`v0.9.1` (Planned)** introduces backward-compatible ISA and secondary-index extensions:
+!!! tip "`v0.10.0` — Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`) & Embedded Vamana ANN (`0x08`, `0xCA`..`0xCB`)"
+    Binary Snapshot Specification **`v0.10.0`** (`Version = 0x000A`, magic `IMPS`) introduces the `0xC0`..`0xCB` ISA and secondary-index extensions:
 
     * **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`)**: Propagates up to 64 independent seed queries, concept-group expansions (`OP_LANE_INIT_GROUPS`), or counterfactual $N-1$ edge-outage contingencies (`OP_LANE_SET_EDGE_MASK`) in a single CSR/CSC pass (`138,979.4 Effective Lane-MTEPS` at $L=64$ in `~0.23 ms` in Java 25).
     * **Embedded Vamana (DiskANN) Graph Index (Section 2.6 `IMP_INDEX_VAMANA_ANN = 0x08`)**: 64-byte `VamanaHeader` (`"VAMA"`), 128-byte-aligned fixed-degree adjacency slab, and `BQ1`/`SQ8`/`FP16` quantized routing slabs paired with `[N, D]` `FLOAT32` columns.
@@ -24,7 +24,7 @@ This page tracks the current development status, subsystem readiness, announceme
 
 | Subsystem / Repository | Status | Readiness | Notes |
 | :--- | :--- | :--- | :--- |
-| **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.9.0`) / `v0.9.1` Planned | [=100% "100%"] | Page-aligned C-ABI layout, 128-byte SIMD alignment, compliance vectors (`tc01`..`tc38`), and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.9.1`) |
+| **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.10.0`) | [=100% "100%"] | Page-aligned C-ABI layout, 128-byte SIMD alignment, compliance vectors (`tc01`..`tc38`), and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.10.0`) |
 | **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java 25, and OCaml reference oracle (`0x00`..`0xCB`) verified via deterministic SHA-256 `ICTX` v1 state hashes (`impulse_vm_state_hash_hex`) and 188 formal opcode contracts |
 | **[Pure Java 25 Engine (`impulse-graph-java`)](reference/java-api.md)** | RC Ready | [=95% "95%"] | 100% Pure Java 25, zero dependencies, FFM off-heap (`MemorySegment`/`Arena`), Vector API, `MethodHandle` C2 JIT, Multi-Lane & Vamana ANN |
 | **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | RC Ready | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
@@ -55,12 +55,12 @@ This page tracks the current development status, subsystem readiness, announceme
 
 ## Goals Before `v1.0` Release
 
-- [x] Finalize immutable `.imps` Binary Snapshot Format (`v0.9.0`) specification and 128-byte hardware alignment invariants
+- [x] Finalize immutable `.imps` Binary Snapshot Format (`v0.10.0`) specification and 128-byte hardware alignment invariants
 - [x] Achieve 100% four-way polyglot `ImpulseVM` test vector parity (C++ O3, C++ O0, Pure Java 25, OCaml) with deterministic `ICTX` v1 SHA-256 state hashes and 188 formal opcode contracts
 - [x] Implement Lua-inspired register architecture (`R0`..`R63`) and Java 25 `MethodHandle` combinator JIT compilation
 - [x] Remove in-memory delta overlay complexity to dedicate 100% of kernel hot paths to lock-free, read-only `.imps` traversal
 - [x] Launch unified documentation website (`www.impulsegraph.org`) with hosted Java 25 Javadocs and C-ABI references (85% complete)
-- [x] Specify and validate `v0.9.1` (Planned) Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`, `TYPE_LANE_FRONTIER = 0x10`) and Embedded Vamana ANN + Hybrid Vector Search (`IMP_INDEX_VAMANA_ANN = 0x08`, `0xCA`..`0xCB`) across C++, Java 25, Rust, and OCaml
+- [x] Specify and validate `v0.10.0` Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`, `TYPE_LANE_FRONTIER = 0x10`) and Embedded Vamana ANN + Hybrid Vector Search (`IMP_INDEX_VAMANA_ANN = 0x08`, `0xCA`..`0xCB`) across C++, Java 25, Rust, and OCaml
 - [ ] Complete remaining 15% of documentation (expanded cookbook recipes, operational runbooks, and showcase deep dives)
 - [ ] Complete end-to-end automated release pipelines with SLSA Level 3 cryptographic build provenance attestations
 - [ ] Publish `v1.0` artifacts across Maven Central (`org.impulsegraph`), PyPI (`impulse-graph`), Crates.io, NuGet, and npm
