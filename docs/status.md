@@ -6,17 +6,18 @@ This page tracks the current development status, subsystem readiness, announceme
 
 ## Latest Announcements
 
-!!! tip "`v0.10.0` — Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`) & Embedded Vamana ANN (`0x08`, `0xCA`..`0xCB`)"
-    Binary Snapshot Specification **`v0.10.0`** (`Version = 0x000A`, magic `IMPS`) introduces the `0xC0`..`0xCB` ISA and secondary-index extensions:
+!!! tip "November 2026 — Impulse Graph `v0.10.0` Released"
+    Tagged `v0.10.0` across `impulse-graph-spec`, `impulse-graph-core`, `impulse-graph-java`, `impulse-ocaml`, and `impulse-verification`:
 
-    * **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`)**: Propagates up to 64 independent seed queries, concept-group expansions (`OP_LANE_INIT_GROUPS`), or counterfactual $N-1$ edge-outage contingencies (`OP_LANE_SET_EDGE_MASK`) in a single CSR/CSC pass (`138,979.4 Effective Lane-MTEPS` at $L=64$ in `~0.23 ms` in Java 25).
-    * **Embedded Vamana (DiskANN) Graph Index (Section 2.6 `IMP_INDEX_VAMANA_ANN = 0x08`)**: 64-byte `VamanaHeader` (`"VAMA"`), 128-byte-aligned fixed-degree adjacency slab, and `BQ1`/`SQ8`/`FP16` quantized routing slabs paired with `[N, D]` `FLOAT32` columns.
-    * **Hybrid Vector-Graph VM Opcodes (`0xCA`..`0xCB`) & CLI Tooling**: Fuses `OP_VECTOR_ANN_SEARCH` (`0xCA`) and `OP_VECTOR_RERANK_DOT` (`0xCB`) with multi-hop graph walks, supported by `impulse attach-embeddings`, `impulse bench-vector`, and `impulse opt --vamana-locality`.
+    * **Binary Snapshot Format `v0.10.0` (`0x000A`)**: Inline node domain attributes, virtual/flat/COO relation layouts, nullable attribute bitmaps, `INT8`/`INT16` primary keys, and Section 2.6 `IMP_INDEX_VAMANA_ANN = 0x08`.
+    * **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`) & Embedded Vamana ANN (`0xCA`..`0xCB`)**: 8/16/32/64-bit bit-sliced multi-lane execution, counterfactual edge trip masks, delta-frontier fixpoint tracking, `BQ1`/`SQ8`/`FP16` quantized routing, and exact SIMD reranking across C++, Java, Rust, and OCaml.
+    * **Kleene 3VL, 54-Function CEL & Compiler Parity**: Full Kleene 3-valued logic, `VmCelEvaluator` / `kleisli_json_runner`, NaN/signed-zero/nullability parity, and `ImpK` / `ImpLog` / `CypherCompiler` lowering for multi-lane and vector ANN queries.
+    * **Unified `impulse-cli`, Security & Compatibility**: Consolidated `impulse-cli` inside `impulse-graph-core`, eliminated `thrift` (`CVE-2026-43868`) via Arrow/Parquet `60.1.0`, updated `jackson-*` to `2.18.11`, restored JDK 21 LTS FFM compatibility alongside JDK 22+/25 LTS, and hardened parsers/VM with ASan/UBSan/TSan, libFuzzer, and Jazzer.
 
 !!! info "October 2026 — Unified Documentation Portal & API References"
-    * **Documentation Website (`www.impulsegraph.org`)**: Overhauled the documentation portal (currently **85% complete**), integrating [Data-Oriented Design](concepts/data-oriented-design.md) guides, [Aggregated Java 25 Javadocs](/javadoc/index.html), and the [C-ABI Kernel & VM Reference](reference/c-abi.md).
+    * **Documentation Website (`www.impulsegraph.org`)**: Overhauled the documentation portal (currently **85% complete**), integrating [Data-Oriented Design](concepts/data-oriented-design.md) guides, [Aggregated Java Javadocs](/javadoc/index.html), and the [C-ABI Kernel & VM Reference](reference/c-abi.md).
     * **Pure Read-Only Engine Architecture Finalized**: Core execution kernels (`impulse-graph-java` and `impulse-graph-core`) focus 100% on read-only, lock-free vector traversals over immutable `.imps` binary snapshots.
-    * **Java 25 `MethodHandle` Combinator JIT & Lua-Inspired VM**: Completed `ImpulseMethodHandleCompiler` and `ShaderCompiler` pipeline fusion in the Pure Java 25 engine alongside 100% four-way polyglot VM parity.
+    * **Java `MethodHandle` Combinator JIT & Lua-Inspired VM**: Completed `ImpulseMethodHandleCompiler` and `ShaderCompiler` pipeline fusion in the Pure Java engine alongside four-way polyglot VM parity.
 
 ---
 
@@ -25,12 +26,12 @@ This page tracks the current development status, subsystem readiness, announceme
 | Subsystem / Repository | Status | Readiness | Notes |
 | :--- | :--- | :--- | :--- |
 | **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.10.0`) | [=100% "100%"] | Page-aligned C-ABI layout, 128-byte SIMD alignment, compliance vectors (`tc01`..`tc38`), and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.10.0`) |
-| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java 25, and OCaml reference oracle (`0x00`..`0xCB`) verified via deterministic SHA-256 `ICTX` v1 state hashes (`impulse_vm_state_hash_hex`) and 188 formal opcode contracts |
-| **[Pure Java 25 Engine (`impulse-graph-java`)](reference/java-api.md)** | RC Ready | [=95% "95%"] | 100% Pure Java 25, zero dependencies, FFM off-heap (`MemorySegment`/`Arena`), Vector API, `MethodHandle` C2 JIT, Multi-Lane & Vamana ANN |
-| **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | RC Ready | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
-| **[Multi-Frontend Compiler (`ImpScheme` / `openCypher` / `CEL`)](concepts/compiler-architecture.md)** | RC Ready | [=90% "90%"] | Two-stage optimizer (logical AST rewriting + cost-based physical selection), Multi-Lane width selection & SQLite-style prepared statements |
+| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java, and OCaml reference oracle (`0x00`..`0xCB`), 165/165 opcodes & 531 `.impas` test vectors verified via deterministic SHA-256 `ICTX` v1 state hashes |
+| **[Pure Java Engine (`impulse-graph-java`)](reference/java-api.md)** | `v0.10.0` Tagged | [=95% "95%"] | Dual-target JDK 21 LTS (preview FFM) & JDK 22+/25 LTS (standard FFM), zero runtime dependencies, virtual-thread safe pools, `MethodHandle` C2 JIT, Multi-Lane & Vamana ANN |
+| **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | `v0.10.0` Tagged | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
+| **[Multi-Frontend Compiler (`ImpScheme` / `openCypher` / `CEL`)](concepts/compiler-architecture.md)** | `v0.10.0` Tagged | [=90% "90%"] | Two-stage optimizer (logical AST rewriting + cost-based physical selection), Multi-Lane width selection & SQLite-style prepared statements |
 | **[Documentation Portal (`impulse-website`)](index.md)** | Active | [=85% "85%"] | Core guides, specifications, Javadocs & C-ABI references live; remaining tutorials in progress |
-| **[Developer CLI Suite (`impulse-cli`)](reference/cli.md)** | Beta | [=85% "85%"] | Standalone `impulse build`, `inspect`, `validate`, `compile`, `assemble`, `disassemble`, `run`, `attach-embeddings`, `bench-vector`, `opt --vamana-locality` (`impulse-graph-core/impulse-cli`) |
+| **[Developer CLI Suite (`impulse-cli`)](reference/cli.md)** | `v0.10.0` Tagged | [=90% "90%"] | Consolidated in `impulse-graph-core/impulse-cli`: `build`, `inspect`, `validate`, `compile`, `assemble`, `disassemble`, `run`, `index`, `sample`, `transmute`, `attach-embeddings`, `bench-vector`, `opt` |
 | **[Polyglot Language SDKs](software-modules.md)** | Beta | [=80% "80%"] | Python (`pybind11` / NumPy / PyTorch), Rust (`impulse-rust`), Go (`CGo`), .NET/C# (`P/Invoke`), Node.js (`N-API`) |
 
 ---
@@ -60,7 +61,7 @@ This page tracks the current development status, subsystem readiness, announceme
 - [x] Implement Lua-inspired register architecture (`R0`..`R63`) and Java 25 `MethodHandle` combinator JIT compilation
 - [x] Remove in-memory delta overlay complexity to dedicate 100% of kernel hot paths to lock-free, read-only `.imps` traversal
 - [x] Launch unified documentation website (`www.impulsegraph.org`) with hosted Java 25 Javadocs and C-ABI references (85% complete)
-- [x] Specify and validate `v0.10.0` Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`, `TYPE_LANE_FRONTIER = 0x10`) and Embedded Vamana ANN + Hybrid Vector Search (`IMP_INDEX_VAMANA_ANN = 0x08`, `0xCA`..`0xCB`) across C++, Java 25, Rust, and OCaml
+- [x] Specify, validate, and tag `v0.10.0` across `impulse-graph-spec`, `impulse-graph-core`, `impulse-graph-java`, `impulse-ocaml`, and `impulse-verification` (Multi-Lane Bit-Sliced Execution `0xC0`..`0xC9`, Embedded Vamana ANN `0x08` / `0xCA`..`0xCB`, Kleene 3VL & 54-func CEL)
 - [ ] Complete remaining 15% of documentation (expanded cookbook recipes, operational runbooks, and showcase deep dives)
 - [ ] Complete end-to-end automated release pipelines with SLSA Level 3 cryptographic build provenance attestations
 - [ ] Publish `v1.0` artifacts across Maven Central (`org.impulsegraph`), PyPI (`impulse-graph`), Crates.io, NuGet, and npm
