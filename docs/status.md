@@ -7,7 +7,7 @@ This page tracks the current development status, subsystem readiness, announceme
 ## Latest Announcements
 
 !!! tip "`v0.10.0` — Multi-Lane Bit-Sliced Execution (`0xC0`..`0xC9`) & Embedded Vamana ANN (`0x08`, `0xCA`..`0xCB`)"
-    Building on the frozen `v0.10.0` baseline (`Version = 0x000A`, magic `IMPS`, `0x00`..`0xBF` ISA), **`v0.10.0`** introduces backward-compatible ISA and secondary-index extensions:
+    Binary Snapshot Specification **`v0.10.0`** (`Version = 0x000A`, magic `IMPS`) introduces the `0xC0`..`0xCB` ISA and secondary-index extensions:
 
     * **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`)**: Propagates up to 64 independent seed queries, concept-group expansions (`OP_LANE_INIT_GROUPS`), or counterfactual $N-1$ edge-outage contingencies (`OP_LANE_SET_EDGE_MASK`) in a single CSR/CSC pass (`138,979.4 Effective Lane-MTEPS` at $L=64$ in `~0.23 ms` in Java 25).
     * **Embedded Vamana (DiskANN) Graph Index (Section 2.6 `IMP_INDEX_VAMANA_ANN = 0x08`)**: 64-byte `VamanaHeader` (`"VAMA"`), 128-byte-aligned fixed-degree adjacency slab, and `BQ1`/`SQ8`/`FP16` quantized routing slabs paired with `[N, D]` `FLOAT32` columns.

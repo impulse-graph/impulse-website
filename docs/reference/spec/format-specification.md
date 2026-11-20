@@ -214,7 +214,7 @@ Begins immediately after Relation Directory Table, aligned to a 128-byte boundar
 
 #### 3.5.2 Section 2.6 Index Type `0x08`: Vamana (DiskANN) Graph Index Layout (`v0.10.0`)
 
-> **Specification Compatibility Note**: `IMP_INDEX_VAMANA_ANN = 0x08` is an additive `v0.10.0` extension stored inside the existing Section 2.6 Secondary Index Directory without altering the `v0.10.0` Page 0 Header (`Version = 0x000A`, `Magic = "IMPS"`).
+> **Specification Compatibility Note**: `IMP_INDEX_VAMANA_ANN = 0x08` is stored inside the Section 2.6 Secondary Index Directory alongside the `v0.10.0` Page 0 Header (`Version = 0x000A`, `Magic = "IMPS"`).
 
 When `IndexType == 0x08` (`IMP_INDEX_VAMANA_ANN`), the `IndexDirectoryEntry.DataOffset` points to a 128-byte-aligned **64-byte `VamanaHeader`** (`spec.rs:380-396`), followed by a 128-byte-aligned fixed-degree adjacency slab and an optional 128-byte-aligned quantized routing code slab:
 

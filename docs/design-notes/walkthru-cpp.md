@@ -180,7 +180,7 @@ if (st == IMPULSE_OK) {
 
 ### 3. Dynamic Live Overlay & Snapshot Compaction
 
-Layer runtime edge additions or tombstones using lock-free dynamic overlay layers (`impulse_delta_layer_t`), and compact them into a new v2.4 binary snapshot:
+Layer runtime edge additions or tombstones using lock-free dynamic overlay layers (`impulse_delta_layer_t`), and compact them into a new `v0.10.0` (`.imps`) binary snapshot:
 
 ```cpp
 // 1. Create delta layer for relation (src_domain=0, tgt_domain=1)

@@ -534,7 +534,7 @@ Edge Stream Shaders enable execution of inline Common Expression Language (CEL) 
 
 ### 6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN Instructions (`0xC0` - `0xCB`) (`v0.10.0`)
 
-> **Specification Versioning Note**: While `v0.10.0` freezes the baseline `0x00`..`0xBF` ISA, `v0.10.0` activates the additive `0xC0`..`0xCB` instruction block and `TYPE_LANE_FRONTIER` (`0x10`) register tag across all four polyglot engines.
+> **Specification Versioning Note**: Specification `v0.10.0` freezes the baseline `0x00`..`0xBF` ISA and activates the `0xC0`..`0xCB` instruction block and `TYPE_LANE_FRONTIER` (`0x10`) register tag across all four polyglot engines.
 
 Multi-Lane Bit-Sliced Execution generalizes single-bit frontier propagation (`1` bit per node) into $W$-bit lane masks ($W \in \{8, 16, 32, 64\}$ bits per node), enabling up to 64 independent traversals, counterfactual edge-outage contingencies, or concept-group expansions in a single memory-bandwidth-bound pass over the CSR/CSC topology.
 
