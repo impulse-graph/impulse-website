@@ -18,7 +18,7 @@ The format is organized into **4KB OS page-aligned physical blocks**, structured
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: Snapshot Header (4KB Page 0, Offset 0x0000)                             │
-│   ├── Magic ("IMPS"), Version (0x0009), DataOffset (4096)                          │
+│   ├── Magic ("IMPS"), Version (0x000A), DataOffset (4096)                          │
 │   └── GlobalRequiredFeatures, SnapshotUUID, HeaderChecksum                        │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │ SECTION 2: Catalog & Relation Directory Table (4KB Page 1, Offset 0x1000)          │
@@ -63,7 +63,7 @@ The snapshot header occupies byte offset `0x00000000` (Page 0). It contains a **
 | Byte Offset | Field Name | C-ABI Type | Size | Default / Constant | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `0x0000` – `0x0003` | `Magic` | `uint32_t` | 4 Bytes | `0x494D5053` (`"IMPS"`) | Magic constant identifying Impulse-Graph binary snapshot file. |
-| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x0009` (`9`) | Protocol specification version number (v0.9.0 packed `0x0009`). |
+| `0x0004` – `0x0005` | `Version` | `uint16_t` | 2 Bytes | `0x000A` (`10`) | Protocol specification version number (v0.10.0 packed `0x000A`). |
 | `0x0006` – `0x0009` | `DataOffset` | `uint32_t` | 4 Bytes | `4096` (`0x00001000`) | Fixed constant (`4096`). Section 2 always starts at byte 4096 (Page 1). |
 | `0x000A` – `0x000B` | `DomainCount` | `uint16_t` | 2 Bytes | Variable | Total number of node domains in the catalog (up to 65,536). |
 | `0x000C` – `0x000D` | `RelationCount` | `uint16_t` | 2 Bytes | Variable | Total number of relations in the matrix (up to 65,536). |
@@ -198,7 +198,7 @@ Begins immediately after Relation Directory Table, aligned to a 128-byte boundar
 | `0x0004` – `0x0005` | `DomainID` | `uint16_t` | 2 Bytes | Target Node Domain ID. |
 | `0x0006` – `0x0007` | `RelationID` | `uint16_t` | 2 Bytes | Target Relation ID (`0xFFFF` for Node Domain attributes). |
 | `0x0008` – `0x0009` | `AttributeIndex` | `uint16_t` | 2 Bytes | 0-indexed Attribute index within target relation or node domain. |
-| `0x000A` | `IndexType` | `uint8_t` | 1 Byte | Generic Index Type enum (`0x01` = Permutation, `0x02` = ZoneMap, `0x03` = InvertedBitSet, `0x04` = MPHF, `0x05` = Trigram, `0x06` = DomainSplit, `0x07` = TemporalInterval, `0x08` = VamanaANN [`IMP_INDEX_VAMANA_ANN`, Planned `v0.9.1`]). |
+| `0x000A` | `IndexType` | `uint8_t` | 1 Byte | Generic Index Type enum (`0x01` = Permutation, `0x02` = ZoneMap, `0x03` = InvertedBitSet, `0x04` = MPHF, `0x05` = Trigram, `0x06` = DomainSplit, `0x07` = TemporalInterval, `0x08` = VamanaANN [`IMP_INDEX_VAMANA_ANN`, `v0.10.0`]). |
 | `0x000B` | `Reserved1` | `uint8_t` | 1 Byte | `0x00` alignment padding. |
 | `0x000C` – `0x000F` | `NameOffset` | `uint32_t` | 4 Bytes | 0-indexed byte offset into String Table (e.g., `"idx_user_email\0"`). |
 | `0x0010` – `0x0017` | `DataOffset` | `uint64_t` | 8 Bytes | Absolute 128B-aligned file offset to index data payload blob. |
@@ -209,12 +209,12 @@ Begins immediately after Relation Directory Table, aligned to a 128-byte boundar
 #### 3.5.1 Constructing & Attaching Secondary Indices (`impulse_index.h`)
 
 * **Automatic Primary Key Index (`impulse build`)**: When building an `.imps` snapshot from a `manifest.json` via `impulse build`, the compiler automatically populates the domain key catalog index (`_domain_index`) and attribute min/max metadata.
-* **Programmatic Secondary Index Construction (C-ABI & Rust)**: The 8 secondary index families (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitSet, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval, and `0x08` VamanaANN [`Planned v0.9.1`]) are constructed in `impulse_index.h` via `impulse_index_build_permutation(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_zone_map(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_minimal_perfect_hash(const char** keys, size_t count, void** out_bytes, size_t* out_size)` (plus `impulse_index_build_inverted_bitset`, `impulse_index_build_trigram`, `impulse_index_build_domain_split`, `impulse_index_build_temporal_interval`, and Rust `vamana::build_vamana_index` / CLI `impulse attach-embeddings`) and attached to the snapshot writer via `impulse_writer_add_index(writer, domain_id, relation_id, attribute_index, index_type, index_name, index_data, index_bytes, payload_feature_mask)` (or Rust `SnapshotWriter::add_index` / `SnapshotWriter::add_vamana_index`).
+* **Programmatic Secondary Index Construction (C-ABI & Rust)**: The 8 secondary index families (`0x01` Permutation, `0x02` ZoneMap, `0x03` InvertedBitSet, `0x04` MinimalPerfectHash, `0x05` Trigram, `0x06` DomainSplitBitset, `0x07` TemporalInterval, and `0x08` VamanaANN [`Planned v0.10.0`]) are constructed in `impulse_index.h` via `impulse_index_build_permutation(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_zone_map(const void* attr_data, size_t element_count, uint8_t type_code, void** out_bytes, size_t* out_size)`, `impulse_index_build_minimal_perfect_hash(const char** keys, size_t count, void** out_bytes, size_t* out_size)` (plus `impulse_index_build_inverted_bitset`, `impulse_index_build_trigram`, `impulse_index_build_domain_split`, `impulse_index_build_temporal_interval`, and Rust `vamana::build_vamana_index` / CLI `impulse attach-embeddings`) and attached to the snapshot writer via `impulse_writer_add_index(writer, domain_id, relation_id, attribute_index, index_type, index_name, index_data, index_bytes, payload_feature_mask)` (or Rust `SnapshotWriter::add_index` / `SnapshotWriter::add_vamana_index`).
 * **Transient Scratch Indices & `.imps.idx` Sidecars**: Opcodes `OP_CREATE_SCRATCH_INDEX` (`0x1E`) and `OP_DROP_SCRATCH_INDEX` (`0x1F`) allocate and free transient secondary indices in the query scratch workspace; external `.imps.idx` sidecar file persistence is a reserved specification extension.
 
-#### 3.5.2 Section 2.6 Index Type `0x08`: Vamana (DiskANN) Graph Index Layout [Planned for `v0.9.1`]
+#### 3.5.2 Section 2.6 Index Type `0x08`: Vamana (DiskANN) Graph Index Layout (`v0.10.0`)
 
-> **Specification Compatibility Note**: `IMP_INDEX_VAMANA_ANN = 0x08` is an additive `v0.9.1` extension stored inside the existing Section 2.6 Secondary Index Directory without altering the `v0.9.0` Page 0 Header (`Version = 0x0009`, `Magic = "IMPS"`).
+> **Specification Compatibility Note**: `IMP_INDEX_VAMANA_ANN = 0x08` is an additive `v0.10.0` extension stored inside the existing Section 2.6 Secondary Index Directory without altering the `v0.10.0` Page 0 Header (`Version = 0x000A`, `Magic = "IMPS"`).
 
 When `IndexType == 0x08` (`IMP_INDEX_VAMANA_ANN`), the `IndexDirectoryEntry.DataOffset` points to a 128-byte-aligned **64-byte `VamanaHeader`** (`spec.rs:380-396`), followed by a 128-byte-aligned fixed-degree adjacency slab and an optional 128-byte-aligned quantized routing code slab:
 
@@ -307,7 +307,7 @@ Attribute storage layout depends on whether the attribute is fixed-width (scalar
 
   $$\text{ByteOffset}(i) = \text{DataOffset} + (i \times D \times \text{sizeof(BaseType)})$$
 
-* **Hybrid Vector ANN Pairing (`v0.9.1`)**: Fixed-width `[N, D]` `FLOAT32` (`0x06`) Node Domain vector columns pair directly with Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, see §3.5.2) via `VamanaHeader.vec_attr_id`. During query execution, `OP_VECTOR_ANN_SEARCH` (`0xCA`) traverses the Vamana adjacency and quantized routing slabs (`BQ1`/`SQ8`/`FP16`) to seed a `TYPE_BITSET_HANDLE` or `TYPE_LANE_FRONTIER`, and `OP_VECTOR_RERANK_DOT` (`0xCB`) evaluates exact SIMD dot-product scores against the 128-byte-aligned `[N, D]` `FLOAT32` column for only the surviving candidate nodes.
+* **Hybrid Vector ANN Pairing (`v0.10.0`)**: Fixed-width `[N, D]` `FLOAT32` (`0x06`) Node Domain vector columns pair directly with Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, see §3.5.2) via `VamanaHeader.vec_attr_id`. During query execution, `OP_VECTOR_ANN_SEARCH` (`0xCA`) traverses the Vamana adjacency and quantized routing slabs (`BQ1`/`SQ8`/`FP16`) to seed a `TYPE_BITSET_HANDLE` or `TYPE_LANE_FRONTIER`, and `OP_VECTOR_RERANK_DOT` (`0xCB`) evaluates exact SIMD dot-product scores against the 128-byte-aligned `[N, D]` `FLOAT32` column for only the surviving candidate nodes.
 
 #### 4.3.2 Variable-Length String & Binary Attributes (`VAR_STRING` 0x0B, `VAR_BYTES` 0x0C)
 * **Offsets Array**: Stored at 128B-aligned `OffsetsOffset` containing an array of $K + 1$ 32-bit unsigned integers (`uint32_t offsets[K + 1]`), where `offsets[0] = 0`.
@@ -377,7 +377,7 @@ Every compliant snapshot MUST terminate with exactly 16 bytes at EOF:
 ```c
 typedef struct impulse_footer_trailer {
     uint64_t footer_length;    // 8 Bytes: Byte size of Footer Block
-    uint32_t spec_version;     // 4 Bytes: Protocol version (0x0009)
+    uint32_t spec_version;     // 4 Bytes: Protocol version (0x000A)
     uint32_t footer_magic;     // 4 Bytes: "IMPS" (0x494D5053)
 } impulse_footer_trailer_t;     // Exactly 16 Bytes at EOF
 ```

@@ -17,7 +17,7 @@ Choose your language ecosystem below:
         git clone https://github.com/impulse-graph/impulse-graph-java.git
         cd impulse-graph-java && mvn clean install -DskipTests
         ```
-        Central repository indexing for `org.impulsegraph:0.9.0` is staged for the upcoming general release.
+        Central repository indexing for `org.impulsegraph:0.10.0` is staged for the upcoming general release.
 
     **Maven (`pom.xml`)**:
 
@@ -26,29 +26,29 @@ Choose your language ecosystem below:
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-api</artifactId>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </dependency>
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-storage</artifactId>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </dependency>
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-vm</artifactId>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </dependency>
         <!-- Multi-pass openCypher, CEL, and ImpScheme compiler -->
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-compiler</artifactId>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </dependency>
         <!-- Streaming .imps snapshot builder -->
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-builder</artifactId>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </dependency>
     </dependencies>
     ```
@@ -57,11 +57,11 @@ Choose your language ecosystem below:
 
     ```kotlin
     dependencies {
-        implementation("org.impulsegraph:impulse-api:0.9.0")
-        implementation("org.impulsegraph:impulse-storage:0.9.0")
-        implementation("org.impulsegraph:impulse-vm:0.9.0")
-        implementation("org.impulsegraph:impulse-compiler:0.9.0")
-        implementation("org.impulsegraph:impulse-builder:0.9.0")
+        implementation("org.impulsegraph:impulse-api:0.10.0")
+        implementation("org.impulsegraph:impulse-storage:0.10.0")
+        implementation("org.impulsegraph:impulse-vm:0.10.0")
+        implementation("org.impulsegraph:impulse-compiler:0.10.0")
+        implementation("org.impulsegraph:impulse-builder:0.10.0")
     }
     ```
 

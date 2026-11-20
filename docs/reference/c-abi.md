@@ -14,7 +14,7 @@ The **Impulse Graph Engine C-ABI Kernel** (`impulse-graph-core/impulse-cpp/inclu
 | **`impulse_format_v0_9.h`** | Packed 1-byte-aligned C-ABI POD structures (`#pragma pack(push, 1)`), feature flags, and enumeration constants for the [Binary Snapshot Format (`.imps`)](spec/format-specification.md). |
 | **`impulse_graph.h`** | Snapshot `mmap` loader, domain/relation catalog inspection, direct CSR/CSC/SoA attribute buffer pointers, key catalog resolution, streaming snapshot writer, and SIMD neighbor sampling. |
 | **`impulse_vm.h`** | 64-bit bytecode instruction layout (`impulse_instruction_t`), 640-byte execution state frame (`impulse_vm_state_t`), `TYPE_LANE_FRONTIER` (`0x10`) context accessors, in-kernel multi-language compiler, and SQLite-style prepared statements (`impulse_stmt_t`). |
-| **`impulse_index.h`** | Secondary index construction and lookup functions (`0x01` Permutation, `0x02` 2-Tier Zone Map, `0x03` Inverted Bitset, `0x04` Minimal Perfect Hash, `0x05` Trigram, `0x06` Domain-Split Bitset, `0x07` Temporal Interval, and `0x08` Vamana ANN in `v0.9.1`). |
+| **`impulse_index.h`** | Secondary index construction and lookup functions (`0x01` Permutation, `0x02` 2-Tier Zone Map, `0x03` Inverted Bitset, `0x04` Minimal Perfect Hash, `0x05` Trigram, `0x06` Domain-Split Bitset, `0x07` Temporal Interval, and `0x08` Vamana ANN in `v0.10.0`). |
 | **`impulse_simd.h`** | Dynamic SIMD target dispatch (`AVX-512`, `AVX2`, `ARM-NEON`, `WASM-SIMD128`) for float32 vector operations and sorted `uint32_t` array intersections. |
 | **`impulse_vm_fluent.hpp`** | C++20 fluent bytecode builder (`impulse::vm::QueryBuilder`, `CompiledQuery`, `QueryResult`) and domain-bound traversal DSL (`SnapshotView`, `DomainView`, `Traversal`, `MultiLaneBuilder`, `MultiLaneTraversal`, `MultiLaneResult`). |
 
@@ -224,9 +224,9 @@ int main() {
 }
 ```
 
-### 5.1 Multi-Lane Bit-Sliced & Hybrid Vector Fluent APIs (Planned v0.9.1)
+### 5.1 Multi-Lane Bit-Sliced & Hybrid Vector Fluent APIs (v0.10.0)
 
-In `v0.9.1`, `impulse_vm_fluent.hpp` and `impulse_vm.h` add support for **Multi-Lane Bit-Sliced Execution (`0xC0..0xC9`)** and **Hybrid Vamana ANN Search & SIMD Reranking (`0xCA..0xCB`)** at three levels:
+In `v0.10.0`, `impulse_vm_fluent.hpp` and `impulse_vm.h` add support for **Multi-Lane Bit-Sliced Execution (`0xC0..0xC9`)** and **Hybrid Vamana ANN Search & SIMD Reranking (`0xCA..0xCB`)** at three levels:
 
 #### 1. Low-Level `impulse::vm::QueryBuilder` Bytecode Emitters (`0xC0..0xCB`)
 

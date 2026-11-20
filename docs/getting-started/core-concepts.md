@@ -244,7 +244,7 @@ When evaluating a traversal filter like `.filter("node.age >= 21")`:
 
 All of the above primitives—CSR matrices, CSC matrices, domain catalogs, string pools, and columnar attributes—are serialized into a single immutable file ending with `.imps` (C-ABI Binary Snapshot Specification ).
 
-* **Page 0 (4KB)**: Fixed header with magic bytes `0x494D5053` (`IMPS`), version `0x0009`, and hardware flags.
+* **Page 0 (4KB)**: Fixed header with magic bytes `0x494D5053` (`IMPS`), version `0x000A`, and hardware flags.
 * **128-Byte Hardware Alignment**: All sections, matrices, and attribute arrays are strictly aligned to 128-byte boundaries. This matches AVX-512 cache lines and GPU warp memory coalescing (NVIDIA GPUDirect Storage `cuFile`).
 * **Zero-Copy Memory-Mapped (`mmap`)**: When your application starts, the operating system maps the `.imps` file into virtual memory in sub-milliseconds ($O(1)$). No data is copied into JVM heap or user space until traversed.
 

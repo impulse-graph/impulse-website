@@ -278,7 +278,7 @@ mvn exec:exec
 
 | Step | Action | Description |
 | :--- | :--- | :--- |
-| **1. Depend** | Add Maven Central dependencies | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm` (`0.9.0`) |
+| **1. Depend** | Add Maven Central dependencies | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm` (`0.10.0`) |
 | **2. Configure** | JVM flags | `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED` |
 | **3. Load** | Zero-copy `mmap` off-heap | `BinarySnapshotLoader.loadSnapshot(path, arena)` |
 | **4. Anchor** | Domain context | `DomainView userDomain = graph.domain("USER");` |

@@ -68,7 +68,7 @@ Once your graph is in `.imps`, you don't just have passive tensors—you also ha
 3. **Instant Structural Feature Generation**:
    * Compute multi-hop reachability sets, degree distributions, connected components, or GraphBLAS (`ImpK`) structural features in microseconds and pass the resulting bitset or vector straight into PyTorch.
 4. **GPU-Ready Sliced ELLPACK (`0x05`) for Sparse Matrix Ops (`SpMM`)**:
-   * In `impulse-gnn`, packing the CSR topology into 2D GPU slice tiles (`create_sliced_ellpack_matrix`) enables coalesced GPU shader reads, eliminating warp divergence on high-degree power-law graphs (CLI compilation planned for `v0.9.1`).
+   * In `impulse-gnn`, packing the CSR topology into 2D GPU slice tiles (`create_sliced_ellpack_matrix`) enables coalesced GPU shader reads, eliminating warp divergence on high-degree power-law graphs (CLI compilation planned for `v0.10.0`).
 
 ```python
 from impulse_gnn import ImpulseGnnDataset, ImpulseNeighborSampler

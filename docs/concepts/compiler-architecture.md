@@ -34,7 +34,7 @@ To support sub-microsecond plan caching across Blue/Green snapshot swaps, optimi
 Any compiled query can be disassembled into canonical human-readable **ImpAsm (`.impas`)** text assembly (via `ImpAsmDisassembler.disassemble(program)` in Java or `impulse disassemble` in the CLI):
 
 ```impas
-.version 0.9.0
+.version 0.10.0
 .instructions 4
 
   0x0000: OP_CSC_WALK       flags=0x03, dst=R1, payload=0x00240000 ; Walk src=R0 -> dst=R1 via rel[36] [seed-inlined]

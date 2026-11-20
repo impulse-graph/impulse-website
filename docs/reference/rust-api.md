@@ -20,7 +20,7 @@ impulse-graph = { path = "../impulse-graph-core/impulse-rust" }
 | **`reader`** | `SnapshotReader` (`open`, `domain_count`, `relation_count`, `is_reachable`, `get_row_offsets`, `get_col_indices`, `get_neighbors`, `get_attribute_data`, `index_entries`, `parse_vamana_header`, `vamana_ann_search`) |
 | **`traversal`** | `Traversal`, `TraversalStep`, `StepDirection` |
 | **`writer`** | `SnapshotWriter` (`new`, `add_domain`, `add_relation`, `add_attribute_to_relation`, `add_attribute_to_domain`, `add_index`, `add_vamana_index`, `add_built_vamana_index`, `finalize`) |
-| **`vamana`** | `VamanaBuildConfig`, `BuiltVamanaIndex` (`VamanaArtifact`), `build_vamana_index`, `permute_vamana_index`, `compute_vamana_bfs_order`, `vamana_ann_search`, `brute_force_ann_search`, `evaluate_ann_quality` (`v0.9.1`) |
+| **`vamana`** | `VamanaBuildConfig`, `BuiltVamanaIndex` (`VamanaArtifact`), `build_vamana_index`, `permute_vamana_index`, `compute_vamana_bfs_order`, `vamana_ann_search`, `brute_force_ann_search`, `evaluate_ann_quality` (`v0.10.0`) |
 | **`spec`** | `SnapshotHeader`, `KeyType`, `BaseDataType`, `EncodingType`, `ImpulseError`, `IMPULSE_MAGIC`, `IMP_INDEX_VAMANA_ANN` (`0x08`), `VamanaHeader`, `VamanaMetric`, `VamanaQuantType`, `VAMANA_MAGIC` |
 | **`simd`** | SIMD dot product, elementwise sum/scale/mul, and sorted `u32` slice intersection |
 | **`ffi`** | Raw `extern "C"` bindings to `impulse_graph.h` and `impulse_vm.h` |
@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 4.1 Vamana ANN Graph Index Construction, Permutation & Two-Stage Search (`vamana` Module, Planned `v0.9.1`)
+### 4.1 Vamana ANN Graph Index Construction, Permutation & Two-Stage Search (`vamana` Module, `v0.10.0`)
 
 The zero-dependency `impulse_graph::vamana` module implements Section 2.6 **`IMP_INDEX_VAMANA_ANN` (`0x08`)** single-layer DiskANN/Vamana proximity graph construction, medoid-seeded BFS node permutation, and two-stage quantized beam search (`BQ1` / `SQ8` / `FP16` routing codes followed by exact `Float32` reranking):
 
