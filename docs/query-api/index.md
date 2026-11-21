@@ -36,6 +36,8 @@ Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), see
 
 === "Python"
     ```python
+    from impulse_graph import Snapshot
+
     with Snapshot("banking.imps") as snap:
         recipient_accounts = (
             snap.domain("User")

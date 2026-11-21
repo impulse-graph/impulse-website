@@ -74,10 +74,10 @@ import torch
 from impulse_graph import Snapshot
 
 with Snapshot("ogbn_papers100M.imps") as snap:
-    # 1. Zero-copy 128-D float32 node embeddings (N x 128) via NumPy buffer protocol
-    num_nodes = snap.get_relation(0)["node_count"]
-    feat_np = snap.get_attribute_array(0, 0, dtype=np.float32, shape=(num_nodes, 128))
-    x_embeddings = torch.from_numpy(feat_np)
+    # 1. Zero-copy float32 relation attribute column via NumPy buffer protocol
+    edge_count = snap.get_relation(0)["edge_count"]
+    attr_np = snap.get_attribute_array(0, 0, dtype=np.float32, shape=(edge_count,))
+    edge_weights = torch.from_numpy(attr_np)
 
     # 2. Zero-copy CSR topology tensors
     csr_tensor = snap.to_torch_csr(0)

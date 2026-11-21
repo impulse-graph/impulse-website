@@ -45,6 +45,9 @@ flowchart TD
 | **Multi-Worker `DataLoader` RAM** | Duplicated per worker / Python CoW page faults | **`0 Bytes` duplication** (shared read-only OS page cache) |
 | **Graphs Larger Than Physical RAM** | ❌ **Impossible** without complex custom chunking | ✅ **Works out of the box** (OS demand-paging over NVMe) |
 
+!!! note "Showcase Package (`impulse-gnn`)"
+    `impulse_gnn` lives in the [impulse-gnn](https://github.com/impulse-graph/impulse-gnn) showcase repository (not published on PyPI). Install it from a local clone with `pip install -e .`.
+
 ```python
 from impulse_gnn import ImpulseGnnDataset
 

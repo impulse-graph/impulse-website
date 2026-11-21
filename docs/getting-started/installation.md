@@ -17,7 +17,7 @@ Choose your language ecosystem below:
         git clone https://github.com/impulse-graph/impulse-graph-java.git
         cd impulse-graph-java && mvn clean install -DskipTests
         ```
-        Central repository indexing for `org.impulsegraph:0.10.0` is staged for the upcoming general release.
+        Central repository indexing for `org.impulsegraph:0.10.0` is staged; release JARs are also available on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.0).
 
     **Maven (`pom.xml`)**:
 

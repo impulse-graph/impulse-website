@@ -206,8 +206,8 @@ In Java ingestion pipelines, external database keys are translated during stream
 
 ```java
 // Map external database keys (e.g. Long, String, UUID) to continuous 0..N-1 dense IDs:
-IdMapper<String> userMapper = new IdMapper<>();
-long aliceDenseId = userMapper.getOrCreateId("alice@example.com"); // 0
+IdMapper<String> userMapper = new StringIdMapper("User");
+long aliceDenseId = userMapper.getOrAssignId("alice@example.com"); // 0
 ```
 
 * **At Ingestion Time**: External keys are mapped to continuous $0 \dots N_d-1$ integers.
