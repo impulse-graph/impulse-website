@@ -88,7 +88,7 @@ In-process compilation and execution of `.impk` scripts is supported directly th
     // Compile and execute ImpK scripts directly in-process
     String script = "y = FOLLOWS * x\n";
     CompiledQuery query = ImpKCompiler.compileToExecutable(script, snapshot, arena);
-    QueryResult result = query.execute(inputNodeId);
+    Object result = query.execute(snapshot, inputNodeId, arena);
     ```
 
 === "C / C++20 (`impulse_compile_and_execute`)"

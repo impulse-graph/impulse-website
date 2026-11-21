@@ -289,6 +289,9 @@ impulse snapshot stats citations.imps --supernode-threshold 3.0
 
 ### Step 4: Mount Zero-Copy in PyTorch (`impulse-gnn`)
 
+!!! note "Showcase Package (`impulse-gnn`)"
+    `impulse_gnn` lives in the [impulse-gnn](https://github.com/impulse-graph/impulse-gnn) showcase repository (not published on PyPI). Install it from a local clone with `pip install -e .`.
+
 Now load `citations.imps` in PyTorch. The CSR topology (`row_offsets`, `col_indices`) and node attributes are exposed directly as read-only `torch.Tensor` views over the `mmap` region—no `pd.read_parquet()`, no COO-to-CSR sorting, and zero multi-worker RAM blowup:
 
 ```python
