@@ -1,5 +1,5 @@
 site_name: Impulse Graph Engine
-site_description: High-Performance C-ABI Binary Snapshot Graph Engine
+site_description: Embedded C-ABI Binary Snapshot Graph Engine & Register Virtual Machine
 site_url: https://www.impulsegraph.org
 repo_url: https://github.com/impulse-graph
 repo_name: impulse-graph
@@ -19,6 +19,9 @@ theme:
     - search.suggest
     - search.highlight
     - content.code.copy
+
+hooks:
+  - scripts/mkdocs_hooks.py
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -46,6 +49,7 @@ extra_javascript:
 
 not_in_nav: |
   design-notes/*
+  ai/SKILL.md
 
 validation:
   links:
@@ -54,27 +58,27 @@ validation:
 nav:
   - Home:
     - Overview: index.md
+    - Benchmarks: benchmarks.md
     - Status & Roadmap: status.md
     - Release Notes: release-notes.md
-    - Software Modules: software-modules.md
-    - Contributing:
-      - Contributing Guide: contributing/index.md
-      - Polyglot Validation & Test Process: contributing/polyglot-validation.md
-
-  - Getting Started:
-    - Overview: getting-started/index.md
-    - Installation: getting-started/installation.md
-    - Quickstart: getting-started/quickstart.md
-    - Core Concepts & Glossary: getting-started/core-concepts.md
-    - Building Snapshots (Java): getting-started/building-snapshots.md
-    - Building Snapshots (CLI & Python): getting-started/snapshot-builder-reference.md
-    - Changing Data & Live Updates: getting-started/handling-mutations.md
     - Showcase Applications:
       - Overview: showcase/index.md
       - Authorization (ReBAC): showcase/authz.md
       - Anti-Money Laundering: showcase/aml.md
       - Power Grid Stability: showcase/powergrid.md
       - Graph Neural Networks: showcase/gnn.md
+
+  - Start Here:
+    - Choose Your Entrypoint: getting-started/index.md
+    - Problem-First Guides:
+      - From NetworkX, Pandas & Parquet: getting-started/from-networkx-and-parquet.md
+      - Embedded Engine vs. Graph DBs: getting-started/embedded-vs-graph-db.md
+      - Build Once, Mount Anywhere: getting-started/polyglot-workflow.md
+    - Core Onboarding:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Core Concepts & Glossary: getting-started/core-concepts.md
+      - Changing Data & Live Updates: getting-started/handling-mutations.md
 
   - Concepts & Architecture:
     - Why Impulse Graph?: concepts/why-impulse.md
@@ -83,9 +87,10 @@ nav:
     - Zero-Allocation Execution & Buffers: concepts/key-mapping-and-projections.md
     - Compiler Pipeline & ImpulseVM: concepts/compiler-architecture.md
     - Mathematical & GraphBLAS Foundations: academic.md
+    - Software Modules & Repo Map: software-modules.md
 
   - Querying & DSLs:
-    - Overview & Query Modes: query-api/index.md
+    - Choosing a Query Mode & DSL: query-api/index.md
     - Fluent Traversal API: query-api/fluent-api.md
     - State Projections, Reducers & Loops: query-api/advanced-querying.md
     - openCypher Guide: dsl/opencypher.md
@@ -94,26 +99,48 @@ nav:
     - ImpK (GraphBLAS & Vectors): dsl/impk.md
     - ImpScheme IR (.impscm): dsl/impscm.md
 
-  - Reference & Specs:
-    - Java 25 SDK Reference: reference/java-api.md
-    - Python & PyTorch SDK Reference: reference/python-api.md
-    - C-ABI & C++20 Reference: reference/c-abi.md
-    - Rust Crate Reference: reference/rust-api.md
-    - Go, .NET & Node.js SDKs: reference/polyglot-sdks.md
-    - CLI Reference (impulse): reference/cli.md
-    - Packages & Distribution: reference/packages.md
-    - Binary Snapshot Spec (.imps): reference/spec/format-specification.md
-    - ImpulseVM, ImpOps & ImpAs Spec: reference/spec/vm-specification.md
-    - Schema & Manifest Spec (.yaml): reference/spec/schema-specification.md
+  - Ecosystems & Tooling:
+    - Overview & Runtime Tracks: ecosystems/index.md
+    - Java & JVM Enterprise:
+      - Overview, BOM & JVM Flags: ecosystems/java/index.md
+      - Building Snapshots (Java & JDBC): ecosystems/java/building-snapshots.md
+      - Schema-First & AOT Codegen: ecosystems/java/aot-codegen.md
+      - Maven Plugin & Build Pipeline: ecosystems/java/maven-and-build-tooling.md
+      - Pure-Java CLI (impulse-j): ecosystems/java/cli-impulse-j.md
+      - Day-2 K8s, Hot-Swap & Schema Evolution: ecosystems/java/kubernetes-and-lifecycle.md
+      - Kotlin, Scala 3 & Clojure: ecosystems/java/jvm-languages.md
+    - Python, Data Science & ML:
+      - Overview & Interactive Workflows: ecosystems/python/index.md
+      - Snapshots from Parquet & CSV: ecosystems/python/snapshots-from-parquet-csv.md
+      - PyTorch GNN & Vamana Vector Search: ecosystems/python/gnn-and-vector-search.md
+    - Native, C-ABI & Systems:
+      - C/C++20, Rust, Go, .NET & Node.js: ecosystems/native/index.md
+      - CLI Optimization, Audit & Signing: ecosystems/native/cli-reference.md
+    - AI Coding Agents:
+      - Using Impulse with AI Agents: ai/index.md
 
-  - Deployment & Tuning:
-    - Deployment & Operations:
-      - Dynamic Service: deployment/dynamic-service.md
-      - Fixed Snapshot: deployment/fixed-snapshot.md
+  - Specs, Ops & Reference:
+    - Normative Specifications:
+      - Binary Snapshot Spec (.imps): reference/spec/format-specification.md
+      - Schema & Manifest Spec (.yaml): reference/spec/schema-specification.md
+      - ImpulseVM, ImpOps & ImpAs Spec: reference/spec/vm-specification.md
+    - Production Operations:
+      - Dynamic Service (Blue/Green): deployment/dynamic-service.md
+      - Fixed Snapshot Deployment: deployment/fixed-snapshot.md
       - Capacity & Growth: deployment/capacity-growth.md
       - Concurrency Model: deployment/concurrency.md
       - JVM Memory & FFM Tuning: deployment/memory-tuning.md
-    - Benchmarks:
-      - Overview: benchmarks.md
+    - SDK & CLI Reference:
+      - Packages & Distribution: reference/packages.md
+      - CLI Reference (impulse-graph): reference/cli.md
+      - Java SDK Reference: reference/java-api.md
+      - Python & PyTorch SDK Reference: reference/python-api.md
+      - C-ABI & C++20 Reference: reference/c-abi.md
+      - Rust Crate Reference: reference/rust-api.md
+      - Go, .NET & Node.js SDKs: reference/polyglot-sdks.md
+    - Benchmarks & Deep Dives:
       - Java HotSpot vs. GraalVM: benchmarks/java-hotspot-vs-graal.md
       - Multi-JVM Ecosystem: benchmarks/jvm-ecosystem-comparison.md
+    - Verification & Contributing:
+      - Contributing Guide: contributing/index.md
+      - Polyglot Validation & Test Process: contributing/polyglot-validation.md

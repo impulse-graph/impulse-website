@@ -1,6 +1,9 @@
 # Java 25 SDK Reference (`impulse-graph-java`)
 
-The **Pure Java 25 Engine** (`impulse-graph-java`) is a standalone, zero-dependency implementation of the Impulse Graph Engine and `ImpulseVM`. It uses the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` C2 JIT combinators.
+!!! tip "Looking for Enterprise JVM Guides, AOT Codegen, Maven Plugin, or Kubernetes Lifecycle?"
+    Visit the **[Java & JVM Enterprise Hub](../ecosystems/java/index.md)** for full walkthroughs on `impulse-bom` & JDK 21/25 flags, **[Building Snapshots in Java](../ecosystems/java/building-snapshots.md)**, **[Schema-First AOT Code Generation](../ecosystems/java/aot-codegen.md)**, **[Maven Plugin (7 Mojos)](../ecosystems/java/maven-and-build-tooling.md)**, **[Pure-Java CLI (`impulse-j`)](../ecosystems/java/cli-impulse-j.md)**, **[Kubernetes & Hot-Swap Lifecycle](../ecosystems/java/kubernetes-and-lifecycle.md)**, and **[Kotlin, Scala 3 & Clojure](../ecosystems/java/jvm-languages.md)**.
+
+The **Pure Java 21 LTS / 25+ Engine** (`impulse-graph-java`) is a standalone, zero-dependency implementation of the Impulse Graph Engine and `ImpulseVM`. It uses the Java Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`) to mount `.imps` binary snapshots directly off-heap, combined with the Vector API (`jdk.incubator.vector`) and `MethodHandle` C2 JIT combinators.
 
 Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **memory-bandwidth and cache-line bound**, `impulse-graph-java` executes within **`1.5x–2.0x` of the Native C++20 kernel** (specifically **`1.65x`** on 1.47B-edge `twitter-2010` BFS: `240.29 ms` Java vs. `145.00 ms` C++) with a **JFR-verified zero-allocation hot path** (`0.00 ms` GC pauses). In enterprise microservice benchmarks simulating multi-hop ReBAC authorization queries against a realistic directory corpus of 600,000 users, JFR profiling shows that Jackson JSON serialization of the query response (`1.91 µs – 2.56 µs`) consumes **`3.5x to 73x` more CPU time** than the Impulse Graph query itself (`0.026 µs – 0.552 µs`)—making Pure Java 25 wholly suitable for demanding enterprise workloads without JNI wrappers or inherited CVEs. See **[Benchmarks](../benchmarks.md)** for full details.
 
@@ -10,12 +13,13 @@ Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **me
 | Javadoc Package | Module | Description |
 | :--- | :--- | :--- |
 | [**`org.impulsegraph.api`**](/javadoc/org/impulsegraph/api/package-summary.html) | `impulse-api` | `ImpulseGraphSnapshot`, `RelationSnapshot`, `ImpulseGraphQuery`, `IdMapper<K>` |
+| [**`org.impulsegraph.api.schema`**](/javadoc/org/impulsegraph/api/schema/package-summary.html) · [**`lifecycle`**](/javadoc/org/impulsegraph/api/lifecycle/package-summary.html) | `impulse-api` | `GraphManifest`, `SchemaYamlCodec`, `SchemaValidator`, `SnapshotResolver`, `ConsumerSchemaContext`, `SwapResult` *(v0.11)* |
 | [**`org.impulsegraph.api.traversal`**](/javadoc/org/impulsegraph/api/traversal/package-summary.html) | `impulse-api` | Kleisli frontier pipeline (`DomainView`, `Traversal<T>`, `Reducer`) |
 | [**`org.impulsegraph.api.statement`**](/javadoc/org/impulsegraph/api/statement/package-summary.html) | `impulse-api` | SQLite-style prepared statements (`ImpulseStatement`, `RowReader`) |
 | [**`org.impulsegraph.api.bitset`**](/javadoc/org/impulsegraph/api/bitset/package-summary.html) | `impulse-api` | Zero-copy off-heap bitsets (`ImpulseBitSet`, `OffHeapBitSet`) |
 | [**`org.impulsegraph.compiler.ast`**](/javadoc/org/impulsegraph/compiler/ast/package-summary.html) | `impulse-api` | AST node representations and lexical bindings |
-| [**`org.impulsegraph.storage.csr`**](/javadoc/org/impulsegraph/storage/csr/package-summary.html) | `impulse-storage` | `BinarySnapshotLoader`, `GraphSnapshot`, `SnapshotSwapManager` |
-| [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery`, `VmQueryContext`, `VmLaneFrontier`, `VmMultiLaneHandlers` |
+| [**`org.impulsegraph.storage.csr`**](/javadoc/org/impulsegraph/storage/csr/package-summary.html) · [**`schema`**](/javadoc/org/impulsegraph/storage/schema/package-summary.html) | `impulse-storage` | `BinarySnapshotLoader`, `GraphSnapshot`, `SnapshotSwapManager`, `ImpulseHealthIndicator`, `SnapshotContractValidator`, `SnapshotSchemaExtractor` |
+| [**`org.impulsegraph.vm`**](/javadoc/org/impulsegraph/vm/package-summary.html) · [**`lifecycle`**](/javadoc/org/impulsegraph/vm/lifecycle/package-summary.html) | `impulse-vm` | `ImpulseVmInterpreter`, `ImpulseVmValidator`, `ImpulseMethodHandleCompiler`, `CompiledQuery`, `VmQueryContext`, `VmLaneFrontier`, `SnapshotLifecycleManager` |
 | [**`cypher`**](/javadoc/org/impulsegraph/compiler/cypher/package-summary.html) · [**`cel`**](/javadoc/org/impulsegraph/compiler/cel/package-summary.html) · [**`passes`**](/javadoc/org/impulsegraph/compiler/passes/package-summary.html) · [**`emitter`**](/javadoc/org/impulsegraph/compiler/emitter/package-summary.html) | `impulse-compiler` | Multi-pass `ImpScheme` / `openCypher` / `CEL` compiler, Stage 1 & Stage 2 passes, and bytecode emitter |
 | [**`org.impulsegraph.builder.api`**](/javadoc/org/impulsegraph/builder/api/package-summary.html) | `impulse-builder` | Streaming `SnapshotBuilder`, `DomainDefinition`, `RelationDefinition` |
 | [**`org.impulsegraph.spec.v0_9`**](/javadoc/org/impulsegraph/spec/v0_9/package-summary.html) | `impulse-spec` | Binary Snapshot Format FFM memory layouts and protocol constants |
@@ -182,7 +186,7 @@ try (VmQueryContext ctx = VmQueryContext.acquire(snap, arena)) {
 ## 5. Streaming Snapshot Builder & Blue/Green Swaps
 
 ### 5.1 `SnapshotBuilder` (`org.impulsegraph:impulse-builder`)
-Streams page-aligned, 128-byte-aligned `.imps` snapshots direct-to-disk in $O(\text{chunk})$ memory (see [Building Snapshots (Java)](../getting-started/building-snapshots.md)):
+Streams page-aligned, 128-byte-aligned `.imps` snapshots direct-to-disk in $O(\text{chunk})$ memory (see [Building Snapshots in Java](../ecosystems/java/building-snapshots.md)):
 
 ```java
 SnapshotBuilder.create()
@@ -217,43 +221,29 @@ swapManager.swap(newGraphSnapshot);
 
 ---
 
-## 6. JVM Languages (Kotlin & Scala 3) & Build Plugins
+## 6. JVM Languages (Kotlin, Scala 3 & Clojure) & Build Plugins
 
-Because `impulse-api` uses standard Java 25 interfaces without checked exceptions or runtime lambdas, it is directly usable from **Kotlin** (`org.impulsegraph:impulse-kotlin`) and **Scala 3** (`org.impulsegraph:impulse-scala_3`).
+Because `impulse-api` uses standard Java interfaces without checked exceptions or runtime lambdas, it is directly usable from **Kotlin** (`org.impulsegraph:impulse-kotlin`), **Scala 3** (`org.impulsegraph:impulse-scala_3`), and **Clojure** (`org.impulsegraph:impulse-clojure`). See **[Kotlin, Scala 3, Clojure & Java API](../ecosystems/java/jvm-languages.md)** for full language examples.
 
-### Maven & Gradle Schema Code Generation (`impulse-codegen`)
-To generate strongly-typed domain views and POJOs from a declarative [`.imps.schema.yaml`](spec/schema-specification.md) file during your build:
+### Maven Schema Code Generation (`impulse-codegen` & `impulse-maven-plugin`)
+To generate strongly-typed domain views, `<Domain>Id` records, CEL metamodels, and zero-allocation `RowView` cursors from a declarative [`.imps.schema.yaml`](spec/schema-specification.md) file during your build (see **[Schema-First AOT Codegen](../ecosystems/java/aot-codegen.md)** and **[Maven Plugin & Build-Time AOT Pipeline](../ecosystems/java/maven-and-build-tooling.md)** for all 7 `v0.11` Mojos):
 
-=== "Maven (`impulse-maven-plugin`)"
-    ```xml
-    <plugin>
-        <groupId>org.impulsegraph</groupId>
-        <artifactId>impulse-maven-plugin</artifactId>
-        <version>${impulse.version}</version>
-        <executions>
-            <execution>
-                <goals>
-                    <goal>generate</goal>
-                </goals>
-            </execution>
-        </executions>
-        <configuration>
-            <schemaFile>${project.basedir}/src/main/resources/schema.yaml</schemaFile>
-            <outputDirectory>${project.build.directory}/generated-sources/impulse</outputDirectory>
-            <packageName>com.example.graph.generated</packageName>
-        </configuration>
-    </plugin>
-    ```
-
-=== "Gradle (`impulse-gradle-plugin`)"
-    ```kotlin
-    plugins {
-        id("org.impulsegraph.impulse") version "$impulseVersion"
-    }
-
-    impulse {
-        schemaFile = file("src/main/resources/schema.yaml")
-        outputDirectory = layout.buildDirectory.dir("generated/sources/impulse").get().asFile
-        packageName = "com.example.graph.generated"
-    }
-    ```
+```xml
+<plugin>
+    <groupId>org.impulsegraph</groupId>
+    <artifactId>impulse-maven-plugin</artifactId>
+    <version>${impulse.version}</version>
+    <executions>
+        <execution>
+            <goals>
+                <goal>generate</goal>
+            </goals>
+        </execution>
+    </executions>
+    <configuration>
+        <schemaFile>${project.basedir}/src/main/resources/schema.yaml</schemaFile>
+        <outputDirectory>${project.build.directory}/generated-sources/impulse</outputDirectory>
+        <packageName>com.example.graph.generated</packageName>
+    </configuration>
+</plugin>
+```

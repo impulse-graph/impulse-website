@@ -58,6 +58,17 @@ jobs:
         working-directory: impulse-website
         run: mkdocs build --strict
 
+      - name: Verify LLM & AI Coding Agent artifacts
+        working-directory: impulse-website
+        run: |
+          if [[ ! -s site/llms.txt || ! -s site/llms-full.txt || ! -s site/ai/SKILL.md ]]; then
+            python3 scripts/generate_llms_txt.py --site-dir site
+          fi
+          test -s site/llms.txt
+          test -s site/llms-full.txt
+          test -s site/ai/SKILL.md
+          ls -lh site/llms.txt site/llms-full.txt site/ai/SKILL.md
+
       - name: Setup Java 25 for Javadoc generation
         if: hashFiles('impulse-graph-java/pom.xml') != ''
         uses: actions/setup-java@v4

@@ -114,8 +114,8 @@ java --enable-preview \
 | **`-XX:+UseZGC -XX:+ZGenerational`** | Low-latency generational garbage collection with sub-millisecond pauses for carrier and query threads. |
 | **`-Xms2g -Xmx4g`** | **Lean Heap Sizing**: Keep the JVM heap small (2–4 GB) so remaining physical RAM stays free for the OS page cache backing `.imps` files. |
 
-> [!NOTE] Off-Heap Memory and `-XX:MaxDirectMemorySize`
-> `FileChannel.map` creates memory-mapped segments backed directly by the operating system page cache. Memory-mapped I/O is governed by OS virtual memory limits (`vm.max_map_count`) and available physical RAM, and is **not** bounded or constrained by the JVM's `-XX:MaxDirectMemorySize` flag.
+!!! note "Off-Heap Memory, `-XX:MaxDirectMemorySize`, and Kubernetes `cgroups v2`"
+    `FileChannel.map` creates memory-mapped segments backed directly by the operating system page cache. Memory-mapped I/O is governed by OS virtual memory limits (`vm.max_map_count`) and available physical RAM, and is **not** bounded or constrained by the JVM's `-XX:MaxDirectMemorySize` flag. Note that inside Kubernetes containers, Linux `cgroups v2` accounts resident file-backed page cache toward pod `memory.max` (`resources.limits.memory`); see **[Day-2 Kubernetes, Hot-Swap Lifecycle & Schema Evolution](../ecosystems/java/kubernetes-and-lifecycle.md)** for container sizing formulas.
 
 ### 4.3 Engine Optimization Thresholds (`OptimizerConfig`)
 

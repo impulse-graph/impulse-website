@@ -17,12 +17,25 @@ if ! command -v "${MKDOCS_BIN}" >/dev/null 2>&1; then
   fi
 fi
 
-echo "[1/3] Building MkDocs site (--strict)..."
+PYTHON_BIN="python3"
+if [[ -x "${WORKSPACE_DIR}/venv/bin/python3" ]]; then
+  PYTHON_BIN="${WORKSPACE_DIR}/venv/bin/python3"
+elif [[ -x "${WEBSITE_DIR}/.venv/bin/python3" ]]; then
+  PYTHON_BIN="${WEBSITE_DIR}/.venv/bin/python3"
+fi
+
+echo "[1/4] Building MkDocs site (--strict)..."
 cd "${WEBSITE_DIR}"
 "${MKDOCS_BIN}" build --strict
 
+echo "[2/4] Verifying LLM & AI Coding Agent artifacts (llms.txt, llms-full.txt, ai/SKILL.md)..."
+if [[ ! -s "${WEBSITE_DIR}/site/llms.txt" || ! -s "${WEBSITE_DIR}/site/llms-full.txt" || ! -s "${WEBSITE_DIR}/site/ai/SKILL.md" ]]; then
+  "${PYTHON_BIN}" "${SCRIPT_DIR}/generate_llms_txt.py" --website-dir "${WEBSITE_DIR}" --site-dir "${WEBSITE_DIR}/site"
+fi
+ls -lh "${WEBSITE_DIR}/site/llms.txt" "${WEBSITE_DIR}/site/llms-full.txt" "${WEBSITE_DIR}/site/ai/SKILL.md"
+
 if [[ -d "${WORKSPACE_DIR}/impulse-graph-java" ]] && command -v mvn >/dev/null 2>&1; then
-  echo "[2/3] Generating aggregated Javadocs from impulse-graph-java..."
+  echo "[3/4] Generating aggregated Javadocs from impulse-graph-java..."
   (
     cd "${WORKSPACE_DIR}/impulse-graph-java"
     mvn javadoc:aggregate -DskipTests -B -q
@@ -31,11 +44,11 @@ if [[ -d "${WORKSPACE_DIR}/impulse-graph-java" ]] && command -v mvn >/dev/null 2
   cp -R "${WORKSPACE_DIR}/impulse-graph-java/target/site/apidocs/"* "${WEBSITE_DIR}/site/javadoc/"
   echo "      Copied Javadocs to ${WEBSITE_DIR}/site/javadoc/"
 else
-  echo "[2/3] Skipping Javadoc generation (impulse-graph-java or mvn not available)."
+  echo "[3/4] Skipping Javadoc generation (impulse-graph-java or mvn not available)."
 fi
 
 if [[ -f "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp/Doxyfile" ]] && command -v doxygen >/dev/null 2>&1; then
-  echo "[3/3] Generating C-ABI & C++20 Doxygen HTML from impulse-graph-core..."
+  echo "[4/4] Generating C-ABI & C++20 Doxygen HTML from impulse-graph-core..."
   (
     cd "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp"
     mkdir -p build/docs
@@ -45,7 +58,7 @@ if [[ -f "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp/Doxyfile" ]] && comman
   cp -R "${WORKSPACE_DIR}/impulse-graph-core/impulse-cpp/build/docs/html/"* "${WEBSITE_DIR}/site/doxygen/"
   echo "      Copied Doxygen HTML to ${WEBSITE_DIR}/site/doxygen/"
 else
-  echo "[3/3] Skipping Doxygen HTML generation (doxygen not installed locally; generated in CI)."
+  echo "[4/4] Skipping Doxygen HTML generation (doxygen not installed locally; generated in CI)."
 fi
 
 echo "[+] Full documentation site built at: ${WEBSITE_DIR}/site"

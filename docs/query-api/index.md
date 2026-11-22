@@ -1,19 +1,33 @@
 # Querying & DSLs Overview
 
-Once an `.imps` snapshot is memory-mapped into your application, **Impulse Graph Engine** provides four ways to interact with the graph. All query interfaces compile through the same [ImpScheme $\to$ `impOps` bytecode pipeline](../concepts/compiler-architecture.md) and execute with **zero heap allocations on the hot path**:
+Once an `.imps` snapshot is memory-mapped into your process, **all query interfaces in Impulse Graph compile through the same [ImpScheme $\to$ `impOps` bytecode pipeline](../concepts/compiler-architecture.md)** and execute on `ImpulseVM` with zero hot-loop heap allocations.
 
-| Query Mode | Best For | Primary Guide |
-| :--- | :--- | :--- |
-| **1. Fluent Traversal API** | Programmatic multi-hop walks, set algebra, state projections, and fixed-point loops in Java, Python, C++, Rust, TypeScript, and C#. | **[Fluent Traversal API](fluent-api.md)** & **[State Projections, Reducers & Loops](advanced-querying.md)** |
-| **2. openCypher & Prepared Statements** | Declarative `MATCH ... WHERE ... RETURN` pattern matching and SQLite-style parameterized statements (`ImpulseStatement` / `impulse_stmt_t`). | **[openCypher Guide](../dsl/opencypher.md)** |
-| **3. Domain-Specific Languages (`ImpLog` & `ImpK`)** | Recursive Datalog / Zanzibar ReBAC security policies (**`ImpLog`**) and GraphBLAS sparse matrix / PageRank math (**`ImpK`**). | **[ImpLog (`.implog`)](../dsl/implog.md)** & **[ImpK (`.impk`)](../dsl/impk.md)** |
-| **4. Zero-Copy Tensor & Array Views** | Mounting CSR topology (`row_offsets`, `col_indices`) and `[N, D]` node embeddings directly as `torch.Tensor` or `scipy.sparse` views. | **[PyTorch & GNN Showcase](../showcase/gnn.md)** |
-
-*Across all query modes, filter predicates and calculated projections use **[Google CEL (Filters & Math)](../dsl/cel.md)**.*
+!!! note "You Do Not Need S-Expressions or Assembly to Use Impulse Graph"
+    The navigation sidebar documents every layer of the compiler stack—including the internal S-expression IR (`ImpScheme`) and register assembly (`ImpAsm`). **95% of application code uses Tier 1 (Fluent / AOT API + CEL) or Tier 2 (openCypher).**
 
 ---
 
-## 1. Fluent Domain-to-Domain Traversals
+## Which Query Interface Should I Use?
+
+```mermaid
+flowchart LR
+    T1["Tier 1: Application APIs\nAOT Builders & Fluent API\n+ Google CEL Predicates"] --> IR["Tier 4: Compiler IR & ISA\nImpScheme (.impscm)\n──► impOps / ImpAsm (.impas)"]
+    T2["Tier 2: Declarative Queries\nParameterized openCypher\n(ImpulseStatement)"] --> IR
+    T3["Tier 3: Domain DSLs\nImpLog (Datalog / ReBAC)\nImpK (GraphBLAS / Vectors)"] --> IR
+```
+
+| Tier | Interface / Language | When to Choose It | Primary Guide |
+| :--- | :--- | :--- | :--- |
+| **Tier 1 — Everyday Application Code *(Start Here)*** | **AOT Codegen (`impulse-codegen`) & Fluent Domain API** (`snap.domain(...)`) + **Google CEL** | Default choice for microservices and scripts: IDE auto-complete, multi-hop walks, off-heap bitset algebra, monoidic state projections, fixed-point loops, multi-lane batches, and Vamana ANN search. | **[Fluent Traversal API](fluent-api.md)**, **[State Projections & Loops](advanced-querying.md)**, **[AOT Codegen (Java)](../ecosystems/java/aot-codegen.md)** & **[Google CEL](../dsl/cel.md)** |
+| **Tier 2 — Declarative Pattern Matching** | **Read-Only openCypher** (`ImpulseStatement` / `impulse_stmt_t`) | Teams familiar with `MATCH (a)-[:REL]->(b) WHERE ... RETURN ...` or C/FFI hosts binding `$param` values into pre-compiled SQLite-style prepared statements. | **[openCypher Guide](../dsl/opencypher.md)** |
+| **Tier 3 — Specialized Policy & Matrix DSLs** | **ImpLog** (`.implog`) & **ImpK** (`.impk`) | Choose **ImpLog** for recursive Datalog rules and Zanzibar ReBAC policy files; choose **ImpK** for GraphBLAS sparse matrix-vector multiplication (`MxV`), PageRank, and Connected Components. | **[ImpLog (Datalog)](../dsl/implog.md)** & **[ImpK (GraphBLAS)](../dsl/impk.md)** |
+| **Tier 4 — Compiler IR & Register Assembly *(Optional / Internals)*** | **ImpScheme** (`.impscm`) & **ImpAsm** (`.impas`) | Engine internals and advanced tooling: authoring custom AST macros, inspecting `.toImpAsm()` / `impulse disassemble` output, or writing `ImpulseVM` compliance test vectors. | **[ImpScheme IR](../dsl/impscm.md)** & **[ImpulseVM & ImpAsm Spec](../reference/spec/vm-specification.md)** |
+
+*Working in PyTorch or SciPy? You can also mount CSR arrays (`row_offsets`, `col_indices`) and `[N, D]` embedding columns directly as zero-copy `torch.Tensor` / `np.ndarray` views—see **[GNN & Vector Search (Python)](../ecosystems/python/gnn-and-vector-search.md)** and the **[PyTorch & GNN Showcase](../showcase/gnn.md)**.*
+
+---
+
+## 1. Fluent Domain-to-Domain Traversals (Tier 1)
 
 Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), seeds an initial frontier (`fromKey`, `from`, or `all`), walks zero or more directed relations (`.out(...)` / `.in(...)`), and collects the surviving nodes in the target domain:
 
@@ -67,9 +81,9 @@ Every Fluent query anchors to a starting **Domain** (`snap.domain("User")`), see
 
 ---
 
-## 2. Parameterized Prepared Statements (`ImpulseStatement` / `impulse_stmt_t`)
+## 2. Parameterized Prepared Statements (Tier 2: `ImpulseStatement` / `impulse_stmt_t`)
 
-For declarative `openCypher` queries, prepare a statement once and execute it with caller-bound parameters:
+For declarative `openCypher` queries, prepare a statement once and execute it repeatedly with caller-bound parameters and pre-sized scratch buffers:
 
 === "Java 25 (`ImpulseStatement`)"
     ```java
@@ -110,6 +124,5 @@ For declarative `openCypher` queries, prepare a statement once and execute it wi
     free(buf);
     ```
 
-!!! tip
-    **When to Use Ad-Hoc Compilation vs. Pre-Prepared Statements**:
-    Because the entire Impulse compiler pipeline (AST $\to$ Stage 1 & 2 Optimizer $\to$ `impOps` Bytecode $\to$ Java 25 `MethodHandle` JIT) completes in microseconds on modern hardware, compiling analytical queries directly with concrete constants unlocks aggressive **compile-time Zone Map branch pruning** (`age > 250` $\to$ `FALSE`) and **constant folding** that generic `$param` placeholders cannot exploit until bind time. Use pre-prepared statements for high-QPS request handlers (100K+ QPS), and feel free to compile ad-hoc fluent or CEL queries for analytical sweeps.
+!!! tip "Ad-Hoc Compilation vs. Pre-Prepared Statements"
+    Because the Impulse compiler pipeline (AST $\to$ Stage 1 & 2 Optimizer $\to$ `impOps` Bytecode $\to$ Java 25 `MethodHandle` JIT) completes in microseconds, compiling analytical queries directly with concrete constants unlocks **compile-time Zone Map branch pruning** (`age > 250` $\to$ `FALSE`) and **constant folding** that generic `$param` placeholders cannot exploit until bind time. Use pre-prepared statements for high-QPS request handlers (100K+ QPS), and compile ad-hoc fluent or CEL queries freely for analytical sweeps.

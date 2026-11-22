@@ -1,9 +1,10 @@
-# Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)
+# Snapshots from Parquet & CSV (`impulse build`)
 
-If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or simply want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (binary: `impulse-graph`, aliased as `impulse`)** in `impulse-graph-core/impulse-cli` is the fastest way to build, inspect, validate, and optimize snapshots.
+If you use **Python, PyTorch, C/C++, Rust, Go, C#, or Node.js**—or want to compile `.imps` snapshots from **Apache Parquet, CSV, or TSV** files without writing Java code—the standalone **`impulse` CLI (binary: `impulse-graph`, aliased as `impulse`)** in `impulse-graph-core/impulse-cli` builds, inspects, validates, and optimizes snapshots directly from declarative manifests.
 
-!!! tip
-    **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](building-snapshots.md)**. Both the Java `SnapshotBuilder` and the Rust `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
+!!! tip "Related Guides"
+    * **New to Impulse in Python?** Start at the **[Python, Data Science & ML Hub](index.md)** or **[From NetworkX & Parquet in 5 Minutes](../../getting-started/from-networkx-and-parquet.md)**.
+    * **Looking for the programmatic Java `SnapshotBuilder` & streaming JDBC guide?** See **[Building Snapshots in Java](../java/building-snapshots.md)**. Both the Java `SnapshotBuilder` and the native `impulse` CLI produce 100% bitwise-compatible `.imps` files that can be memory-mapped by any language SDK.
 
 ---
 
@@ -37,7 +38,7 @@ alias impulse="impulse-graph"
 
 ## 2. Walkthrough 1: From CSV Files to Python Queries
 
-Let's build the exact same **banking graph** (`User -[:OWNS]-> Account -[:TRANSFERRED_TO {amount}]-> Account`) from the [Java Builder Guide](building-snapshots.md), using CSV files and querying it in Python.
+Let's build the exact same **banking graph** (`User -[:OWNS]-> Account -[:TRANSFERRED_TO {amount}]-> Account`) from the [Java Builder Guide](../java/building-snapshots.md), using CSV files and querying it in Python.
 
 ```
  (User: "usr_101") ──[:OWNS]──> (Account: "acc_5001") ──[:TRANSFERRED_TO {amount: 2500.00}]──> (Account: "acc_7008")
@@ -165,15 +166,16 @@ from impulse_graph import Snapshot
 with Snapshot("banking.imps") as snap:
     print(f"Domains: {snap.domain_count()}, Relations: {snap.relation_count()}")
 
-    # 1. Fluent Traversal from User dense ID 0 ("usr_101"):
-    # Walk OWNS -> walk TRANSFERRED_TO -> return reached Account dense IDs
-    reached_accounts = (
-        snap.traverse(start_node=0, catalog={"OWNS": 0, "TRANSFERRED_TO": 1})
-            .out("OWNS")
-            .out("TRANSFERRED_TO")
-            .to_list()
+    # 1. Domain-bound Fluent Traversal from User "usr_101":
+    # Walk OWNS -> walk TRANSFERRED_TO -> return reached Account keys and dense IDs
+    users = snap.domain("User")
+    reached_account_keys = (
+        users.from_key("usr_101")
+             .out("OWNS")
+             .out("TRANSFERRED_TO")
+             .to_key_list()
     )
-    print("Accounts reached from User 0:", reached_accounts)
+    print("Accounts reached from usr_101:", reached_account_keys)
 
     # 2. Parameterized openCypher Query over the same memory-mapped snapshot:
     high_value_recipients = snap.cypher(
@@ -192,7 +194,7 @@ with Snapshot("banking.imps") as snap:
 
 ## 3. Walkthrough 2: From Apache Parquet to PyTorch & GNNs
 
-If your data lives in **Apache Parquet** (from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyG**, `impulse build` reads `.parquet` files natively—including fixed-size vector embeddings (`FixedSizeListArray`) and nullable Arrow validity bitmaps. Once compiled, PyTorch mounts the `.imps` file directly via `torch.from_numpy()` and shares the OS page cache across `DataLoader` workers (see [PyTorch & GNN Showcase](../showcase/gnn.md)).
+If your data lives in **Apache Parquet** (from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyG**, `impulse build` reads `.parquet` files natively—including fixed-size vector embeddings (`FixedSizeListArray`) and nullable Arrow validity bitmaps. Once compiled, PyTorch mounts the `.imps` file directly via `torch.from_numpy()` and shares the OS page cache across `DataLoader` workers (see [PyTorch GNN Sampling, Embeddings & Vamana Vector Search](gnn-and-vector-search.md) and [PyTorch & GNN Showcase](../../showcase/gnn.md)).
 
 ### Step 1: Export Node & Edge Tables to Parquet (Python / PyArrow)
 
@@ -316,7 +318,7 @@ csr_mat = dataset.to_scipy_csr()
 ```
 
 !!! tip
-    **Want to learn more about PyTorch & GNN training over `.imps` snapshots larger than RAM?** See the **[PyTorch & Graph Neural Networks Showcase](../showcase/gnn.md)**.
+    **Want to learn more about PyTorch GNN training, embedded Vamana ANN (`0x08`), and graphs larger than RAM?** See **[PyTorch GNN Sampling, Embeddings & Vamana Vector Search](gnn-and-vector-search.md)** and the **[PyTorch & Graph Neural Networks Showcase](../../showcase/gnn.md)**.
 
 ---
 
@@ -414,24 +416,25 @@ Beyond `impulse build`, the `impulse` CLI provides a complete toolkit for inspec
 Always generate `.imps` snapshots using `impulse build` or the official writer APIs rather than ad-hoc scripts writing raw binary bytes:
 
 * **CLI (CSV / TSV / Apache Parquet)**: `impulse build --manifest manifest.json -o graph.imps` (or `impulse generate` for synthetic topologies).
-* **Java 21 LTS / Java 25 (`SnapshotBuilder`)**: `org.impulsegraph.builder.api.SnapshotBuilder` ([Building Snapshots in Java](building-snapshots.md)).
-* **Rust (`SnapshotWriter`)**: `impulse_graph::SnapshotWriter` in `impulse-rust`.
-* **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create` / `impulse_writer_finalize` in `impulse_graph.h`.
+* **Java 21 LTS / Java 25 (`SnapshotBuilder`)**: `org.impulsegraph.builder.api.SnapshotBuilder` ([Building Snapshots in Java](../java/building-snapshots.md)).
+* **Rust (`SnapshotWriter`)**: `impulse_graph::SnapshotWriter` in `impulse-rust` ([Rust Crate Reference](../../reference/rust-api.md)).
+* **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create` / `impulse_writer_finalize` in `impulse_graph.h` ([C-ABI & C++20 Reference](../../reference/c-abi.md)).
 
 If you are implementing a custom writer:
-1. Follow the **[Binary Snapshot Format Specification](../reference/spec/format-specification.md)** for exact header, catalog, CSR/CSC, and footer offsets.
+1. Follow the **[Binary Snapshot Format Specification](../../reference/spec/format-specification.md)** for exact header, catalog, CSR/CSC, and footer offsets.
 2. Validate output with:
    ```bash
    impulse snapshot validate output.imps --strict-alignment
    impulse snapshot inspect output.imps --verbose
    ```
-3. Cross-check against the specification test vectors (`tc01`–`tc38`; see [Polyglot Validation](../contributing/polyglot-validation.md)).
+3. Cross-check against the specification test vectors (`tc01`–`tc38`; see [Polyglot Validation](../../contributing/polyglot-validation.md)).
 
 ---
 
 ## Next Steps
 
-* **[Changing Data & Live Updates](handling-mutations.md)** — Periodic rebuilds, S3/GCS distribution, and Blue/Green swaps.
-* **[Building Snapshots in Java](building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource`.
-* **[Python SDK Reference](../reference/python-api.md)** & **[PyTorch / GNN Showcase](../showcase/gnn.md)** — Python API and PyTorch tensor integration.
-* **[CLI Reference](../reference/cli.md)** — Full command-line reference.
+* **[Python, Data Science & ML Hub](index.md)** — Multi-process workers, fluent traversals, and zero-copy NumPy/SciPy views.
+* **[PyTorch GNN Sampling, Embeddings & Vamana Vector Search](gnn-and-vector-search.md)** — Disk-backed GNN sampling and two-stage quantized vector search.
+* **[Changing Data & Live Updates](../../getting-started/handling-mutations.md)** — Periodic rebuilds, S3/GCS distribution, and Blue/Green swaps.
+* **[Building Snapshots in Java](../java/building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource`.
+* **[Python SDK Reference](../../reference/python-api.md)** & **[CLI Reference](../../reference/cli.md)** — Complete Python API and CLI command syntax.
