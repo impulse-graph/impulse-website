@@ -72,5 +72,6 @@ In the Pure Java 25 engine (`impulse-graph-java`), queries do not sit inside a s
 
 ## Next Steps
 
-* **[Mathematical & GraphBLAS Foundations](../academic.md)**: Formal semiring algebra, Kleisli composition, $1:1 / 1:N / N:1$ multiplicity proofs, and the CSR/CSC/COO analytical cost model.
+* **[Mathematical, Categorical & GraphBLAS Foundations](../academic.md)**: Formal semiring algebra, Grothendieck fibrations, $1:1 / 1:N / N:1$ multiplicity proofs, and the CSR/CSC/COO analytical cost model.
+* **[Research Literature & Design Lineage](../academic/literature-and-influences.md)**: Peer-reviewed papers behind register VMs, partial-evaluation JITs, direction-optimizing BFS, Afforest, and DiskANN/Vamana.
 * **[ImpulseVM & `impOps` ISA Specification](../reference/spec/vm-specification.md)**: Normative bytecode instruction set reference (`0x00`..`0xCB`).

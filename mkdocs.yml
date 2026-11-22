@@ -86,7 +86,9 @@ nav:
     - Snapshots, Domains & Schema (.imps): concepts/snapshots.md
     - Zero-Allocation Execution & Buffers: concepts/key-mapping-and-projections.md
     - Compiler Pipeline & ImpulseVM: concepts/compiler-architecture.md
-    - Mathematical & GraphBLAS Foundations: academic.md
+    - Theoretical & Research Foundations:
+      - Mathematical & Categorical Algebra: academic.md
+      - Research Literature & Design Lineage: academic/literature-and-influences.md
     - Software Modules & Repo Map: software-modules.md
 
   - Querying & DSLs:
