@@ -1,10 +1,17 @@
 # Project Status, Announcements & Roadmap
 
-This page tracks the current development status, subsystem readiness, announcements, and the path to the **`v1.0`** release across the **Impulse Graph Engine** ecosystem.
+This page tracks the current development status, subsystem readiness, announcements, and the path to the **`v1.0`** release across the **Impulse Graph Engine** ecosystem. For version-by-version changelogs, see **[Release Notes](release-notes.md)**.
 
 ---
 
 ## Latest Announcements
+
+!!! success "November 2026 — Official `v0.10.0` Packages Live on PyPI, Maven Central & crates.io"
+    `v0.10.0` packages are now published and installable directly from public language registries:
+
+    * **PyPI (`pip install impulse-graph==0.10.0`)**: Pre-built wheels for Linux (`x86_64` / `aarch64`), macOS (`arm64`), and Windows (`amd64`), plus `sdist` with SLSA Level 3 provenance attestations.
+    * **Maven Central (`org.impulsegraph:*:0.10.0`)**: Published `impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-kotlin`, `impulse-scala_3`, and `impulse-clojure` with `-sources.jar` and `-javadoc.jar` artifacts.
+    * **crates.io (`cargo add impulse-graph@0.10.0`)**: Self-contained `.crate` bundling the C++20/Highway kernel sources (with optional `IMPULSE_SDK_DIR` prebuilt SDK override).
 
 !!! tip "November 2026 — Impulse Graph `v0.10.0` Released"
     Tagged `v0.10.0` across `impulse-graph-spec`, `impulse-graph-core`, `impulse-graph-java`, `impulse-ocaml`, and `impulse-verification`:
@@ -25,10 +32,10 @@ This page tracks the current development status, subsystem readiness, announceme
 
 | Subsystem / Repository | Status | Readiness | Notes |
 | :--- | :--- | :--- | :--- |
-| **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.10.0`) | [=100% "100%"] | Page-aligned C-ABI layout, 128-byte SIMD alignment, compliance vectors (`tc01`..`tc38`), and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`, `v0.10.0`) |
-| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | 100% bitwise output identity across C++ (`-O3`), C++ (`-O0`), Pure Java, and OCaml reference oracle (`0x00`..`0xCB`), 165/165 opcodes & 531 `.impas` test vectors verified via deterministic SHA-256 `ICTX` v1 state hashes |
-| **[Pure Java Engine (`impulse-graph-java`)](reference/java-api.md)** | `v0.10.0` Tagged | [=95% "95%"] | Dual-target JDK 21 LTS (preview FFM) & JDK 22+/25 LTS (standard FFM), zero runtime dependencies, virtual-thread safe pools, `MethodHandle` C2 JIT, Multi-Lane & Vamana ANN |
-| **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | `v0.10.0` Tagged | [=95% "95%"] | Zero-dependency C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
+| **[Binary Snapshot Format (`.imps`)](reference/spec/format-specification.md)** | Frozen (`v0.10.0`) | [=100% "100%"] | Format `v0.10.0` (`tc01`–`tc38` vectors) and Section 2.6 `IMP_INDEX_VAMANA_ANN` (`0x08`) |
+| **[Four-Way Polyglot VM Parity](contributing/polyglot-validation.md)** | Passing | [=100% "100%"] | Bitwise consensus across C++ (`-O3`/`-O0`), Java 25, and OCaml (`166/166` opcodes, `531` `.impas` vectors via `ICTX` v1) |
+| **[Pure Java Engine (`impulse-graph-java`)](reference/java-api.md)** | `v0.10.0` Live | [=95% "95%"] | Dual-target JDK 21 LTS & JDK 22+/25 LTS, FFM off-heap engine, `MethodHandle` JIT, Multi-Lane & Vamana ANN |
+| **[Native C++20 / C-ABI Engine (`impulse-graph-core`)](reference/c-abi.md)** | `v0.10.0` Live | [=95% "95%"] | C++20 & C-ABI kernel (`libimpulse_graph`), Highway SIMD, OpenMP, `TYPE_LANE_FRONTIER` & `0xC0`..`0xCB` |
 | **[Multi-Frontend Compiler (`ImpScheme` / `openCypher` / `CEL`)](concepts/compiler-architecture.md)** | `v0.10.0` Tagged | [=90% "90%"] | Two-stage optimizer (logical AST rewriting + cost-based physical selection), Multi-Lane width selection & SQLite-style prepared statements |
 | **[Documentation Portal (`impulse-website`)](index.md)** | Active | [=85% "85%"] | Core guides, specifications, Javadocs & C-ABI references live; remaining tutorials in progress |
 | **[Developer CLI Suite (`impulse-cli`)](reference/cli.md)** | `v0.10.0` Tagged | [=90% "90%"] | Consolidated in `impulse-graph-core/impulse-cli`: `build`, `inspect`, `validate`, `compile`, `assemble`, `disassemble`, `run`, `index`, `sample`, `transmute`, `attach-embeddings`, `bench-vector`, `opt` |
@@ -36,16 +43,16 @@ This page tracks the current development status, subsystem readiness, announceme
 
 ---
 
-## Target Package Registry Distribution Status (Staged for v1.0 Release)
+## Target Package Registry Distribution Status
 
-!!! note "Pre-v1.0 Source & Release Distribution"
-    Package configurations and GitHub Actions workflows are staged across repositories. Pre-release builds can be downloaded directly from GitHub Releases (`.deb`, `.rpm`, `.pkg`, `.msi`, `.tar.gz`) or compiled from source. Public registry indexing (Maven Central, PyPI, Crates.io, NuGet, npm) is scheduled for the `v1.0` general release.
+!!! note "Registry & Pre-v1.0 Distribution"
+    **Maven Central**, **PyPI**, and **crates.io** are live for `v0.10.0`. Pre-built CLI/SDK binaries (`.deb`, `.rpm`, `.pkg`, `.msi`, `.tar.gz`) are available on GitHub Releases, while **NuGet** and **npm** registry publishing is staged for `v1.0`.
 
 | Package Manager / Registry | Target Ecosystem | Package Coordinates / Artifacts | Status | Readiness | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[Maven Central](reference/packages.md)** | Java 25 / Kotlin / Scala 3 | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-spec` | RC Ready | [=90% "90%"] | Pure Java 25 modules & aggregated Javadocs built; GPG signing & Central Portal publishing staged for `v1.0` |
-| **[PyPI](reference/python-api.md)** | Python (`>= 3.8`) | `impulse-graph` (`manylinux_2_28_x86_64`, `macosx_11_0_arm64` wheels & `sdist`) | Beta | [=85% "85%"] | Static C++20 `pybind11` wheels with zero-copy NumPy, SciPy CSR, and PyTorch `mmap` tensor views (staged for `v1.0`) |
-| **[Crates.io](reference/rust-api.md)** | Rust (`2021` Edition) | `impulse-graph`, `impulse-tools` | Beta | [=85% "85%"] | Zero-dependency Rust reader/writer crate & CLI optimizer (staged for `v1.0`) |
+| **[Maven Central](reference/packages.md)** | Java 25 / Kotlin / Scala 3 / Clojure | `org.impulsegraph:impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-spec`, `impulse-kotlin`, `impulse-scala_3`, `impulse-clojure` | Live (`0.10.0`) | [=100% "100%"] | Signed & published on Maven Central with `-sources.jar` and `-javadoc.jar` |
+| **[PyPI](reference/python-api.md)** | Python (`>= 3.9`) | `impulse-graph` (`manylinux`, `macosx_11_0_arm64`, `win_amd64` wheels & `sdist`) | Live (`0.10.0`) | [=100% "100%"] | Static C++20 `pybind11` wheels with zero-copy NumPy, SciPy CSR, and PyTorch `mmap` tensor views |
+| **[Crates.io](reference/rust-api.md)** | Rust (`2021` Edition) | `impulse-graph` | Live (`0.10.0`) | [=100% "100%"] | Self-contained Rust crate (`cargo add impulse-graph@0.10.0`) with bundled C++20/Highway sources |
 | **[NuGet.org](reference/polyglot-sdks.md)** | .NET 8+ / C# / F# | `ImpulseGraph`, `ImpulseGraph.Native`, `ImpulseGraph.FSharp` | Beta | [=80% "80%"] | Managed P/Invoke SDK + cross-platform native runtime packs (staged for `v1.0`) |
 | **[npm](reference/polyglot-sdks.md)** | Node.js / TypeScript / Bun | `impulse-graph` | Beta | [=80% "80%"] | N-API native addon + TypeScript `.d.ts` definitions (staged for `v1.0`) |
 | **[Go Modules](reference/polyglot-sdks.md)** | Go (`1.22+` CGo) | `github.com/impulse-graph/impulse-graph/go` | Beta | [=80% "80%"] | CGo bindings linked against `libimpulse_graph_static.a` |
@@ -56,15 +63,15 @@ This page tracks the current development status, subsystem readiness, announceme
 
 ## Goals Before `v1.0` Release
 
-- [x] Finalize immutable `.imps` Binary Snapshot Format (`v0.10.0`) specification and 128-byte hardware alignment invariants
-- [x] Achieve 100% four-way polyglot `ImpulseVM` test vector parity (C++ O3, C++ O0, Pure Java 25, OCaml) with deterministic `ICTX` v1 SHA-256 state hashes and 188 formal opcode contracts
-- [x] Implement Lua-inspired register architecture (`R0`..`R63`) and Java 25 `MethodHandle` combinator JIT compilation
-- [x] Remove in-memory delta overlay complexity to dedicate 100% of kernel hot paths to lock-free, read-only `.imps` traversal
-- [x] Launch unified documentation website (`www.impulsegraph.org`) with hosted Java 25 Javadocs and C-ABI references (85% complete)
-- [x] Specify, validate, and tag `v0.10.0` across `impulse-graph-spec`, `impulse-graph-core`, `impulse-graph-java`, `impulse-ocaml`, and `impulse-verification` (Multi-Lane Bit-Sliced Execution `0xC0`..`0xC9`, Embedded Vamana ANN `0x08` / `0xCA`..`0xCB`, Kleene 3VL & 54-func CEL)
-- [ ] Complete remaining 15% of documentation (expanded cookbook recipes, operational runbooks, and showcase deep dives)
-- [ ] Complete end-to-end automated release pipelines with SLSA Level 3 cryptographic build provenance attestations
-- [ ] Publish `v1.0` artifacts across Maven Central (`org.impulsegraph`), PyPI (`impulse-graph`), Crates.io, NuGet, and npm
+- [x] Finalize `.imps` Binary Snapshot Format (`v0.10.0`)
+- [x] Achieve four-way VM parity across C++, Java 25, and OCaml ([Polyglot Validation](contributing/polyglot-validation.md))
+- [x] Implement 64-register VM (`R0`..`R63`) and Java 25 `MethodHandle` JIT compilation
+- [x] Focus core kernels on lock-free, read-only `.imps` traversal
+- [x] Launch documentation site (`www.impulsegraph.org`) with Javadocs and C-ABI references
+- [x] Release `v0.10.0` across all core repos (Multi-Lane `0xC0`..`0xC9`, Vamana ANN `0x08` / `0xCA`..`0xCB`, Kleene 3VL & 54-func CEL)
+- [x] Publish `0.10.0` packages to Maven Central, PyPI, and crates.io
+- [ ] Complete remaining documentation (cookbooks, operational runbooks, and showcase deep dives)
+- [ ] Publish NuGet and npm packages and finalize `v1.0` release pipelines
 - [ ] Publish complete reproducible empirical benchmark suite (`impulse-benchmarks`) across hardware targets
 
 ---

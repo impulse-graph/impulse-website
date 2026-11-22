@@ -11,13 +11,12 @@ Choose your language ecosystem below:
 
     The pure Java engine is packaged under groupId `org.impulsegraph`. The core runtime (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) has **zero third-party runtime dependencies**.
 
-    !!! note "Pre-v1.0 Local Installation & Maven Central"
-        Artifacts can be installed to your local `~/.m2` repository in seconds:
+    !!! note "Maven Central (`0.10.0`)"
+        `org.impulsegraph:*:0.10.0` is published on Maven Central (release JARs are also on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.0)). To install a local snapshot from source:
         ```bash
         git clone https://github.com/impulse-graph/impulse-graph-java.git
         cd impulse-graph-java && mvn clean install -DskipTests
         ```
-        Central repository indexing for `org.impulsegraph:0.10.0` is staged; release JARs are also available on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.0).
 
     **Maven (`pom.xml`)**:
 
@@ -87,15 +86,25 @@ Choose your language ecosystem below:
 
 === "Python"
 
-    Pre-compiled wheels can be downloaded from GitHub Releases, or compiled from source:
+    Install pre-built wheels directly from PyPI:
 
     ```bash
-    # Install from source:
+    pip install impulse-graph
+    ```
+
+    Or compile from source:
+    ```bash
     git clone https://github.com/impulse-graph/impulse-graph-core.git
     cd impulse-graph-core/impulse-python && pip install .
     ```
 
-    *(PyPI registry distribution under `impulse-graph` is staged for the upcoming v1.0 release.)*
+=== "Rust"
+
+    Add the self-contained crate from crates.io:
+
+    ```bash
+    cargo add impulse-graph
+    ```
 
 ## Developer CLI (`impulse-cli`)
 

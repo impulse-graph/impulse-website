@@ -1,62 +1,29 @@
-# Impulse Graph Engine — Core Testing Process & Strategy
+# Polyglot Validation & Testing
 
-This document formalizes the multi-tier testing process, PR gate requirements, and specification compliance strategy for **Impulse Graph Engine** (`impulse-graph-core`).
+This page covers how Impulse Graph verifies correctness across its specification, VM engines, compilers, and language bindings (`impulse-graph-spec`, `impulse-graph-core`, `impulse-graph-java`, `impulse-ocaml`, and `impulse-verification`).
 
----
-
-## 1. Executive Summary & Testing Philosophy
-
-> **Our Aspirational North Star: SQLite**
->
-> **SQLite** is widely recognized as the gold standard of software engineering quality—combining a zero-dependency embedded C architecture and a bytecode virtual machine (VDBE) with exhaustive boundary testing, anomaly injection, and **MC/DC (Modified Condition/Decision Coverage)** test discipline. While we would never claim to be anywhere near the legendary quality and maturity SQLite has achieved over decades, SQLite serves as our aspirational target for what Impulse Graph strives to become.
-
-Testing across Impulse Graph Engine follows a **5-tier testing pyramid**, spanning from language-agnostic binary layout specifications and 100% opcode-covered VM test vectors up to four-way polyglot oracle consensus and empirical performance verification.
-
-```
-                    ┌──────────────────────────────────────────┐
-                    │ Level 4: Empirical Benchmarks & CI/CD    │ Macro Level
-                    │ (JMH, Google Bench, SLSA L3 Attestations)│
-                    ├──────────────────────────────────────────┤
-                    │ Level 3: Platform Cloud & Showcases      │
-                    │ (Kafka WAL, gRPC, Powergrid, AuthZ ReBAC)│
-                    ├──────────────────────────────────────────┤
-                    │ Level 2: DSL Compilers & Tooling         │
-                    │ (ImpK / ImpLog -> ImpScheme -> impOps)   │
-                    ├──────────────────────────────────────────┤
-                    │ Level 1: Language Engine Kernels & FFI   │
-                    │ (C++20, Rust, Java 25 FFM, Python, Go)   │
-                    ├──────────────────────────────────────────┤
-                    │ Level 0: Agnostic Spec & VM ISA Vectors  │ Micro Level
-                    │ (tc01..tc36, vm-impas, 100% Coverage)    │
-                    └──────────────────────────────────────────┘
-```
-
-### Core Principles
-1. **Language-Agnostic Single Source of Truth**: The specification repository (`impulse-graph-spec`) defines canonical test vectors (`tc01`..`tc36`) and Virtual Machine assembly scripts (`vm-impas`) decoupled from any single programming language.
-2. **Separation of Engine Logic vs. FFI Marshaling**: Kernel logic bugs are tested directly against compiled native libraries (`impulse-cpp`, `impulse-rust`), while binding tests (Python, Go, Node.js, C#) focus strictly on FFI boundary safety, pointer sizing, struct alignment, and memory lifecycle.
-3. **Mandatory PR Gates**: No Pull Request may be merged to `main` without passing the full engine spec suite and the multi-language FFI contract suite.
+For workspace setup and building individual repositories, see the [Contributing Guide](index.md). For design rationale, see [Why Impulse Graph?](../concepts/why-impulse.md).
 
 ---
 
-## 2. Level 0: Normative Spec & ISA Test Vectors (`impulse-graph-spec`)
+## 1. Verification Layers
 
-The `impulse-graph-spec` repository provides the foundational test suite.
+| Layer | Location | What It Tests |
+| :--- | :--- | :--- |
+| **Binary Snapshot Vectors** | `impulse-graph-spec/test-vectors/tc01`–`tc38` | Positive layout, alignment, CSR/CSC, key catalog, and attribute vectors; negative SHA-256 corruption, bad flag, out-of-bounds offset, and truncation traps. |
+| **VM Assembly Suite** | `impulse-graph-spec/test-vectors/vm-impas/` | 531 self-contained `.impas` scripts with `{EXPECT: ...}` headers. `run_vm_asm_suite.py` enforces 100% coverage of all 166 opcodes (`0x00`..`0xCB`) and requires every opcode to appear in at least 2 test files. |
+| **Four-Way VM Parity** | `impulse-verification/tools/four_way_validation.py` | Runs every `.impas` vector across C++ (`-O3`), C++ (`-O0`), Java 25, and OCaml (`impulse-ocaml`), requiring identical registers (`R0`..`R63`), PC, flags, status codes, and `ICTX` v1 SHA-256 state hashes. |
+| **Contract & Differential Fuzzing** | `impulse-verification/tools/fuzz_vm_contracts.py` & `test_opcode_contracts.cpp` | Validates all 188 opcode contract variants (`contracts.json`) for register type checks, bounds (`r >= 64`), in-place aliasing, and null-context safety. |
+| **Cross-Compiler Parity** | `impulse-verification/tools/cross_compiler_parity.py` | Verifies consistent lowering and execution across frontends (ImpK, ImpLog, openCypher). |
+| **Engine vs. FFI Boundaries** | `impulse-graph-core` / `impulse-graph-java` | Engine kernels run the full ISA suite; FFI bindings (Python, Go, Node.js, .NET) run focused boundary tests covering C-ABI signatures, struct layout, memory lifecycle, and error propagation. |
 
-### 2.1 Physical Binary Snapshot Vectors (`tc01` – `tc38`)
-* **Positive Vectors (`tc01`–`tc16`, `tc19`–`tc24`, `tc31`)**: Validates 4KB Page 0 alignment, 128-byte hardware vector alignment, CSR/CSC layouts, raw/delta-vbyte/simdcomp encodings, key types (UUID128, string, int64), and Structure-of-Arrays (SoA) attribute fields.
-* **Negative & Corruption Vectors (`tc17`–`tc18`, `tc25`–`tc30`, `tc32`–`tc36`)**: Validates SHA-256 binary corruption traps, unsupported feature flags, out-of-bounds section offsets, missing UTF-8 null terminators, and payload truncation handling.
-
-### 2.2 Self-Contained VM Assembly Vectors (`vm-impas`)
-Assembly scripts in `test-vectors/vm-impas/` are self-contained `.impas` files that embed test expectations directly in structured comment headers:
+### Test-First ISA Rule
+New `impOps` opcodes or ISA behavior changes must add positive and negative `.impas` test vectors in `impulse-graph-spec/test-vectors/vm-impas/` alongside the spec change. Each `.impas` file embeds its assertions in comment headers:
 
 ```asm
-; ====================================================================
-; TC01: Scalar Operations & Indirect Loads (Positive Test)
-; ====================================================================
 ; {EXPECT: STATUS = IMPULSE_VM_OK}
 ; {EXPECT: R0 = 42}
 ; {EXPECT: R1 = 100}
-; {EXPECT: R3 = 42}
 ; {EXPECT: FLAG = !ZF}
 
 .text
@@ -66,126 +33,45 @@ Assembly scripts in `test-vectors/vm-impas/` are self-contained `.impas` files t
 0x09: OP_HALT
 ```
 
-### 2.3 Opcode Coverage & Test-First ISA Mandate
-* **Test-First ISA Rule**: When introducing new `impOps` opcodes or changing ISA behavior, `.impas` test vectors MUST be defined in `impulse-graph-spec` first or alongside the opcode specification.
-* **Coverage Enforcement**: The `run_vm_asm_suite.py` test runner enforces **100% Opcode Coverage** across all defined opcodes (`0x00`..`0xCB`) and requires every opcode to appear in **at least 2 distinct test files** (Multi-File Threshold Requirement).
-
-### 2.4 Four-Way Polyglot Validation Harness (`impulse-verification`) & `ICTX` v1
-To eliminate floating-point drift, compiler optimization regressions, and runtime memory discrepancies, `impulse-verification/tools/four_way_validation.py` executes all `.impas` test vectors simultaneously across four independent virtual machine implementations:
-1. **C++ Kernel (Optimizations ON)** (`-O3`, Highway SIMD, OpenMP)
-2. **C++ Kernel (Optimizations OFF)** (`-O0`, baseline interpretation)
-3. **Pure Java 25 Engine** (FFM off-heap `MemorySegment`, `Vector API`, `MethodHandle` C2 JIT)
-4. **OCaml Reference Engine** (`impulse-ocaml` — normative formal specification AST & bytecode oracle)
-
-All four engines must produce **100% identical outputs** across all 64 registers (`R0`..`R63`), Program Counter (`PC`), status flags (`ZF`, `ST`), and execution status codes. Consensus is cryptographically verified by comparing the **64-character SHA-256 `ICTX` v1 state digest** generated by `impulse_vm_state_hash_hex`.
-
-### 2.5 188 Formal Opcode Contracts (`contracts.json`)
-The specification formalizes **188 opcode contracts** across all 166 ISA instructions (`0x00`..`0xCB`) in `impulse-graph-spec/tools/contracts.json` and `impulse-graph-core/impulse-cpp/include/impulse_opcode_contracts.hpp`. Automated differential fuzzing (`impulse-verification/tools/fuzz_vm_contracts.py`) and contract testing (`test_opcode_contracts.cpp`) verify:
-1. Disallowed dynamic register type rejection (`IMPULSE_VM_ERR_INVALID_REGISTER`) via branchless bitmask checks (`IMPULSE_CHECK_REG_TYPE`).
-2. Allowed register type acceptance and destination register type conformity.
-3. Out-of-bounds register index validation ($r \ge 64$).
-4. In-place register aliasing safety (`dst == src`, `dst == aux1`, `dst == aux2`, `src == aux1`).
-5. Null execution context / snapshot safety (`IMPULSE_VM_ERR_NULL_SNAPSHOT`).
+For the `ICTX` v1 hash wire format and opcode contract definitions, see [VM Specification §9–§10](../reference/spec/vm-specification.md) and [C-ABI Reference §7](../reference/c-abi.md).
 
 ---
 
-## 3. Level 1: Core Engine Kernels & FFI Binding Strategy (`impulse-graph-core`)
+## 2. Engine Logic vs. FFI Binding Scope
 
-### 3.1 Engine Logic vs. FFI Boundary Testing
-
-| Testing Concern | Primary Target | Scope & Responsibility |
+| Concern | Targets | Scope |
 | :--- | :--- | :--- |
-| **Engine Kernel Logic** | `impulse-cpp`, `impulse-rust`, `impulse-graph-java` | Bytecode opcode execution, bitset operations, SIMD matrix multiplication, memory mapping, algorithm correctness. |
-| **FFI Binding Marshaling** | `impulse-python`, `impulse-go`, `impulse-node`, `impulse-dotnet` | C-ABI function call signature safety, struct padding, string conversion, pointer lifecycle, GC safety, exception propagation. |
+| **Engine Logic** | `impulse-cpp`, `impulse-rust`, `impulse-graph-java`, `impulse-ocaml` | Opcode execution, bitsets, SIMD kernels, memory mapping, and compiler passes. |
+| **FFI Boundaries** | `impulse-python`, `impulse-go`, `impulse-node`, `impulse-dotnet` | C-ABI signatures, struct padding, string/array marshaling, pointer lifecycle, and exception mapping. |
 
-Running 100% of all 400+ VM test vectors (currently 418) through every binding wrapper on *every single PR build* is redundant for catching engine bugs. Instead, we enforce a **Tiered Binding Strategy**.
-
----
-
-## 4. CI/CD Pipeline Gates & Execution Schedule
-
-```
-  PR Created / Updated Merge to main / Nightly Build
- ┌─────────────────────────┐        ┌─────────────────────────┐
- │ Stage 1: Engine Spec    │        │ Stage 1: Engine Spec    │
- │ (100% run_vm_asm_suite) │        │ (100% run_vm_asm_suite) │
- └────────────┬────────────┘        └────────────┬────────────┘
-              │                                  │
-              ▼                                  ▼
- ┌─────────────────────────┐        ┌─────────────────────────┐
- │ Stage 2: FFI Contract   │        │ Stage 2: Exhaustive     │
- │ (Targeted Binding Suite)│        │ Multi-Language Matrix   │
- └─────────────────────────┘        └─────────────────────────┘
-```
-
-### 4.1 Mandatory PR Gate (Pull Requests to `impulse-graph-core`)
-1. **Stage 1: Full Engine Spec Compliance**:
-   * Runs `python3 tools/run_vm_asm_suite.py` against the native kernel shared object (`libimpulse_graph.so` / `.dylib`).
-   * Must achieve **100% pass rate** and **100% opcode coverage**.
-2. **Stage 2: FFI Binding Contract Suite**:
-   * Runs targeted boundary tests for Python, Go, Node.js, and C# (.NET).
-   * Verifies memory safety, null-pointer handling, string/array marshaling, and representative positive/negative VM query execution across all bindings.
-
-### 4.2 Nightly & Pre-Release Gate (Merge to `main`)
-* **Exhaustive Multi-Language Matrix**: Runs 100% of all binary (`tc01`..`tc36`) and VM assembly (`vm-impas`) test vectors through **every language binding wrapper** (Python, Go, Node.js, C#, Rust, Java FFM).
-* **Attestations & Signing**: Generates SLSA Level 3 build provenance attestations (`actions/attest-build-provenance`), signs macOS binaries via Developer ID, and signs Windows DLLs via Authenticode.
+Running all 531 VM vectors through every FFI wrapper on every PR adds build time without finding engine bugs already caught by the native kernel and four-way suites. PRs run focused FFI contract suites, while release validation exercises the full matrix.
 
 ---
 
-## 5. Local Execution Commands
+## 3. CI Gates
 
-### Native C++ Kernel (`impulse-cpp`)
-```bash
-cd impulse-cpp
-cmake -B build && cmake --build build
-ctest --test-dir build --output-on-failure
-```
+* **`impulse-graph-core` PR CI**: C++20 build & `ctest` matrix (Linux, macOS, Windows), Rust crate (`rustfmt`, `clippy`, `cargo test`), CLI matrix, Multi-Language FFI bindings (Python, Go, Node.js), ASan/UBSan, TSan, and libFuzzer smoke tests.
+* **`impulse-graph-java` PR CI**: Dual-target JDK 21 LTS and JDK 22+/25 LTS builds, `spotless:check`, unit/integration suites, and Jazzer fuzzing.
+* **Release Pipelines**: Artifact builds, signing, and provenance attestations are documented in [Packages & Distribution](../reference/packages.md).
 
-### Rust Engine Crate (`impulse-rust`)
-```bash
-cd impulse-rust
-cargo test
-```
+---
 
-### Spec VM Assembly Test Runner (`impulse-graph-spec`)
+## 4. Running Verification Suites Locally
+
+First build the C++ kernels (`build_on` and `build_off`) and Java classes as described in the [Contributing Guide](index.md), then run:
+
 ```bash
+# 1. Spec VM assembly suite & 100% opcode coverage check
 cd impulse-graph-spec
 python3 tools/run_vm_asm_suite.py
-```
 
-### Four-Way Polyglot Validation & Fuzzing (`impulse-verification`)
-```bash
-cd impulse-verification
+# 2. Four-way VM parity (C++ -O3, C++ -O0, Java 25, OCaml)
+cd ../impulse-verification
 python3 tools/four_way_validation.py
+
+# 3. Contract-guided differential fuzzer
 python3 tools/fuzz_vm_contracts.py --iterations 1000
-```
 
-### CLI & Compiler Suite (`impulse-graph-core/impulse-cli`)
-```bash
-cd impulse-graph-core/impulse-cli
-cargo test
-```
-
-### Python Bindings (`impulse-python`)
-```bash
-cd impulse-python
-pytest
-```
-
-### Go Bindings (`impulse-go`)
-```bash
-cd impulse-go
-go test -v ./...
-```
-
-### Node.js Bindings (`impulse-node`)
-```bash
-cd impulse-node
-npm test
-```
-
-### C# / .NET Bindings (`impulse-dotnet`)
-```bash
-cd impulse-dotnet
-dotnet test
+# 4. Cross-compiler parity (ImpK / ImpLog / openCypher)
+python3 tools/cross_compiler_parity.py
 ```

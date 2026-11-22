@@ -2,78 +2,35 @@
 
 ![Impulse Graph Engine Banner](assets/banner_letterbox.jpg)
 
-> **"How fast can you traverse a graph?"**
->
-> Turns out, really fast—once you throw away the requirements that hold SQL table joins and traditional graph databases back: **in-place mutability, locking, heap allocations, and GC pauses**.
+**Impulse Graph Engine** is an embedded, read-only graph engine built around an immutable binary snapshot format (**`.imps`**) and a 64-register bytecode virtual machine (**`ImpulseVM`**).
 
 ---
 
-## 1. What Is Impulse Graph?
+## 1. Core Design
 
-**Impulse Graph Engine** is an embedded, read-only, **"mmap and go"** graph engine built around an immutable binary snapshot format (**`.imps`**) and a register-based virtual machine (**`ImpulseVM`**).
+* **Single-File `.imps` Snapshots**: Compile a graph once into an immutable binary file and `mmap` it directly from disk—no server process, no deserialization, and no heap loading.
+* **Pre-Allocated Query Memory**: Because domain sizes are fixed per snapshot, the exact scratch and result buffer footprint is known at `prepare` time (`impulse_stmt_buffer_size`) and passed in by the caller—avoiding per-hop heap allocations and GC pauses in the hot path.
+* **Two Zero-Dependency Engines**: Both the **Pure Java 21/25** engine (FFM + Vector API) and the **Native C++20 / C-ABI** engine have zero third-party runtime dependencies and execute the same 64-bit `impOps` bytecode with bitwise parity.
+* **One VM, Multiple Query Frontends**: Fluent Traversal API, read-only parameterized **openCypher**, Datalog (**ImpLog**), GraphBLAS (**ImpK**), and **Google CEL** filters all compile through `ImpScheme` IR into `impOps`.
+* **`v0.10.0` Capabilities**: 8/16/32/64-lane bit-sliced frontiers (`0xC0`..`0xC9`) for batched seeds and $N-1$ contingency walks, plus embedded Vamana ANN vector search (`0x08`, `0xCA`..`0xCB`).
 
-Think of it as **"SQLite meets Apache Arrow for Graph Analytics"**:
-
-* **Single-File, Zero-Copy Snapshots (`.imps`)**: Compile your graph once into a 128-byte-aligned `.imps` file. Mount snapshots (from 10 MB to multi-terabyte files) in **< 1 millisecond** via an $O(1)$ OS `mmap` call—no database server to manage, no deserialization, and no heap loading.
-* **Zero Allocations in the Hot Query Path**: The exact memory required for a query is deterministically known at `prepare` time, pre-allocated, and passed in—enabling an **allocation-free, lock-free, GC-free hot query path** and massive concurrency.
-* **Zero Runtime Dependencies (Zero Inherited CVEs)**: Both first-class engines—**100% Pure Java 25** and **Native C++20 / C-ABI**—have zero third-party runtime dependencies.
+For the architectural story and Java-vs-C++ performance breakdown, see **[Why Impulse Graph?](concepts/why-impulse.md)** and **[Benchmarks](benchmarks.md)**.
 
 ---
 
-## 2. Why It's Different: The Four Core Shifts
+## 2. Dual-Engine Overview
 
-| What Slows Traditional Engines Down | How Impulse Graph Works Instead | Why It Matters |
+| Capability | Pure Java Engine (`impulse-graph-java`) | Native C++20 / C-ABI (`impulse-graph-core`) |
 | :--- | :--- | :--- |
-| **1. In-Place Mutability & Pointer Chasing**<br>Mutable databases use B-trees, heap `Node` objects, or `(source, target)` **COO** join tables. | **Immutable CSR, CSC, SoA & Vamana ANN Layouts**<br>Adjacency lists are packed into contiguous **Compressed Sparse Row/Column (CSR/CSC)** arrays, **Structure-of-Arrays (SoA)** columns, and optional embedded **Vamana (`0x08`, `v0.10.0`)** vector indices. | Neighbors, attributes, and `[N, D]` embeddings sit side-by-side in CPU L1 cache lines; SIMD instructions filter 8–16 entities or rerank vector candidates per cycle. |
-| **2. Deserialization & Startup Tax**<br>**Parquet** isn't memory-aligned on disk; **Arrow** is tabular rather than a multi-domain graph container. | **The `.imps` "Mmap and Go" Format**<br>Fills the open-source gap: a single file whose on-disk byte layout *is* the 128-byte-aligned in-memory C-ABI data structure. | Instant $O(1)$ cold starts (`mmap` and query immediately) across multi-domain property graphs. |
-| **3. Dynamic Heap Allocations & GC Pauses**<br>Queries allocate resizing hash tables, queues, and boxed objects on every hop. | **Pre-Determined Memory & 64-Lane Bit-Slicing**<br>Domain sizes ($N_d$) are fixed, so exact scratch bitset + `TYPE_LANE_FRONTIER` (`0xC0`..`0xC9`, `v0.10.0`) memory is known at `prepare` time (`impulse_stmt_buffer_size`) and passed in. | **Zero heap allocations** in the hot query path, up to **64 concurrent seed or $N-1$ contingency walks** per CSR read, and zero GC pauses. |
-| **4. Divergent Evaluators or Slow AST Interpreters**<br>Maintaining separate query engines per language or walking polymorphic AST trees. | **SQLite-Style Pipeline + Lua-Style VM**<br>Queries compile through `Frontend → ImpScheme IR → 64-bit impOps → 64-Register ImpulseVM` (`640B` L1-aligned frame). | Two independent engines (**Pure Java 25** and **Native C++20/C-ABI**) execute the exact same 64-bit bytecode with **100% bitwise parity**. |
-
-👉 *Read the full origin story and architectural rationale in **[Why Impulse Graph?](concepts/why-impulse.md)** and the hardware deep dive in **[Data-Oriented Design](concepts/data-oriented-design.md)**.*
-
----
-
-## 3. Why You Should Care: What You Get in Practice
-
-### Two First-Class, Zero-Dependency Execution Engines
-
-```mermaid
-flowchart TD
-    IMPS["Impulse Binary Snapshot (.imps)\n4KB Header + 128B-Aligned CSR / CSC / SoA"]
-
-    IMPS --> JAVA["1. Pure Java 25 Engine (impulse-graph-java)\nFFM Off-Heap MemorySegment + Vector API SIMD\nMethodHandle JIT Fusion • Zero GC • Zero CVEs"]
-    IMPS --> CABI["2. Native C++20 & C-ABI Engine (impulse-graph-core)\nC++20 Kernel + SQLite-Style C-ABI (impulse_graph.h)\nPowers Python, Go, C#, Node.js (with standalone Rust crate)"]
-```
-
-| Capability | Pure Java 25 Engine (`impulse-graph-java`) | Native C++20 / C-ABI Engine (`impulse-graph-core`) |
-| :--- | :--- | :--- |
-| **Implementation** | **100% Pure Java 25** (no JNI or native `.so`/`.dll` wrappers) | **Native C++20** with canonical SQLite-style `extern "C"` ABI |
-| **Off-Heap Memory** | Java 25 FFM (`MemorySegment`, `Arena`) | OS `mmap` & caller-supplied pre-allocated buffers |
-| **VM & JIT Execution** | Lua-style Register VM + **`MethodHandle` Combinator C2 JIT** | Lua-style Register VM + Computed-Goto / SIMD Dispatch |
-| **SIMD Vectorization** | Java Vector API (`jdk.incubator.vector`) | Google Highway (`AVX-512`, `AVX2`, `ARM NEON`) & OpenMP |
-| **Runtime Dependencies** | **Zero** (Zero inherited CVEs) | **Zero** (Zero inherited CVEs) |
-| **Hot-Path Allocations** | **Zero GC pauses** (100% off-heap topology & VM state) | **Zero heap allocations** (caller-allocated scratch + output buffer) |
-| **Ecosystem Target** | **Java 25, Kotlin, Scala 3** | **Python (NumPy/PyTorch), C/C++, Go, C#/.NET, Node.js (and standalone Rust)** |
-
-!!! tip "Wait — Isn't Java Inherently Slower Than C++?"
-    Traditional Java graph libraries are slow because they allocate millions of `Node` and `Edge` objects on the JVM heap, suffering from pointer chasing and Stop-The-World GC pauses.
-
-    Once Impulse Graph moves the topology off-heap into 128-byte-aligned CSR/CSC arrays (`MemorySegment`) and scans them with the Java 25 Vector API (`jdk.incubator.vector`), **the limiting factor that dominates query speed is physical memory bandwidth and CPU cache-line transfers—not the language runtime:**
-
-    * **Within `1.5x–2.0x` of Native C++20**: On the 1.47-billion-edge `twitter-2010` graph (10 threads), the Native C++20 kernel completes full-graph BFS in **`145.00 ms`** and the warmed Pure Java 25 engine completes it in **`240.29 ms` (`1.65x`)**—with **zero heap allocations** on the hot path (verified via Java Flight Recorder). The remaining `1.65x` delta comes down to JVM safepoint polls, `MemorySegment` bounds checks, and `ForkJoinPool` vs. OpenMP scheduling.
-    * **JSON Serialization Takes Longer Than the Query**: In enterprise microservice benchmarks simulating multi-hop RBAC/ReBAC authorization queries against a realistic corpus of 600,000 users and associated permissions, JFR profiling shows that query evaluation takes only **`0.026 µs – 0.552 µs`**, whereas **serializing the result into JSON via Jackson takes `1.91 µs – 2.56 µs` (`3.5x to 73x` longer than the graph query itself)**.
-    * Pure Java 25 is wholly suitable for demanding enterprise workloads—delivering sub-microsecond traversals with zero JNI wrappers, zero GC pauses, and zero inherited CVEs. See **[Why Impulse Graph?](concepts/why-impulse.md)** and **[Benchmarks](benchmarks.md)**.
-
-### One VM, Every Query Style & Language
-Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` bytecode engine, multiple query paradigms and language SDKs snap naturally onto the same core:
-
-* **Query Frontends**: Idiomatic **Fluent Traversal API**, parameterized **openCypher** (read-only subset), declarative **Datalog (`ImpLog`)**, and **GraphBLAS matrix math (`ImpK`)**, with **Google CEL** for SIMD attribute filtering and projections.
-* **Multi-Lane Bit-Sliced Execution & Embedded Vamana ANN (`v0.10.0`)**: Propagate up to **64 independent seed queries or $N-1$ edge-outage contingencies** in a single CSR/CSC pass (`0xC0`..`0xC9`, `TYPE_LANE_FRONTIER = 0x10`), and fuse two-stage quantized **Vamana (DiskANN) vector search** (`Section 2.6 IndexType 0x08`, `OP_VECTOR_ANN_SEARCH` `0xCA`) with exact SIMD dot-product reranking (`OP_VECTOR_RERANK_DOT` `0xCB`).
-* **Engineered with SQLite as the Quality North Star**: While we would never claim to be anywhere near SQLite's legendary maturity, SQLite's engineering discipline is our aspirational target—driving our spec-first assembly test vectors, 100% opcode coverage CI gate, and [Four-Way Polyglot Validation Suite](contributing/polyglot-validation.md) (C++ `-O3`, C++ `-O0`, Pure Java 25, and an OCaml Reference Oracle).
+| **Implementation** | Pure Java 21 LTS / 25 (no JNI wrappers) | C++20 with `extern "C"` ABI (`impulse_graph.h`) |
+| **Memory & Buffers** | Java FFM (`MemorySegment`, `Arena`) | OS `mmap` + caller-supplied buffers |
+| **VM & SIMD** | `ImpulseVM` + `MethodHandle` JIT + Vector API | `ImpulseVM` + Google Highway SIMD + OpenMP |
+| **Ecosystem** | Java, Kotlin, Scala 3, Clojure | C, C++20, Rust, Python (NumPy/PyTorch), Go, .NET, Node.js |
+| **Registries (`0.10.0`)** | Maven Central (`org.impulsegraph`) | PyPI (`impulse-graph`), crates.io (`impulse-graph`), GitHub Releases |
 
 ---
 
-## 4. See It in Action
+## 3. See It in Action
 
 === "Java 25 (Fluent API)"
     ```java
@@ -106,7 +63,6 @@ Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` b
     impulse_stmt_t* stmt = NULL;
     impulse_stmt_prepare(snap, "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f.id", &stmt);
 
-    // Exact scratch + result footprint is known at prepare time; caller supplies pre-allocated buffer
     size_t buf_size = impulse_stmt_buffer_size(stmt);
     impulse_stmt_bind_node(stmt, "uid", 42);
     impulse_stmt_execute(stmt, preallocated_buffer, buf_size);
@@ -115,19 +71,17 @@ Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` b
     impulse_stmt_finalize(stmt);
     ```
 
-=== "Python (Zero-Copy)"
+=== "Python"
     ```python
     from impulse_graph import Snapshot
 
     with Snapshot("social.imps") as snap:
-        # 1. Fluent traversal & parameterized openCypher query execution
         followed = snap.traverse(start_node=42, catalog={"FOLLOWS": 0}).out("FOLLOWS").to_list()
         friend_ids = snap.cypher(
             "MATCH (u:User)-[:FOLLOWS]->(f:User) WHERE u.id = $uid RETURN f",
             params={"uid": 42},
             catalog={"FOLLOWS": 0},
         )
-        # 2. Zero-copy NumPy CSR array views over the mmap pages
         row_offsets = snap.get_row_offsets_array(0)
         col_indices = snap.get_col_indices_array(0)
     ```
@@ -136,9 +90,8 @@ Because the compiler pipeline cleanly separates frontends from the `ImpulseVM` b
 
 ## Explore the Documentation
 
-- **[Getting Started](getting-started/index.md)**: Installation, Quickstart, and Snapshot Builder tutorial.
-- **[Why Impulse Graph? (The Story & Architecture)](concepts/why-impulse.md)**: How throwing away mutability led to `.imps`, `ImpulseVM`, and two zero-CVE engines.
-- **[Data-Oriented Design](concepts/data-oriented-design.md)**: How Dense IDs, CSR/CSC, SoA columns, and pre-allocated buffers eliminate pointer chasing and GC overhead.
-- **[Pure Java 25 API Reference](reference/java-api.md)** & **[Hosted Javadocs](/javadoc/index.html)**
-- **[C-ABI & C++20 Reference](reference/c-abi.md)** & **[Python & PyTorch SDK](reference/python-api.md)**
-- **[Binary Snapshot Format (`.imps`) Specification](reference/spec/format-specification.md)** & **[Benchmarks](benchmarks.md)**
+* **[Getting Started](getting-started/index.md)**: Installation, Quickstart, and Snapshot Builders.
+* **[Why Impulse Graph?](concepts/why-impulse.md)**: Architectural motivation, format trade-offs, and Java vs. C++ performance analysis.
+* **[Data-Oriented Design](concepts/data-oriented-design.md)**: Dense IDs, CSR/CSC locality, SoA columns, and pre-allocated query buffers.
+* **[SDK References](reference/java-api.md)**: [Java](reference/java-api.md) ([Javadocs](/javadoc/index.html)), [Python](reference/python-api.md), [C / C++20](reference/c-abi.md), [Rust](reference/rust-api.md), and [CLI](reference/cli.md).
+* **[Specifications & Validation](reference/spec/format-specification.md)**: [`.imps` Format](reference/spec/format-specification.md), [ImpulseVM ISA](reference/spec/vm-specification.md), [Polyglot Validation](contributing/polyglot-validation.md), and [Benchmarks](benchmarks.md).

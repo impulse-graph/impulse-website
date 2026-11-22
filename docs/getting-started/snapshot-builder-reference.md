@@ -142,22 +142,22 @@ Create `bank_data/manifest.json` mapping the two domains (`User` = `0`, `Account
 
 ### Step 3: Build, Inspect & Validate
 
-Run `impulse build` to compile `banking.imps`, then verify its 128-byte hardware alignment and schema metadata:
+Run `impulse build` to compile `banking.imps`, then inspect and validate it:
 
 ```bash
-# 1. Compile CSVs into a zero-copy .imps binary snapshot
+# 1. Compile CSVs into an .imps binary snapshot
 impulse build --manifest bank_data/manifest.json -o banking.imps
 
 # 2. Inspect domains, relations, attribute columns, and section offsets
 impulse snapshot inspect banking.imps --verbose
 
-# 3. Verify 128-byte alignment, monotonic CSR offsets, and SHA-256 checksum
+# 3. Verify alignment, monotonic CSR offsets, and SHA-256 checksum
 impulse snapshot validate banking.imps --strict-alignment
 ```
 
-### Step 4: Memory-Map and Query in Python
+### Step 4: Mount and Query in Python
 
-Now open `banking.imps` in Python (`pip install impulse-graph`). The file is memory-mapped in `< 1 ms` with zero parsing:
+Open `banking.imps` in Python (`pip install impulse-graph`):
 
 ```python
 from impulse_graph import Snapshot
@@ -190,11 +190,9 @@ with Snapshot("banking.imps") as snap:
 
 ---
 
-## 3. Walkthrough 2: From Apache Parquet to Zero-Copy PyTorch & GNNs
+## 3. Walkthrough 2: From Apache Parquet to PyTorch & GNNs
 
-If your data lives in **Apache Parquet** (exported from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyTorch Geometric (PyG)**, `impulse build` reads `.parquet` files natively—including **fixed-size vector embeddings (`FixedSizeListArray`)** and **nullable Arrow validity bitmaps**.
-
-Once compiled into an `.imps` file, your PyTorch training script memory-maps the graph in `< 1 ms` via `torch.from_numpy()` over the shared C-ABI buffer, sharing a single physical OS page cache across all `DataLoader` workers with **zero RAM duplication**—even on graphs larger than physical system RAM.
+If your data lives in **Apache Parquet** (from PyArrow, Pandas, Polars, DuckDB, or Spark) and your destination is **PyTorch / PyG**, `impulse build` reads `.parquet` files natively—including fixed-size vector embeddings (`FixedSizeListArray`) and nullable Arrow validity bitmaps. Once compiled, PyTorch mounts the `.imps` file directly via `torch.from_numpy()` and shares the OS page cache across `DataLoader` workers (see [PyTorch & GNN Showcase](../showcase/gnn.md)).
 
 ### Step 1: Export Node & Edge Tables to Parquet (Python / PyArrow)
 
@@ -235,7 +233,7 @@ pq.write_table(citations_table, "citations.parquet")
 
 ### Step 2: Create `citation_manifest.json`
 
-Point `domains` and `relations` directly at the `.parquet` files. Notice `"dimension": 128` on the `features` attribute—`impulse build` writes the 128-dimensional `float32` vectors as a contiguous, 128-byte-aligned `[N, 128]` tensor block inside the `.imps` file:
+Point `domains` and `relations` directly at the `.parquet` files. Notice `"dimension": 128` on the `features` attribute—`impulse build` writes the 128-dimensional `float32` vectors as a contiguous `[N, 128]` tensor block inside the `.imps` file:
 
 ```json
 {
@@ -287,34 +285,33 @@ impulse snapshot optimize -i citations_raw.imps -o citations.imps --rcm --csc
 impulse snapshot stats citations.imps --supernode-threshold 3.0
 ```
 
-### Step 4: Mount Zero-Copy in PyTorch (`impulse-gnn`)
+### Step 4: Mount in PyTorch (`impulse-gnn`)
 
 !!! note "Showcase Package (`impulse-gnn`)"
     `impulse_gnn` lives in the [impulse-gnn](https://github.com/impulse-graph/impulse-gnn) showcase repository (not published on PyPI). Install it from a local clone with `pip install -e .`.
 
-Now load `citations.imps` in PyTorch. The CSR topology (`row_offsets`, `col_indices`) and node attributes are exposed directly as read-only `torch.Tensor` views over the `mmap` region—no `pd.read_parquet()`, no COO-to-CSR sorting, and zero multi-worker RAM blowup:
+Load `citations.imps` in PyTorch. CSR arrays (`row_offsets`, `col_indices`) and node attributes are exposed as read-only `torch.Tensor` views:
 
 ```python
 import torch
 from impulse_gnn import ImpulseGnnDataset, ImpulseNeighborSampler
 
-# 1. Memory-map citations.imps (< 1 ms cold start, 0 bytes of heap allocation)
+# 1. Open citations.imps directly from disk
 dataset = ImpulseGnnDataset("citations.imps")
 print(f"Nodes: {dataset.node_count:,}, Edges: {dataset.edge_count:,}")
 
-# 2. Zero-copy tensor views pointing directly into the .imps mmap pages
+# 2. Read-only tensor views over the CSR arrays
 row_offsets: torch.Tensor = dataset.row_offsets   # torch.uint32 [node_count + 1]
 col_indices: torch.Tensor = dataset.col_indices   # torch.uint32 [edge_count]
 
 # 3. Sample 2-hop GraphSAGE mini-batches (25 neighbors at hop 1, 10 at hop 2)
-#     directly from the C-ABI CSR arrays without building a full-graph PyG Data object
 sampler = ImpulseNeighborSampler(dataset, sizes=[25, 10])
 seed_nodes = torch.arange(0, 1024, dtype=torch.int32)
 subgraphs = sampler.sample(seed_nodes.tolist())
 
 print(f"Sampled {len(subgraphs)} hops; hop-0 edges: {subgraphs[0].shape[1]}")
 
-# 4. Also interoperates zero-copy with SciPy / NetworkX / GraphBLAS:
+# 4. Also interoperates with SciPy / NetworkX / GraphBLAS:
 csr_mat = dataset.to_scipy_csr()
 ```
 
@@ -339,7 +336,7 @@ Each object in `"domains"` defines an independent node domain with its own conti
 | `file` | `string` | No | Path to the node table file (`.parquet`, `.pq`, `.csv`, `.tsv`), resolved relative to the directory containing `manifest.json`. If omitted, the domain's unique keys and node count are inferred automatically from the edge files that reference this domain. |
 | `format` | `string` | No | `"parquet"`, `"csv"`, or `"tsv"`. Auto-detected from the file extension if omitted. |
 | `id_column` | `string` | No | Column name containing the primary key in `file`. Defaults to `"id"` (or column `0` in headerless CSVs). |
-| `attributes` | `AttributeDef[]` | No | List of node attribute columns to extract from `file` into 128-byte-aligned SoA columns. |
+| `attributes` | `AttributeDef[]` | No | List of node attribute columns to extract from `file` into SoA columns. |
 
 ### 4.2 `relations[]` Schema
 
@@ -385,7 +382,7 @@ Both domains and relations accept an `"attributes"` array where each element has
 | `"timestamp_ms"`, `"timestamp_ns"`, `"date32"` | 64-bit epoch timestamp (`ms` / `ns`) or 32-bit days | `Timestamp(Millisecond/Second/Microsecond/Nanosecond)`, `Date32`, `Date64` |
 | `"string"` | Variable-length UTF-8 (`VAR_STRING` `0x0B`): per-column 128B-aligned `uint32_t offsets[K+1]` array + contiguous UTF-8 byte blob in Section 4 (note: Section 2 Shared String Pool stores only schema catalog identifiers) | `Utf8`, `LargeUtf8` |
 | `"uuid"` | 128-bit (`16-byte`) fixed-width binary UUID (`FIXED_BYTES` `0x0A`, `dim = 16`) | `FixedSizeBinary(16)` or UUID string |
-| **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Prepends a 128-byte-aligned Arrow validity bitmap (`1` = valid, `0` = null) before the data array | Any nullable Parquet column or CSV column with empty cells |
+| **Nullable Suffix (`"?"`)** (e.g. `"float64?"`, `"int32?"`) | Prepends an aligned Arrow validity bitmap (`1` = valid, `0` = null) before the data array | Any nullable Parquet column or CSV column with empty cells |
 
 !!! note
     **Primary Key Catalog vs. Programmatic & Vector Secondary Indices (`Section 2.6`)**:
@@ -399,43 +396,42 @@ Beyond `impulse build`, the `impulse` CLI provides a complete toolkit for inspec
 
 | Command | Example | Purpose |
 | :--- | :--- | :--- |
-| **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into a 128-byte-aligned `.imps` snapshot (supports `--embeddings` and `--vector-index`). Pass `-o -` to stream directly to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
+| **`build`** | `impulse build --manifest manifest.json -o graph.imps` | Compiles CSV, TSV, or Parquet node/edge files into an `.imps` snapshot (supports `--embeddings` and `--vector-index`). Pass `-o -` to stream to `stdout` (e.g., `impulse build -m manifest.json -o - \| aws s3 cp - s3://bucket/graph.imps`). |
 | **`snapshot attach-embeddings`** | `impulse snapshot attach-embeddings -i base.imps -o vec.imps --embeddings "Paper.emb=vecs.npy:dim=768:norm=l2" --vector-index "Paper.emb:R=32:L=64:quant=sq8"` | Attaches external embedding files (`.npy`, `.fvecs`, `.safetensors`, `.parquet`, `.jsonl`, `.csv`) and optional Section 2.6 Vamana ANN indices (`0x08`) to an existing `.imps` snapshot. |
 | **`bench-vector`** | `impulse bench-vector -n 10000 -d 128 --ef-search 16,32,64 --compare-optimize` | Runs the empirical Vamana ANN (`IMP_INDEX_VAMANA_ANN = 0x08`) construction, two-stage quantized beam search (`NONE`, `FP16`, `SQ8`, `BQ1`), and `Recall@K` / QPS benchmark suite. |
 | **`snapshot inspect`** | `impulse snapshot inspect graph.imps --verbose` | Prints Page 0 header flags, domain cardinalities, relation encodings, attribute schemas, and byte offsets (supports `--format json`). |
-| **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment --deep-audit` | Verifies magic bytes, 128-byte section alignment, monotonic CSR/CSC offset bounds, Vamana ANN invariants (`--quick-check` / `--deep-audit`), and the footer SHA-256 checksum. |
+| **`snapshot validate`** | `impulse snapshot validate graph.imps --strict-alignment --deep-audit` | Verifies magic bytes, section alignment, monotonic CSR/CSC offset bounds, Vamana ANN invariants (`--quick-check` / `--deep-audit`), and the footer SHA-256 checksum. |
 | **`snapshot stats`** | `impulse snapshot stats graph.imps --supernode-threshold 3.0` | Computes min/max/mean/p99 out-degree distributions, sparsity, multiplicity, and flags high-degree supernodes exceeding the statistical Z-score threshold (default `3.0`). |
 | **`snapshot optimize`** | `impulse snapshot optimize -i raw.imps -o opt.imps --rcm --vamana-locality --csc` | Reorders domain dense IDs via **Reverse Cuthill-McKee (`--rcm`)**, **Vamana Medoid BFS (`--vamana-locality`)**, or **Degree Sorting (`--degree-sort`)** to maximize CPU cache locality, and optionally generates missing CSC reverse indices (`--csc`). |
 | **`snapshot diff`** | `impulse snapshot diff v1.imps v2.imps` | Compares two `.imps` snapshots and reports added/removed domains, relations, node/edge count deltas, and attribute layout changes. |
 | **`snapshot export`** | `impulse snapshot export graph.imps -o out_dir/ --format csv` | Exports the topology of an `.imps` snapshot back to `csv`, `tsv`, or `jsonl` files. |
-| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` tensor archives into 128-byte-aligned `.imps` vector attribute columns (with optional `--vector-index`). |
+| **`snapshot convert-tensors`** | `impulse snapshot convert-tensors -i model.safetensors -o weights.imps --domain Layer` | Converts HuggingFace `.safetensors` archives into `.imps` vector attribute columns (with optional `--vector-index`). |
 
 ---
 
-## 6. Official Programmatic Snapshot Writers & Open `.imps` Specification
+## 6. Official Programmatic Snapshot Writers & Format Compliance
 
-To guarantee 128-byte hardware alignment, well-formed Section 2 Shared String Pools, embedded key lookup indices (`_domain_index`), and valid CRC-16/SHA-256 checksums, **always generate `.imps` snapshots using `impulse build` or the official programmatic writer APIs** (rather than ad-hoc scripts writing raw binary bytes):
+Always generate `.imps` snapshots using `impulse build` or the official writer APIs rather than ad-hoc scripts writing raw binary bytes:
 
-* **CLI (CSV / TSV / Apache Parquet)**: `impulse build --manifest manifest.json -o graph.imps` (or `impulse generate` for synthetic benchmark topologies).
-* **Java 21 LTS / Java 25 (`SnapshotBuilder`)**: `org.impulsegraph.builder.api.SnapshotBuilder` for streaming JDBC, Arrow, and custom `RelationDataSource` pipelines (see **[Building Snapshots in Java](building-snapshots.md)**).
-* **Rust (`SnapshotWriter`)**: `impulse_graph::SnapshotWriter` in the `impulse-rust` crate (`writer.add_domain(...)`, `writer.add_relation(...)`, `writer.add_attribute_to_relation(...)`, `writer.finalize()`).
-* **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create`, `impulse_writer_create_stream`, `impulse_writer_add_domain`, `impulse_writer_add_relation`, `impulse_writer_add_attribute`, `impulse_writer_add_index`, and `impulse_writer_finalize` in `impulse_graph.h`.
+* **CLI (CSV / TSV / Apache Parquet)**: `impulse build --manifest manifest.json -o graph.imps` (or `impulse generate` for synthetic topologies).
+* **Java 21 LTS / Java 25 (`SnapshotBuilder`)**: `org.impulsegraph.builder.api.SnapshotBuilder` ([Building Snapshots in Java](building-snapshots.md)).
+* **Rust (`SnapshotWriter`)**: `impulse_graph::SnapshotWriter` in `impulse-rust`.
+* **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create` / `impulse_writer_finalize` in `impulse_graph.h`.
 
-For systems engineers inspecting or integrating with the binary format at the specification level:
-
-1. **Normative Binary Layout**: Read the **[Binary Snapshot Format Specification (`FORMAT_SPECIFICATION.md`)](../reference/spec/format-specification.md)** for the exact byte offsets of the 4KB Page 0 header (`magic = 0x494D5053`, `version = 0x000A`), Section 2 Shared String Pool, Domain & Relation Descriptors, 128-byte-aligned CSR/CSC arrays, and the 64-byte SHA-256 Footer.
-2. **Validate with the CLI**: Verify any generated `.imps` file against the normative compliance rules using:
+If you are implementing a custom writer:
+1. Follow the **[Binary Snapshot Format Specification](../reference/spec/format-specification.md)** for exact header, catalog, CSR/CSC, and footer offsets.
+2. Validate output with:
    ```bash
    impulse snapshot validate output.imps --strict-alignment
    impulse snapshot inspect output.imps --verbose
    ```
-3. **Cross-Check Against Compliance Vectors**: The specification repository includes 36 canonical binary test vectors (`tc01`..`tc36`) covering positive and negative structural invariants.
+3. Cross-check against the specification test vectors (`tc01`–`tc38`; see [Polyglot Validation](../contributing/polyglot-validation.md)).
 
 ---
 
 ## Next Steps
 
-* **[Changing Data & Live Updates](handling-mutations.md)** — Near-real-time (`< 5 min`) rebuild pipelines, S3/GCS distribution, and atomic Blue/Green memory-map swaps.
-* **[Building Snapshots in Java](building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource` API.
-* **[Python SDK Reference](../reference/python-api.md)** & **[PyTorch / GNN Showcase](../showcase/gnn.md)** — Complete Python API and zero-copy PyTorch tensor integration.
-* **[CLI Reference](../reference/cli.md)** — Full command-line reference including `impulse build`, `impulse compile`, `impulse assemble`, and `impulse run`.
+* **[Changing Data & Live Updates](handling-mutations.md)** — Periodic rebuilds, S3/GCS distribution, and Blue/Green swaps.
+* **[Building Snapshots in Java](building-snapshots.md)** — Programmatic Java `SnapshotBuilder` and streaming JDBC `RelationDataSource`.
+* **[Python SDK Reference](../reference/python-api.md)** & **[PyTorch / GNN Showcase](../showcase/gnn.md)** — Python API and PyTorch tensor integration.
+* **[CLI Reference](../reference/cli.md)** — Full command-line reference.

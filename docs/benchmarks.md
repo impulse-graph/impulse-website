@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Once both **Impulse Graph** engines memory-map (`mmap`) the exact same 128-byte-aligned `.imps` CSR/CSC and Structure-of-Arrays (SoA) segments off-heap (`MemorySegment` in **Pure Java 25**, raw `mmap` pointers in **Native C++20**) and scan them with hardware SIMD (`jdk.incubator.vector` vs. Highway / OpenMP), **the dominant limiting factor is physical DRAM memory bandwidth and CPU L1/L2/L3 cache-line transfers—not the language runtime.**
+Once both Impulse Graph engines map the same `.imps` CSR/CSC and SoA segments off-heap and scan them with SIMD (`jdk.incubator.vector` vs. Highway / OpenMP), throughput is bounded primarily by DRAM bandwidth and cache-line transfers rather than the language runtime.
 
 * **Sub-10 Millisecond JVM Cold Start (`341x` Faster than GAPBS `.sg`)**: Off-heap `FileChannel.map` paired with JDK 25 Project Leyden AOT Caching (`-XX:AOTCache`) loads the **6.04 GB `twitter-2010.imps`** snapshot (`1.47B` edges, `41.65M` nodes) in **`9.748 ms`** (and **`0.038 ms`** in C++20 `mmap`), compared to `3,326.05 ms` for standard GAPBS `.sg` file loading and `612.31 ms` for Apache Arrow IPC record-batch loading.
 * **Pure Java 25 Within `1.65x` of 10-Thread Native C++20**: On full-graph direction-optimizing Breadth-First Search (BFS) across all 1.47 billion edges of `twitter-2010`, the Native C++20 kernel executes in **`145.00 ms`** (10 threads) and the warmed Pure Java 25 engine executes in **`240.29 ms` (`1.65x`)**—with **zero heap object allocations** in the hot loop.

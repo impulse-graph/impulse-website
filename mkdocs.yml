@@ -55,6 +55,7 @@ nav:
   - Home:
     - Overview: index.md
     - Status & Roadmap: status.md
+    - Release Notes: release-notes.md
     - Software Modules: software-modules.md
     - Contributing:
       - Contributing Guide: contributing/index.md
