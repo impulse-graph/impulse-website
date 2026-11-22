@@ -59,8 +59,8 @@ Caller-Provided Memory Buffer (buf, buf_len):
 └─────────────────────────┴─────────────────────────┴─────────────────────────┴─────────────────────────┘
 ```
 
-* **Zero String Copies on Projection**: Variable-length string attributes and string domain keys (`VAR_STRING` `0x0B`) are stored in Section 4 as per-column 128-byte-aligned `uint32_t offsets[K+1]` arrays paired with a contiguous UTF-8 byte payload blob (while the Section 2 Shared String Table stores schema/catalog identifier names). When projecting strings, the engine slices `(offsets[id], offsets[id + 1])` **directly inside the immutable `mmap` payload blob**—never copying string characters into heap objects.
-* **Apache Arrow-Compatible Null Bitmaps**: Non-nullable columns (`NullCount == 0`) omit the bitmap entirely (`null_bitmap == NULL`). Nullable columns emit a 128-byte-aligned validity bitmap (`bit i == 1` valid, `bit i == 0` null) that maps directly to Apache Arrow / PyArrow arrays.
+* **No String Copies on Projection**: Variable-length string attributes and string domain keys (`VAR_STRING` `0x0B`) are stored in Section 4 as per-column `uint32_t offsets[K+1]` arrays paired with a contiguous UTF-8 byte blob (while Section 2 stores schema/catalog names). Projecting strings slices `(offsets[id], offsets[id + 1])` directly inside the mapped blob without copying characters to the heap.
+* **Arrow-Compatible Null Bitmaps**: Non-nullable columns (`NullCount == 0`) omit the bitmap (`null_bitmap == NULL`). Nullable columns emit an aligned validity bitmap (`bit i == 1` valid, `bit i == 0` null) that maps directly to Arrow / PyArrow arrays.
 * **Boundary Key Resolution**: External business keys (`String`, `UUID`, `int64`) are resolved to dense `0..N_d-1` IDs within the anchored domain once at the start of execution (`OP_MAP_KEYS_TO_DENSE` / `fromKey`) and projected back to external keys only for surviving output rows in the target domain (`OP_MAP_DENSE_TO_KEYS` / `toKeyList`).
 
 ---

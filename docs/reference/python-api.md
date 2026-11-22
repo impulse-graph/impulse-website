@@ -1,20 +1,19 @@
 # Python & PyTorch SDK Reference (`impulse-graph`)
 
-The `impulse-graph` Python SDK embeds the native C++20 `ImpulseVM` kernel via `pybind11` and exposes zero-copy `mmap` access to `.imps` binary snapshots via the Python buffer protocol, NumPy array views (`np.frombuffer`), and PyTorch tensor interop (`torch.from_numpy`, `torch.sparse_csr_tensor`).
+The `impulse-graph` Python SDK embeds the C++20 `ImpulseVM` kernel via `pybind11` and exposes `.imps` snapshots directly to NumPy (`np.frombuffer`) and PyTorch (`torch.from_numpy`, `torch.sparse_csr_tensor`).
 
 ---
 
 ## 1. Installation
 
 ```bash
-# Pre-release / local development build:
-pip install ./impulse-graph-core/impulse-python
-
-# Or install pre-built wheels (staged for v1.0 PyPI release):
 pip install impulse-graph
+
+# Or build from a local clone:
+pip install ./impulse-graph-core/impulse-python
 ```
 
-Pre-built wheels (`manylinux_2_28_x86_64`, `manylinux_2_28_aarch64`, `macosx_11_0_arm64`) statically embed `libimpulse_graph_static.a` with zero external runtime dependencies.
+Pre-built wheels (`manylinux` `x86_64`/`aarch64`, `macosx_11_0_arm64`, `win_amd64`) statically embed `libimpulse_graph_static.a`.
 
 ---
 
@@ -54,9 +53,9 @@ with Snapshot("commerce.imps") as snap:
 | **`is_reachable(rel_idx: int, src_id: int, tgt_id: int) -> bool`** | Direct $O(\log d)$ / $O(1)$ CSR adjacency check. |
 | **`traverse(start_node: int, catalog=None) -> Traversal`** | Start a fluent multi-hop traversal from `start_node` (`.out(rel)`, `.in_(rel)`, `.filter(...)`, `.to_list()`, `.to_set()`, `.count()`, `.contains(id)`, `.to_impas()`). |
 | **`cypher(query: str, params=None, catalog=None) -> List[int]`** | Compile and execute a read-only `openCypher` query, returning surviving target node IDs. |
-| **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `row_offsets`. |
-| **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | Zero-copy NumPy view (`uint32`) over 128-byte-aligned CSR `col_indices`. |
-| **`get_attribute_array(rel_idx: int, attr_idx: int, dtype=np.float32, shape=None) -> np.ndarray`** | Zero-copy NumPy view over 128-byte-aligned SoA attribute or `[N, D]` vector column. |
+| **`get_row_offsets_array(rel_idx: int) -> np.ndarray`** | NumPy view (`uint32`) over CSR `row_offsets`. |
+| **`get_col_indices_array(rel_idx: int) -> np.ndarray`** | NumPy view (`uint32`) over CSR `col_indices`. |
+| **`get_attribute_array(rel_idx: int, attr_idx: int, dtype=np.float32, shape=None) -> np.ndarray`** | NumPy view over a relation SoA attribute column. |
 | **`sample_neighbors(relation_index: int, nodes, k_samples: int, seed: int = 42)`** | Native SIMD neighborhood sampler returning `(sampled_src, sampled_tgt)` NumPy arrays. |
 | **`to_torch_csr(rel_idx: int)` / `to_torch_edge_index(rel_idx: int)`** | Export relation directly to PyTorch `sparse_csr_tensor` or `[2, E]` `edge_index` tensor. |
 | **`to_scipy_csr(rel_idx: int)` / `to_networkx(rel_idx: int)`** | Export relation to `scipy.sparse.csr_matrix` or `networkx.DiGraph`. |

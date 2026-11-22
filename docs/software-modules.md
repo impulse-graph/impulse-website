@@ -1,117 +1,81 @@
-# Impulse Graph Engine: Software Modules & Dual-Engine Architecture
+# Software Modules & Repository Map
 
-This document defines the logical software module organization, dual-engine architecture (**Pure Java 25** and **Native C++20 / C-ABI**), polyglot workspace, and repository sitemap for **Impulse Graph Engine**.
+Impulse Graph is organized around two independent execution engines that read the same `.imps` binary snapshot format:
 
----
+1. **Pure Java Engine (`impulse-graph-java`)**: Java 21 LTS / 25 FFM (`MemorySegment`, `Arena`), Vector API (`jdk.incubator.vector`), and `MethodHandle` JIT combinators. No JNI or native wrappers.
+2. **Native C++20 / C-ABI Engine (`impulse-graph-core`)**: C++20 kernel (`libimpulse_graph`, `impulse_graph.h`, `impulse_vm.h`) with Highway SIMD and OpenMP. Powers C/C++, Rust (`impulse-rust`), Python, Go, .NET, and Node.js SDKs.
 
-## 1. Dual-Engine Architecture over `.imps` Binary Snapshots
-
-Impulse Graph centers on the **Impulse Binary Snapshot Format (`.imps`)**—an immutable, page-aligned, 128-byte hardware-aligned binary file format—and provides **two equivalent, first-class execution engines**:
-
-1. **Pure Java 25 Engine (`impulse-graph-java`)**:
-   - A 100% pure Java 25 implementation built on the Java 25 Foreign Function & Memory (FFM) API (`MemorySegment`, `Arena`), Vector API (`jdk.incubator.vector`), and `MethodHandle` C2 JIT combinators.
-   - **Enterprise-Ready**: Strictly **zero third-party runtime dependencies**, **zero JNI / native library dependencies**, and **zero GC pauses** (all CSR/CSC topologies, SoA attributes, bitsets, and the 640-byte `ImpulseVM` register frame live off-heap).
-2. **Native C++20 & C-ABI Engine (`impulse-graph-core`)**:
-   - A zero-dependency C++20 and C-ABI kernel (`libimpulse_graph`, `impulse_graph.h`, `impulse_vm.h`) with Highway SIMD and OpenMP parallelization.
-   - Powers native C/C++ applications and polyglot FFI SDKs (`impulse-python`, `impulse-go`, `impulse-dotnet`, `impulse-node`), and interoperates with the standalone Rust engine crate (`impulse-rust`).
-
-Both engines implement the exact same `ImpulseVM` register architecture (`R0`..`R63`) and `impOps` bytecode instruction set over the same `.imps` binary files, validated to produce 100% bitwise-identical outputs.
+Both engines execute the same `ImpulseVM` register ISA (`R0`..`R63`, `impOps`) and are verified for bitwise parity in [Polyglot Validation & Testing](contributing/polyglot-validation.md).
 
 ---
 
-## 2. Core Logical Software Modules & Classes
+## 1. Core Components
 
-### 2.1 `ImpulseGraphSnapshot` (Read-Only Binary Snapshot Interface)
-* **Purpose**: Provides a read-only, zero-copy interface for querying immutable graph snapshots.
-* **Underlying Storage**: Backed directly by memory-mapped (`mmap`) off-heap files conforming to the [Impulse Binary Snapshot Specification](reference/spec/format-specification.md).
-* **Guarantees**: Thread-safe, lock-free, zero-allocation reads; 128-byte SIMD / GPU hardware alignment and 4KB page boundary alignment.
-
-### 2.2 `ImpulseVM` (Register-Based Bytecode Virtual Machine)
-* **Purpose**: Executes `impOps` bytecode queries over immutable `ImpulseGraphSnapshot` instances.
-* **Opcode Instruction Set (`impOps`)**: Formal opcode ISA defining instruction contracts for traversals (`OP_CSR_WALK`, `OP_CSC_WALK`), GraphBLAS matrix-vector math (`OP_MXV`, `OP_VXM`), connected components (`OP_CC_AFFOREST`), and SIMD bitset filtering (`OP_COLLECT_BITSET`).
-* **Dual-Engine Execution**: Pure Java 25 FFM `MethodHandle` JIT-inlined interpreter (`ImpulseVmInterpreter.java`) and direct-threaded C++20 runtime (`impulse_vm.cpp`) with OpenMP parallelization.
-
-### 2.3 `ImpulseGraphQuery` & `ImpulseStatement` (Query AST, Compiler & Prepared Statements)
-* **Purpose**: Compiles domain-bound fluent traversals, `openCypher` queries, `Google CEL` filters, `ImpLog` Datalog rules, and `ImpK` GraphBLAS programs into `impOps` bytecode executed on `ImpulseVM`.
-
-### 2.4 `SnapshotBuilder` & `SnapshotWriter` (Single-Pass Streaming Generator)
-* **Purpose**: Builds immutable `.imps` binary snapshots direct-to-disk or cloud object storage (S3/GCS).
-* **Memory & Storage Strategy**:
-  - **Single-Pass Streaming Write**: Streams binary snapshot sections (`Header`, `Shared String Table`, `CSR/CSC Topology`, `Key Catalogs`, `SoA Attributes`, `Secondary Indices`) sequentially in page-aligned blocks while computing SHA-256 payload checksums.
-  - **Bounded Memory Footprint**: Bounds physical RAM usage to $O(\text{chunk})$ rather than $O(|V| + |E|)$, enabling generation of multi-hundred-gigabyte or terabyte-scale (TB+) snapshots without Out-Of-Memory (OOM) failures.
+* **`ImpulseGraphSnapshot`**: Read-only, thread-safe interface over a memory-mapped `.imps` file ([Binary Snapshot Spec](reference/spec/format-specification.md)).
+* **`ImpulseVM`**: Register-based bytecode VM executing `impOps` instructions (`OP_CSR_WALK`, `OP_CSC_WALK`, `OP_MXV`, `OP_VXM`, `OP_CC_AFFOREST`, `OP_COLLECT_BITSET`).
+* **`ImpulseGraphQuery` & `ImpulseStatement`**: Compiles fluent traversals, openCypher, CEL filters, ImpLog, and ImpK into `impOps` bytecode and prepared statements.
+* **`SnapshotBuilder` & `SnapshotWriter`**: Single-pass streaming `.imps` writers for local disks and cloud object storage (S3/GCS) with $O(\text{chunk})$ RAM usage.
 
 ---
 
-## 3. Repository Organization
+## 2. Repository Workspaces
 
-### 3.1 Pure Java 25 Workspace (`impulse-graph-java`)
+### Pure Java Engine (`impulse-graph-java`)
 ```text
 impulse-graph-java/
-├── impulse-spec/               # Binary Snapshot Format FFM memory layouts & opcode constants
-├── impulse-api/                # Public interfaces (ImpulseGraphSnapshot, DomainView, Traversal, ImpulseStatement)
-├── impulse-storage/            # Zero-dependency Java 25 FFM CSR/CSC loader & Secondary Indices
-├── impulse-vm/                 # Pure Java 25 ImpulseVM interpreter, MethodHandle JIT & bytecode emitter
-├── impulse-compiler/           # Multi-pass ImpScheme, openCypher & CEL optimizing compiler
-├── impulse-builder/            # Direct-to-disk streaming .imps snapshot builder
-└── spec/                       # Pinned impulse-graph-spec submodule (normative spec & test vectors)
+├── impulse-spec/               # Format FFM layouts & opcode constants
+├── impulse-api/                # Public interfaces (ImpulseGraphSnapshot, DomainView, ImpulseStatement)
+├── impulse-storage/            # FFM CSR/CSC loader & secondary indices
+├── impulse-vm/                 # ImpulseVM interpreter, MethodHandle JIT & bytecode emitter
+├── impulse-compiler/           # ImpScheme, openCypher & CEL optimizing compiler
+├── impulse-builder/            # Streaming .imps snapshot builder
+├── impulse-kotlin/             # Kotlin DSL & coroutine extensions
+├── impulse-scala/              # Scala 3 DSL extensions
+├── impulse-clojure/            # Clojure / S-expression DSL
+└── spec/                       # Pinned impulse-graph-spec submodule
 ```
 
-### 3.2 Native C++20, CLI & Polyglot FFI Workspace (`impulse-graph-core`)
+### Native C++20, CLI & Polyglot Workspace (`impulse-graph-core`)
 ```text
 impulse-graph-core/
-├── impulse-cpp/                # C++20 Native Engine Kernel, C-ABI Headers & ImpulseVM (libimpulse_graph)
-├── impulse-rust/               # Zero-dependency Rust Engine Crate (impulse-graph)
-├── impulse-cli/                # Standalone Developer CLI & Compiler Suite (impulse / impulse-graph)
-├── impulse-python/             # Python Bindings & PyTorch Zero-Copy mmap Tensors
-├── impulse-dotnet/             # .NET 8+ P/Invoke Managed API (ImpulseGraph)
-├── impulse-go/                 # Go CGo Zero-Copy C-ABI Bindings
-├── impulse-node/               # Node.js / TypeScript N-API Native Bindings
-└── spec/                       # Pinned impulse-graph-spec submodule (normative spec & test vectors)
+├── impulse-cpp/                # C++20 kernel, C-ABI headers & ImpulseVM (libimpulse_graph)
+├── impulse-rust/               # Rust crate (impulse-graph)
+├── impulse-cli/                # Standalone CLI & compiler suite (impulse / impulse-graph)
+├── impulse-python/             # Python bindings (NumPy, SciPy, PyTorch)
+├── impulse-dotnet/             # .NET 8+ P/Invoke API (ImpulseGraph)
+├── impulse-go/                 # Go CGo bindings
+├── impulse-node/               # Node.js / TypeScript N-API bindings
+└── spec/                       # Pinned impulse-graph-spec submodule
 ```
 
 ---
 
-## 4. Developer Utilities & ImpVM Suite (`impulse-graph-core/impulse-cli`)
+## 3. CLI Utilities (`impulse-graph-core/impulse-cli`)
 
-Developer inspection, compilation, and layout optimization utilities live in `impulse-graph-core/impulse-cli/` (producing the standalone `impulse` / `impulse-graph` executable):
+The standalone `impulse` / `impulse-graph` executable provides inspection, compilation, and snapshot optimization commands (see [CLI Reference](reference/cli.md)):
 
-* **`impulse compiler assemble` / `disassemble`**: Assembles `.impas` text into `.impb` binary bytecode and disassembles `.impb` back to annotated `.impas`.
-* **`impulse compiler compile`**: Compiles DSL scripts (`.impscm`, `.impk`, `.implog`) into `.impas` or `.impb`.
-* **`impulse run`**: Executes compiled bytecode or source scripts against an `.imps` binary snapshot.
-* **`impulse snapshot build`**: Streams CSV/TSV/Parquet dataset manifests into `.imps` binary snapshots.
-* **`impulse snapshot inspect` & `validate` & `optimize`**: Zero-copy header inspection, SHA-256 and 128-byte alignment validation, Reverse Cuthill-McKee (RCM) reordering, and CSC generation.
+* `impulse compiler assemble` / `disassemble` — `.impas` text ↔ `.impb` binary bytecode.
+* `impulse compiler compile` — compiles `.impscm`, `.impk`, and `.implog` into `.impas` or `.impb`.
+* `impulse run` — executes bytecode or DSL scripts against an `.imps` snapshot.
+* `impulse build` — compiles CSV/TSV/Parquet manifests into `.imps` files.
+* `impulse snapshot inspect` / `validate` / `optimize` — header inspection, SHA-256 and alignment checks, Reverse Cuthill-McKee (RCM) reordering, and CSC generation.
 
 ---
 
-## 5. GitHub Organization Repository Sitemap
+## 4. Organization Repository Sitemap
 
-| Repository | Role & Description |
+| Repository | Role |
 | :--- | :--- |
-| **`impulse-graph-spec`** | **Normative Specifications & Test Vectors**. Canonical `.imps` binary format, `ImpulseVM` ISA, `.impas` assembly specification, and cross-language compliance test vectors (`tc01`..`tc37`, `vm-impas/`). |
-| **`impulse-graph-core`** | **C++20 / C-ABI Kernel, CLI Tooling & FFI Bindings**. C++20 zero-copy memory-mapped kernel (`impulse-cpp`), Rust engine crate (`impulse-rust`), standalone developer CLI suite (`impulse-cli`), and polyglot FFI SDKs (Python, C#, Go, Node.js). |
-| **`impulse-graph-java`** | **Pure Java 25 Engine**. Zero-dependency Java 25 FFM off-heap snapshot engine, `ImpulseVM` JIT interpreter, multi-pass compiler, and streaming `SnapshotBuilder`. |
-| **`impulse-ocaml`** | **Normative Reference Engine & Formal Oracle**. Pure functional OCaml reference implementation of the `ImpulseVM` ISA and `ICTX` v1 deterministic state hash. |
-| **`impulse-verification`** | **Polyglot Verification & Differential Fuzzing Suite**. Four-way polyglot validation runner (`four_way_validation.py`), contract-guided differential fuzzer (`fuzz_vm_contracts.py`), and cross-compiler parity harness (`cross_compiler_parity.py`). |
-| **`impulse-benchmarks`** | **Performance & Macro Benchmark Suite**. Reproducible JMH, Google Benchmark, and Python benchmark harnesses. |
-| **`impulse-website`** | **Documentation Portal**. Official documentation website (`www.impulsegraph.org`). |
-| **`impulse-platform`** | **Enterprise Cloud Infrastructure**. Spring Boot gRPC server, Kafka WAL ingestion, GCS/S3 snapshot sync, and RocksDB persistence. |
-| **`impulse-powergrid`** | **Showcase**: Electrical power grid stability engine and parallel N-1 contingency simulator over MATPOWER PEGASE cases. |
-| **`impulse-gnn`** | **Showcase**: Python PyTorch / PyG zero-copy `mmap` tensor integration and SIMD neighborhood sampler. |
-| **`impulse-authz`** | **Showcase**: Relationship-Based Access Control (ReBAC / Zanzibar) enterprise permission data model and benchmark suite. |
+| **`impulse-graph-spec`** | `.imps` binary format, `ImpulseVM` ISA, `.impas` assembly spec, and compliance test vectors (`tc01`–`tc38`, `vm-impas/`). |
+| **`impulse-graph-core`** | C++20 / C-ABI kernel (`impulse-cpp`), Rust crate (`impulse-rust`), CLI (`impulse-cli`), and FFI SDKs (Python, Go, .NET, Node.js). |
+| **`impulse-graph-java`** | Pure Java 21/25 FFM engine, VM interpreter/JIT, compiler suite, streaming builder, and Kotlin/Scala/Clojure DSLs. |
+| **`impulse-ocaml`** | OCaml reference implementation of `ImpulseVM` and `ICTX` v1 hashing used as a parity oracle. |
+| **`impulse-verification`** | Four-way parity harness (`four_way_validation.py`), contract fuzzer (`fuzz_vm_contracts.py`), and cross-compiler parity (`cross_compiler_parity.py`). |
+| **`impulse-benchmarks`** | Reproducible JMH, Google Benchmark, and Python benchmark harnesses. |
+| **`impulse-website`** | Documentation site (`www.impulsegraph.org`). |
+| **`impulse-platform`** | Spring Boot gRPC server, Kafka WAL ingestion, GCS/S3 snapshot sync, and RocksDB persistence. |
+| **`impulse-powergrid`** | Showcase: power grid stability engine and parallel N-1 contingency simulator over MATPOWER PEGASE cases. |
+| **`impulse-gnn`** | Showcase: PyTorch / PyG `mmap` tensor integration and SIMD neighborhood sampler. |
+| **`impulse-authz`** | Showcase: Relationship-Based Access Control (ReBAC / Zanzibar) authorization service and benchmarks. |
 
----
-
-## 6. Target Package Registry Distribution Matrix (Staged for v1.0 Release)
-
-The table below outlines target coordinates for the `v1.0` release. During pre-v1.0 development, use local source builds or GitHub Release assets.
-
-| Registry | Ecosystem / Language | Published Artifact Name | Description |
-| :--- | :--- | :--- | :--- |
-| **Maven Central** | Java 25 (JVM) | `org.impulsegraph:impulse-api`<br>`org.impulsegraph:impulse-storage`<br>`org.impulsegraph:impulse-vm`<br>`org.impulsegraph:impulse-compiler`<br>`org.impulsegraph:impulse-builder`<br>`org.impulsegraph:impulse-spec` | Pure Java 25 FFM engine modules (zero runtime dependencies, zero GC pauses). |
-| **Crates.io** | Rust | `impulse-graph` / `impulse-tools` | Zero-dependency Rust engine crate & standalone CLI tools (`impulse-cli`). |
-| **PyPI** | Python | `impulse-graph` | Pre-compiled wheels with NumPy & PyTorch zero-copy `mmap` tensors. |
-| **Go Modules** | Go (`CGo`) | `github.com/impulse-graph/impulse-graph/go` | CGo bindings linked against `libimpulse_graph_static.a`. |
-| **NuGet.org** | .NET (C# / F#) | `ImpulseGraph` / `ImpulseGraph.Native` | Managed .NET API and cross-platform native C-ABI binaries. |
-| **npm** | Node.js / Bun | `impulse-graph` | TypeScript definitions & N-API native bindings. |
-| **Vcpkg / Conan** | C / C++20 | `impulse-graph` | C-ABI headers (`impulse_graph.h`, `impulse_vm.h`) & static/shared libraries. |
-| **GHCR** | Containers | `ghcr.io/impulse-graph/impulse-tools:latest`<br>`ghcr.io/impulse-graph/impulse-platform-server:latest` | Standalone CLI toolchain and enterprise platform server containers. |
+For live package registry status and coordinates (Maven Central, PyPI, crates.io, GitHub Releases), see [Status & Roadmap](status.md) and [Packages & Distribution](reference/packages.md).

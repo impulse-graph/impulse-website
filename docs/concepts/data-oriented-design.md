@@ -2,7 +2,7 @@
 
 > **Design the physical memory layout first around how the CPU transforms data, and build the abstractions around that layout.**
 
-For the origin story of why Impulse Graph was built, how `.imps` fills the gap between Apache Parquet and Apache Arrow, and how SQLite and the Lua VM shaped our architecture, see **[Why Impulse Graph?](why-impulse.md)**. This page focuses strictly on the **physical memory layout and CPU execution mechanics** that make Impulse Graph fast.
+For architectural motivation and design inspirations, see **[Why Impulse Graph?](why-impulse.md)**. This page covers the **memory layout and CPU execution mechanics** behind Impulse Graph.
 
 ---
 
@@ -127,7 +127,7 @@ A foundational design rule of Impulse Graph is **zero memory allocations in the 
 2. **Pre-Allocated & Passed In by the Caller**:
    * **C / C++20 C-ABI**: The caller queries `impulse_stmt_buffer_size(stmt)` once, pre-allocates a reusable buffer (thread-local, stack, or arena), and passes it into `impulse_stmt_execute(stmt, buffer, buffer_size)` (see [Zero-Alloc Buffers & Projections](key-mapping-and-projections.md)).
    * **Pure Java 25**: `ImpulseVmInterpreter.execute(programSeg, instructionCount, snapshot, input, arena)` and `ImpulseStatement.execute()` operate over off-heap `MemorySegment` slices (`VmStateLayout.VM_STATE_LAYOUT` and `OffHeapBitSet`), recycling bitset handles (`acquireBitset()` / `releaseBitset()`) and ping-ponging frontiers in place via `OP_SWAP_REG`.
-3. **Lock-Free, GC-Free Extreme Concurrency**: Because the `.imps` graph topology is read-only and every query executes inside its own isolated, caller-supplied workspace and 640-byte register frame, **thousands of OS threads or Java 25 Virtual Threads can execute queries concurrently over the same mapped snapshot with zero locks, zero mutex contention, and zero GC pauses.**
+3. **Lock-Free Concurrency**: Because `.imps` snapshots are read-only and each query runs in its own caller-supplied workspace and 640-byte register frame, OS threads or Java Virtual Threads execute concurrently over the same snapshot without locks or GC pauses.
 
 ---
 

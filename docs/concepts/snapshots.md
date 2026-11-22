@@ -1,6 +1,6 @@
 # Binary Snapshots, Domains & Schema (`.imps`)
 
-An **Impulse Binary Snapshot (`.imps`)** is a single, self-contained, read-only file where the on-disk byte layout *is* the in-memory data structure. Every topology array, attribute column, and key catalog is aligned to **128-byte boundaries** so applications can `mmap` the file in `< 1 ms` and execute queries immediately with zero deserialization.
+An **Impulse Binary Snapshot (`.imps`)** is a single, read-only file whose on-disk byte layout matches the in-memory data structures. Sections are padded to **128-byte boundaries** so applications can `mmap` the file and query immediately without deserialization.
 
 ---
 
@@ -92,7 +92,7 @@ An `.imps` file is written sequentially in five hardware-aligned sections:
 Every node or edge attribute is described by a 44-byte descriptor (`TypeCode`, `Dimension`, 64-bit `DataOffset` / `DataBytes`, and optional `OffsetsOffset`). Bit 7 (`0x80`) of `TypeCode` is the **Nullability Flag**:
 
 * **Non-Nullable (`Bit 7 == 0`)**: 0 bytes of bitmap overhead; 100% of space is contiguous values.
-* **Nullable (`Bit 7 == 1`)**: Prepends a 128-byte-aligned **Arrow Validity Bitmap** ($\lceil K / 64 \rceil \times 8$ bytes, 1 bit per element: `1` = valid, `0` = null) immediately before the 128-byte-aligned value array.
+* **Nullable (`Bit 7 == 1`)**: Prepends an aligned **Arrow Validity Bitmap** ($\lceil K / 64 \rceil \times 8$ bytes, 1 bit per element: `1` = valid, `0` = null) before the value array.
 
 | Type Code | Base Type | Element Width | Vector Dimension (`D`) | Physical Layout & Size Limits |
 | :---: | :--- | :--- | :---: | :--- |
@@ -106,7 +106,7 @@ Every node or edge attribute is described by a 44-byte descriptor (`TypeCode`, `
 | `0x08` | `TIMESTAMP_MS` | `8 Bytes` | $D \ge 1$ | 64-bit Unix epoch milliseconds (`uint64_t`). |
 | `0x09` | `TIMESTAMP_NS` | `8 Bytes` | $D \ge 1$ | 64-bit Unix epoch nanoseconds (`uint64_t`). |
 | `0x0A` | `FIXED_BYTES` | `D Bytes` | $D \ge 1$ | Fixed-width binary value per row (e.g. `D = 16` for 128-bit `UUID`, `D = 32` for `SHA-256`). |
-| `0x0B` | `VAR_STRING` | Variable | `0` | Per-column 128-byte-aligned `uint32_t offsets[K + 1]` + contiguous UTF-8 byte blob (up to **`4 GB`** payload per column). |
+| `0x0B` | `VAR_STRING` | Variable | `0` | Per-column `uint32_t offsets[K + 1]` + contiguous UTF-8 byte blob (up to **`4 GB`** payload per column). |
 | `0x0C` | `VAR_BYTES` | Variable | `0` | Variable-length binary column stored as `uint32_t offsets[K + 1]` + contiguous byte blob (up to **`4 GB`** payload per column). |
 | `0x0D` | `INTERVAL_SEC_32` | `8 Bytes` | $D \ge 1$ | Packed temporal validity interval (`uint32_t start_sec`, `uint32_t duration_sec`). |
 | `0x0E` | `INTERVAL_MS_64` | `16 Bytes` | $D \ge 1$ | Packed temporal validity interval (`uint64_t start_ms`, `uint64_t duration_ms`). |

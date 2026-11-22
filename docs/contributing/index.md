@@ -47,26 +47,29 @@ cargo build --release
 cargo test
 ```
 
-### Specification & Opcode Coverage (`impulse-graph-spec/`)
+### Language Bindings (`impulse-graph-core/`)
 ```bash
-cd impulse-graph-spec
-python3 tools/run_vm_asm_suite.py
+# Python
+cd impulse-graph-core/impulse-python && pytest
+
+# Go
+cd impulse-graph-core/impulse-go && go test -v ./...
+
+# Node.js
+cd impulse-graph-core/impulse-node && npm test
+
+# C# / .NET
+cd impulse-graph-core/impulse-dotnet && dotnet test
 ```
 
-### Four-Way Polyglot Validation & Fuzzing (`impulse-verification/`)
-Requires pre-building the C++ kernels (`build_on` and `build_off`) and Java classes:
+### Preparing Kernels for Four-Way Validation
+Build the optimized and unoptimized C++ kernels plus Java classes before running the suites in [Polyglot Validation & Testing](polyglot-validation.md):
 ```bash
-# 1. Build C++ kernels with optimizations ON and OFF
 cd impulse-graph-core/impulse-cpp
 cmake -B build_on -DCMAKE_BUILD_TYPE=Release && cmake --build build_on
 cmake -B build_off -DCMAKE_BUILD_TYPE=Debug -DOPTIMIZATIONS=OFF && cmake --build build_off
 
-# 2. Compile Java classes
 cd ../../impulse-graph-java && mvn compile -DskipTests
-
-# 3. Run Four-Way Validation
-cd ../impulse-verification
-python3 tools/four_way_validation.py
 ```
 
 ### Documentation Portal (`impulse-website/`)

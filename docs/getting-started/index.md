@@ -1,16 +1,10 @@
 # Getting Started
 
-> **"How fast can you traverse a graph?"**
->
-> Turns out, really fast—once you throw away mutability, locking, memory allocations, and GC pauses.
+Impulse Graph runs read-only graph queries directly over memory-mapped `.imps` snapshot files in either the **Pure Java 21/25** engine or the **Native C++20 / C-ABI** engine (which powers C/C++, Rust, Python, Go, .NET, and Node.js).
 
-Instead of running a heavyweight database server or deserializing files into millions of heap-allocated `Node` and `Edge` objects, Impulse Graph uses **[Data-Oriented Design](../concepts/data-oriented-design.md)** for **"mmap and go"** querying:
-
-1. **You build an immutable `.imps` Binary Snapshot file** containing strongly-typed domains, 128-byte-aligned CSR/CSC adjacency matrices, and columnar Structure-of-Arrays (SoA) node and edge attributes.
-2. **You memory-map (`mmap`) the `.imps` file** directly into your application in under a millisecond—with zero parsing and zero heap object allocation.
-3. **You execute queries off-heap** using either of Impulse's **two equivalent, first-class engines**:
-   - **Pure Java Engine (`impulse-graph-java`)**: A 100% pure Java implementation supporting Java 21 LTS (preview) and Java 22+ / 25 (FFM `MemorySegment`/`Arena`, Vector API, and `MethodHandle` JIT combinators) with **zero runtime dependencies (zero inherited CVEs)**, **zero JNI wrappers**, and **zero GC pauses**.
-   - **Native C++20 / C-ABI Engine (`impulse-graph-core`)**: A zero-dependency C++20 and SQLite-style C-ABI kernel (`libimpulse_graph`) that powers Python, C/C++, Rust, Go, .NET/C#, and Node.js.
+1. **Build an `.imps` snapshot** containing typed node domains, CSR/CSC adjacency arrays, and columnar SoA attributes.
+2. **Mount the file** directly from disk via `mmap` without running a database server.
+3. **Query** via the Fluent Traversal API, read-only openCypher, ImpLog, or ImpK.
 
 ---
 

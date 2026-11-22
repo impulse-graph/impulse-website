@@ -1,18 +1,17 @@
 # Rust Crate Reference (`impulse-graph`)
 
-The **Impulse Graph Engine Rust Crate** (`impulse-graph`, located in `impulse-graph-core/impulse-rust`) has **zero third-party runtime dependencies** and provides memory-mapped `.imps` snapshot reading, zero-copy Structure-of-Arrays (SoA) slice accessors, domain-bound fluent traversals, and single-pass snapshot writing.
+The `impulse-graph` crate (`impulse-graph-core/impulse-rust`) provides `.imps` snapshot reading, SoA slice accessors, fluent traversals, Vamana ANN search, and single-pass snapshot writing.
 
 ---
 
 ## 1. Installation (`Cargo.toml`)
 
 ```toml
-# Local path dependency:
 [dependencies]
-impulse-graph = { path = "../impulse-graph-core/impulse-rust" }
+impulse-graph = "0.10"
 
-# Staged for v1.0 crates.io release:
-# impulse-graph = "0.9"
+# Or local workspace path:
+# impulse-graph = { path = "../impulse-graph-core/impulse-rust" }
 ```
 
 | Module | Exported Types & Functions |
@@ -27,9 +26,9 @@ impulse-graph = { path = "../impulse-graph-core/impulse-rust" }
 
 ---
 
-## 2. Zero-Copy Snapshot Reader (`SnapshotReader`)
+## 2. Snapshot Reader (`SnapshotReader`)
 
-`SnapshotReader::open` maps an `.imps` file via OS `mmap`, validating the 4KB Page 0 header, CRC-16-CCITT header checksum, and SHA-256 payload digest:
+`SnapshotReader::open` maps an `.imps` file via `mmap`, validating the Page 0 header, CRC-16-CCITT checksum, and SHA-256 payload digest:
 
 ```rust
 use impulse_graph::reader::SnapshotReader;
@@ -45,11 +44,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Outgoing neighbor dense IDs (Vec<u64>)
     let neighbors: Vec<u64> = reader.get_neighbors(0, 0)?;
 
-    // Zero-copy CSR row_offsets and col_indices slices (&[u32], 128-byte aligned)
+    // CSR row_offsets and col_indices slices (&[u32])
     let row_offsets: &[u32] = reader.get_row_offsets(0)?;
     let col_indices: &[u32] = reader.get_col_indices(0)?;
 
-    // Zero-copy SoA attribute byte slice (&[u8], 128-byte aligned)
+    // SoA attribute byte slice (&[u8])
     let attr_bytes: &[u8] = reader.get_attribute_data(0, 0)?;
     Ok(())
 }

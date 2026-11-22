@@ -1,6 +1,6 @@
 # Memory & Performance Tuning Guide — Impulse Graph Engine (Java)
 
-This guide details Foreign Function & Memory (FFM) lifecycle management, off-heap zero-copy memory mapping, 128-byte hardware alignment, hugepage configuration, primitive integer width selection, and JVM Vector API tuning for **`impulse-graph-java`** running on **Java 21 LTS+** (with forward compatibility for Java 22, 23, 24, and 25+).
+This guide covers FFM `Arena` lifecycle management, JVM heap sizing, Transparent Huge Pages, primitive integer width selection, and Vector API tuning for **`impulse-graph-java`** on Java 21 LTS and Java 22+/25.
 
 ---
 
@@ -14,12 +14,12 @@ When a snapshot is loaded via `BinarySnapshotLoader.loadSnapshot(...)`:
 
 1. **Memory Mapping**: The `.imps` file is mapped via `FileChannel.map(FileChannel.MapMode.READ_ONLY, 0, size, arena)`, producing an off-heap `MemorySegment`.
 2. **Kernel Prefetching (`MADV_WILLNEED`)**: `BinarySnapshotLoader` immediately invokes `segment.load()`. At the OS level, this issues an `madvise(..., MADV_WILLNEED)` call, prefetching pages into the OS page cache asynchronously to eliminate soft page fault stalls during cold start.
-3. **Relation Slices**: The root segment is sliced into zero-copy sub-segments encapsulated inside `RelationSnapshot`:
+3. **Relation Slices**: The root segment is sliced into sub-segments encapsulated inside `RelationSnapshot`:
    * `rowOffsetsSegment`: CSR row offsets array (`(N + 1) * edgeIndexWidth` bytes).
    * `columnTargetsSegment`: CSR target node IDs (`E * nodeIdWidth` bytes).
    * `cscRowOffsetsSegment` & `cscColumnTargetsSegment`: Optional CSC reverse transpose index buffers.
    * `attributeSegments`: Structure-of-Arrays (SoA) contiguous primitive and vector arrays.
-   * `validitySegments`: 128-byte padded bitmasks for nullable attributes.
+   * `validitySegments`: Aligned bitmasks for nullable attributes.
 4. **Container**: `GraphSnapshot` aggregates all domain relation snapshots and string catalog metadata.
 
 ---
@@ -55,7 +55,7 @@ var holder = swapManager.acquireCurrent();
 if (holder != null) {
     try {
         GraphSnapshot snap = holder.getResource();
-        // Execute zero-copy vector queries...
+        // Execute vector queries...
     } finally {
         holder.release(); // Decrements epoch reader count
     }
@@ -76,37 +76,9 @@ swapManager.swap(newSnapshot);
 
 ---
 
-## 3. 128-Byte Hardware Alignment & 4KB Page Layout
+## 3. Alignment & Page Layout
 
-To maximize memory subsystem throughput and enable direct vector hardware instructions, Impulse Graph enforces strict memory alignment throughout the snapshot format:
-
-### 3.1 128-Byte Hardware SIMD & Direct I/O Boundary
-Every topological array, SoA attribute column, and validity bitmap in `.imps` is aligned to a **128-byte boundary** (`(offset + 127) & ~127`):
-
-* **AVX-512 Vector Registers**: 512-bit registers (`zmm0`..`zmm31`) require 64-byte alignment; 128-byte alignment guarantees two back-to-back 512-bit vector registers or unrolled dual-issue SIMD pipelines never cross a hardware cache-line boundary.
-* **GPU Warp Coalescing**: Aligns with 128-byte memory transaction segments for NVIDIA GPUDirect Storage (`cuFile`) and GPU warp memory access.
-* **TPU Vector Tiles**: Matches Google TPU matrix multiply vector tile buffers.
-
-```
- 128-Byte Aligned Memory Block Layout
- ┌───────────────────────────────────────┬───────────────────────────────────────┐
- │       64-Byte CPU Cache Line 0        │       64-Byte CPU Cache Line 1        │
- ├───────────────────────────────────────┼───────────────────────────────────────┤
- │ 512-bit AVX-512 Lane 0 (16 x float32) │ 512-bit AVX-512 Lane 1 (16 x float32) │
- └───────────────────────────────────────┴───────────────────────────────────────┘
- ▲
- 128-Byte Hardware Aligned Offset
-```
-
-### 3.2 4KB OS Page Alignment
-* **Page 0 Header**: Bytes `0x0000` to `0x0FFF` (4096 bytes) house the 64-byte baseline header with 4032 bytes of reserved alignment padding (`DataOffset = 4096`).
-* **Catalog & Relation Directory**: Page 1 begins at byte 4096, containing the Shared String Table and 128-byte relation directory entries.
-* **Payload Blocks**: All relation blocks and footer metadata blocks are padded to 4096-byte boundaries (`(offset + 4095) & ~4095`).
-
-### 3.3 Nullability Validity Bitmap Padding
-Nullable attributes encode a validity bitmap where 1 bit represents entity nullability. The bitmap size in bytes is padded to the nearest 128-byte boundary:
-$$\text{BitmapBytes} = \left(\left(\frac{K + 63}{64} \times 8\right) + 127\right) \ \& \ \sim 127\text{L}$$
-The attribute payload array starts immediately after the padded bitmap, ensuring that attribute data values remain strictly 128-byte aligned for SIMD vector loads.
+All CSR/CSC arrays, SoA attribute columns, and nullable validity bitmaps are padded to **128-byte boundaries** for SIMD vector loads and GPU transfers, and payload sections sit on 4KB OS page boundaries. See the [Binary Snapshot Format Specification](../reference/spec/format-specification.md) for exact byte offsets and validity bitmap padding formulas.
 
 ---
 
@@ -140,7 +112,7 @@ java --enable-preview \
 | **`-XX:UseAVX=3`** | Enables AVX-512 instruction generation on Intel/AMD x86-64 processors (omit on ARM64 / Apple Silicon / AWS Graviton). Sets `PREFERRED_VECTOR_BIT_WIDTH = 512`. |
 | **`-XX:+UseLargePages`**<br>**`-XX:LargePageSizeInBytes=2m`** | Configures 2MB huge pages for JVM metadata and code cache, reducing TLB miss latency. |
 | **`-XX:+UseZGC -XX:+ZGenerational`** | Low-latency generational garbage collection with sub-millisecond pauses for carrier and query threads. |
-| **`-Xms2g -Xmx4g`** | **Lean Heap Sizing**: Sets a small heap (2–4 GB). Allocating large heaps (e.g. `-Xmx32g`) locks physical RAM away from the OS Page Cache, degrading `.imps` zero-copy I/O throughput. |
+| **`-Xms2g -Xmx4g`** | **Lean Heap Sizing**: Keep the JVM heap small (2–4 GB) so remaining physical RAM stays free for the OS page cache backing `.imps` files. |
 
 > [!NOTE] Off-Heap Memory and `-XX:MaxDirectMemorySize`
 > `FileChannel.map` creates memory-mapped segments backed directly by the operating system page cache. Memory-mapped I/O is governed by OS virtual memory limits (`vm.max_map_count`) and available physical RAM, and is **not** bounded or constrained by the JVM's `-XX:MaxDirectMemorySize` flag.
@@ -176,7 +148,7 @@ By default, Linux limits a process to 65,530 memory mappings. Large multi-domain
 sudo sysctl -w vm.max_map_count=1048576
 ```
 
-### 5.2 Transparent Huge Pages (THP) for Zero-Copy Mappings
+### 5.2 Transparent Huge Pages (THP) for Snapshot Mappings
 Traversing sparse graphs (e.g. billion-edge BFS or PageRank) involves random edge offset lookups. Under standard 4KB pages, a 100GB graph requires over 26 million TLB entries, resulting in severe TLB cache thrashing. With 2MB huge pages, the TLB footprint drops 512x to ~51,200 entries:
 ```bash
 # Enable madvise-based transparent hugepages
