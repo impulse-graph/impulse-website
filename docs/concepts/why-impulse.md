@@ -90,3 +90,4 @@ Once the `.imps` layout and `ImpScheme` → `impOps` pipeline existed, additiona
 
 * **[Data-Oriented Design](data-oriented-design.md)**: Dense IDs, CSR/CSC locality, SoA columns, bitset frontiers, and `MethodHandle` JIT fusion.
 * **[Binary Snapshots (`.imps`)](snapshots.md)**: Physical layout, `.imps.schema.yaml` contracts, and Blue/Green snapshot rotation.
+* **[Mathematical & Categorical Foundations](../academic.md)** & **[Research Literature & Design Lineage](../academic/literature-and-influences.md)**: Formal semiring/Kleisli algebra, CIDR '22 `mmap` analysis, Vamana vs. HNSW trade-offs, and the 29-entry annotated bibliography.

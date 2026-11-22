@@ -32,7 +32,7 @@ flowchart LR
 * **One VM, Multiple Query Frontends**: Schema-generated AOT fluent builders, domain-bound traversals (`snap.domain(...)`), read-only parameterized **openCypher**, Datalog (**ImpLog**), GraphBLAS (**ImpK**), and **Google CEL** predicates all lower through `ImpScheme` IR into 64-bit `impOps` bytecode.
 * **`v0.10.0` Capabilities**: 8/16/32/64-lane bit-sliced frontiers (`0xC0`..`0xC9`) for batched seeds and $N-1$ contingency walks, plus embedded Vamana ANN vector search (`0x08`, `0xCA`..`0xCB`).
 
-For the architectural rationale and JFR/C++ empirical analysis, see **[Why Impulse Graph?](concepts/why-impulse.md)** and **[Benchmarks](benchmarks.md)**.
+For the architectural rationale, JFR/C++ empirical analysis, and foundational CS literature, see **[Why Impulse Graph?](concepts/why-impulse.md)**, **[Benchmarks](benchmarks.md)**, and **[Research Literature & Design Lineage](academic/literature-and-influences.md)**.
 
 ---
 
