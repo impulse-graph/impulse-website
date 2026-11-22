@@ -6,7 +6,7 @@ An **Impulse Binary Snapshot (`.imps`)** is a single, read-only file whose on-di
 
 ## 1. The Typed Graph Schema: Domains, Dense IDs & Relations
 
-Every `.imps` snapshot is organized around an explicit, strongly-typed schema—defined either declaratively in `manifest.json` (for the [Rust `impulse` CLI](../getting-started/snapshot-builder-reference.md)) or programmatically via [Java `SnapshotBuilder`](../getting-started/building-snapshots.md).
+Every `.imps` snapshot is governed by an explicit, strongly-typed schema—authored as a shared **`.imps.schema.yaml`** contract (for [schema-first validation and AOT code generation](../ecosystems/java/aot-codegen.md); see [Schema & Manifest Spec](../reference/spec/schema-specification.md)), a declarative `manifest.json` ingestion file (for the [CLI & Python Parquet/CSV Builder](../ecosystems/python/snapshots-from-parquet-csv.md)), or programmatically via [Java `SnapshotBuilder`](../ecosystems/java/building-snapshots.md).
 
 ```mermaid
 flowchart LR

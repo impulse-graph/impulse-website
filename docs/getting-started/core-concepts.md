@@ -1,8 +1,8 @@
 # Core Concepts & Architecture Primer
 
-Getting started with the **Impulse Graph Engine** doesn't require a background in advanced linear algebra or compiler design. However, understanding a few foundational concepts will help you design high-performance graph models and understand why Impulse is capable of sub-millisecond cold starts and sub-microsecond traversals.
+Getting started with the **Impulse Graph Engine** does not require a background in sparse linear algebra or compiler design. Understanding four structural choices—**CSR/CSC adjacency arrays**, **per-domain dense IDs**, **set-reduced traversals**, and **Structure-of-Arrays (SoA) columns**—explains how every runtime executes queries directly over `.imps` files.
 
-Whether you are writing Java, C++, Rust, or Python, the exact same underlying mental model applies.
+Whether you are using the Pure JVM runtime (Java, Kotlin, Scala, Clojure) or the Native C-ABI runtime (C++, Rust, Python, Go, .NET, Node.js), the exact same data layout and execution model apply.
 
 ---
 
@@ -242,11 +242,11 @@ When evaluating a traversal filter like `.filter("node.age >= 21")`:
 
 ## 9. The Impulse Binary Snapshot (`.imps`)
 
-All of the above primitives—CSR matrices, CSC matrices, domain catalogs, string pools, and columnar attributes—are serialized into a single immutable file ending with `.imps` (C-ABI Binary Snapshot Specification ).
+All of the above primitives—CSR matrices, CSC matrices, domain catalogs, string pools, and columnar attributes—are serialized into a single immutable file ending with `.imps` ([Binary Snapshot Specification](../reference/spec/format-specification.md)).
 
 * **Page 0 (4KB)**: Fixed header with magic bytes `0x494D5053` (`IMPS`), version `0x000A`, and hardware flags.
 * **128-Byte Hardware Alignment**: All sections, matrices, and attribute arrays are strictly aligned to 128-byte boundaries. This matches AVX-512 cache lines and GPU warp memory coalescing (NVIDIA GPUDirect Storage `cuFile`).
-* **Zero-Copy Memory-Mapped (`mmap`)**: When your application starts, the operating system maps the `.imps` file into virtual memory in sub-milliseconds ($O(1)$). No data is copied into JVM heap or user space until traversed.
+* **Memory-Mapped (`mmap`)**: When your application starts, the operating system maps the `.imps` file into virtual memory in $O(1)$ time without copying data onto the JVM heap or user-space object graphs.
 
 ---
 
@@ -254,7 +254,7 @@ All of the above primitives—CSR matrices, CSC matrices, domain catalogs, strin
 
 | Term | Canonical Definition | Role in Impulse Graph |
 | :--- | :--- | :--- |
-| **`.imps`** | Impulse Binary Snapshot File. | Immutable, page-aligned, zero-copy binary file format. |
+| **`.imps`** | Impulse Binary Snapshot File. | Immutable, 128-byte-aligned binary file format. |
 | **Node Domain** | A distinct entity namespace (e.g., `User`, `Account`). | Defines an independent dense ID space $0 \dots N_d - 1$. |
 | **Dense ID** | A zero-indexed primitive integer ($0 \dots N-1$). | Direct index into CSR offsets and columnar attribute arrays. |
 | **Relation** | A directed edge type connecting a source domain to a target domain. | Encodes graph connections (e.g., `User -[:OWNS]-> Account`). |
@@ -262,14 +262,15 @@ All of the above primitives—CSR matrices, CSC matrices, domain catalogs, strin
 | **CSC** | Compressed Sparse Column matrix format. | Transpose of CSR for fast reverse/incoming walks (`in`). |
 | **COO** | Coordinate format (`src, tgt` pairs). | Stream ingestion format used before CSR/CSC compaction. |
 | **Primary Key Index** | Reverse index mapping external keys (UUID, String) to Dense IDs. | Translates external business identifiers to dense integer coordinates. |
-| **SoA Attributes** | Structure of Arrays columnar property storage. | Contiguous primitive vectors enabling AVX-512 SIMD filtering. |
+| **SoA Attributes** | Structure of Arrays columnar property storage. | Contiguous primitive vectors enabling SIMD filtering. |
 | **`SnapshotBuilder`** | Fluent Java builder (`org.impulsegraph:impulse-builder`). | Single-pass streaming generator that builds `.imps` files direct to disk or S3. |
 
 ---
 
 ## Next Steps
 
-Now that you understand the foundational architecture, dive into the hands-on walkthrough:
+Now that you understand the foundational architecture, dive into the hands-on walkthroughs:
 
-* **[Building Snapshots Walkthrough (Java)](building-snapshots.md)**: A soup-to-nuts, step-by-step tutorial building an `.imps` snapshot incrementally and streaming from JDBC relational databases.
-* **[Quickstart](quickstart.md)**: Learn how to load `.imps` files and execute fluent vector traversals.
+* **[Building Snapshots Walkthrough (Java)](../ecosystems/java/building-snapshots.md)**: Step-by-step tutorial building an `.imps` snapshot incrementally and streaming from JDBC relational databases.
+* **[Building Snapshots from Parquet & CSV (CLI & Python)](../ecosystems/python/snapshots-from-parquet-csv.md)**: Compile `.imps` files declaratively from Parquet/CSV tables.
+* **[Quickstart](quickstart.md)**: Load `.imps` files and execute fluent traversals and prepared statements.

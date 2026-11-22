@@ -86,6 +86,9 @@ public class GraphSnapshotManager implements AutoCloseable {
 }
 ```
 
+!!! tip "Production Lifecycle Management (`SnapshotLifecycleManager`)"
+    For production Spring Boot and Kubernetes services requiring background S3/GCS ETag polling, SHA-256 verification before mounting, readiness probes, and automated `Arena` draining, see **[Kubernetes & Snapshot Lifecycle](../ecosystems/java/kubernetes-and-lifecycle.md)**.
+
 ---
 
 ## 3. Building Snapshots: Rust CLI vs. Java `SnapshotBuilder`
@@ -125,6 +128,7 @@ try (FileChannel channel = FileChannel.open(outputPath,
 
 ## Next Steps
 
-* **[Building Snapshots (Java)](building-snapshots.md)** — Full runnable JDBC/collection builder walkthrough.
-* **[Building Snapshots (CLI & Python)](snapshot-builder-reference.md)** — CSV/Parquet manifest reference.
+* **[Kubernetes & Snapshot Lifecycle (`SnapshotLifecycleManager`)](../ecosystems/java/kubernetes-and-lifecycle.md)** — Production S3/GCS polling, checksum verification, and automated Arena draining in JVM microservices.
+* **[Building Snapshots (Java)](../ecosystems/java/building-snapshots.md)** — Full runnable JDBC/collection builder walkthrough.
+* **[Building Snapshots (CLI & Python)](../ecosystems/python/snapshots-from-parquet-csv.md)** — CSV/Parquet manifest reference.
 * **[Dynamic Service Deployment](../deployment/dynamic-service.md)** — Production Blue/Green swap patterns.

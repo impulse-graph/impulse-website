@@ -2,6 +2,10 @@
 
 Official reference for the `impulse` (`impulse-graph`) command-line utility and compiler suite (`impulse-graph-core/impulse-cli`). The CLI is implemented in Rust and statically links the core C++ engine kernel (`libimpulse_graph_static.a`).
 
+!!! tip "Operational Guide & Pure-JVM CLI (`impulse-j`)"
+    * For practical guidance on `--rcm` / `--vamana-locality` optimization, `--quick-check` vs. `--deep-audit` validation, and Ed25519 signing, see **[Native CLI Optimization, Deep Audits & Supply-Chain Signing](../ecosystems/native/cli-reference.md)**.
+    * Running in a JVM-only container without native binaries? Use the **[Pure-Java CLI (`impulse-j`)](../ecosystems/java/cli-impulse-j.md)**.
+
 !!! important
     **Command Naming Convention**:
 
@@ -54,7 +58,7 @@ impulse-graph (symlinked as `impulse`)
 ## 2. Snapshot Data Commands (`impulse snapshot`)
 
 ### `impulse snapshot build` (or `impulse build`)
-Compiles CSV, TSV, or Apache Parquet files into a 4KB-page-aligned, 128-byte-section-aligned `.imps` snapshot using a declarative `manifest.json` (see [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)). Optionally attaches external embedding matrices (`--embeddings <SPEC>`) and builds embedded Section 2.6 Vamana ANN indices (`--vector-index <SPEC>`, `IMP_INDEX_VAMANA_ANN = 0x08`, `v0.10.0`):
+Compiles CSV, TSV, or Apache Parquet files into a 4KB-page-aligned, 128-byte-section-aligned `.imps` snapshot using a declarative `manifest.json` (see [Snapshots from Parquet & CSV](../ecosystems/python/snapshots-from-parquet-csv.md)). Optionally attaches external embedding matrices (`--embeddings <SPEC>`) and builds embedded Section 2.6 Vamana ANN indices (`--vector-index <SPEC>`, `IMP_INDEX_VAMANA_ANN = 0x08`, `v0.10.0`):
 
 ```bash
 # Standard build from manifest.json

@@ -2,6 +2,9 @@
 
 The `impulse-graph` Python SDK embeds the C++20 `ImpulseVM` kernel via `pybind11` and exposes `.imps` snapshots directly to NumPy (`np.frombuffer`) and PyTorch (`torch.from_numpy`, `torch.sparse_csr_tensor`).
 
+!!! tip "Python Guides & Workflows"
+    For multi-process PyTorch `DataLoader` patterns, Parquet/CSV ingestion, and Vamana ANN vector search, visit the **[Python, Data Science & ML Hub](../ecosystems/python/index.md)** and **[PyTorch GNN Sampling, Embeddings & Vamana Vector Search](../ecosystems/python/gnn-and-vector-search.md)**.
+
 ---
 
 ## 1. Installation
@@ -47,6 +50,7 @@ with Snapshot("commerce.imps") as snap:
 | Method | Description |
 | :--- | :--- |
 | **`Snapshot(path: str)`** | Memory-map `.imps` file read-only (`MAP_SHARED`). Supports `with` context manager. |
+| **`domain(name_or_id: str \| int) -> DomainView`** | Bind an explicit node domain (`from_key`, `from_keys`, `from_node`, `from_nodes`, `all`, `to_dense_id`, `to_key`). |
 | **`domain_count() -> int`** | Total node domains in Section 2 catalog. |
 | **`relation_count() -> int`** | Total edge relations in Section 2 directory. |
 | **`get_relation(index: int) -> dict`** | Relation metadata dictionary (`node_count`, `edge_count`, `src_domain_id`, `tgt_domain_id`). |
@@ -116,7 +120,7 @@ with Snapshot("commerce.imps") as snap:
 
 ## 5. Streaming Snapshot Writer (`Writer`)
 
-For programmatic `.imps` construction in Python (see also `impulse snapshot build` in [Building Snapshots (CLI & Python)](../getting-started/snapshot-builder-reference.md)):
+For programmatic `.imps` construction in Python (see also `impulse build` in [Snapshots from Parquet & CSV](../ecosystems/python/snapshots-from-parquet-csv.md)):
 
 ```python
 import numpy as np

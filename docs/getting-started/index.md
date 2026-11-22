@@ -1,10 +1,22 @@
 # Getting Started
 
-Impulse Graph runs read-only graph queries directly over memory-mapped `.imps` snapshot files in either the **Pure Java 21/25** engine or the **Native C++20 / C-ABI** engine (which powers C/C++, Rust, Python, Go, .NET, and Node.js).
+Impulse Graph executes read-only graph queries directly over memory-mapped `.imps` snapshot files across pluggable execution runtimes—including the **Pure JVM Engine** (Java 21 LTS / 25, Kotlin, Scala 3, Clojure) and the **Native C++20 / C-ABI Engine** (C/C++, Rust, Python, Go, .NET, Node.js).
 
 1. **Build an `.imps` snapshot** containing typed node domains, CSR/CSC adjacency arrays, and columnar SoA attributes.
 2. **Mount the file** directly from disk via `mmap` without running a database server.
-3. **Query** via the Fluent Traversal API, read-only openCypher, ImpLog, or ImpK.
+3. **Query in-process** via schema-generated AOT builders, the Fluent Traversal API, read-only openCypher, ImpLog, or ImpK.
+
+---
+
+## Choose Your Entrypoint
+
+Start with the architectural guide or ecosystem hub that matches your workload:
+
+| Your Goal or Stack | Problem-First Guide | Ecosystem Hub |
+| :--- | :--- | :--- |
+| **Python Data Science, Parquet & GNNs** | **[From NetworkX & Parquet to `.imps`](from-networkx-and-parquet.md)** — Replace slow `dict` deserialization and full-RAM CSR copies with shared `mmap` snapshots. | **[Python & PyTorch Hub](../ecosystems/python/index.md)** |
+| **Java / JVM Microservices & ReBAC** | **[Embedded `.imps` vs. Networked Graph DB](embedded-vs-graph-db.md)** — Eliminate network/JSON serialization overhead with in-process FFM snapshots and CQRS read projections. | **[Java & JVM Hub](../ecosystems/java/index.md)** |
+| **Cross-Team Data + Service + ML Pipelines** | **[Polyglot "Parquet for Graphs" Workflow](polyglot-workflow.md)** — Compile `.imps` once from Parquet/Spark and mount the identical file in Java 25 and Python/PyTorch. | **[Native, Rust & Polyglot Hub](../ecosystems/native/index.md)** |
 
 ---
 
@@ -45,9 +57,10 @@ Because intermediate results are collapsed into a fixed-size per-domain set at e
 
 ## Step-by-Step Guide
 
-1. **[Installation](installation.md)**: Add the Pure Java Maven/Gradle dependencies, C/C++ CMake package, Python wheel, or standalone Rust CLI (`impulse-graph`, or aliased as `impulse`).
-2. **[Quickstart](quickstart.md)**: Build an `.imps` file (from CSVs with `impulse build` or in Java) and run your first traversal in < 20 lines of code.
+1. **[Installation](installation.md)**: Add the Pure Java Maven/Gradle dependencies, C/C++ CMake package, Python wheel, or standalone CLI (`impulse-graph` / `impulse-j`).
+2. **[Quickstart](quickstart.md)**: Build an `.imps` file (from CSVs with `impulse build` or in Java) and run your first traversal in `< 20` lines of code.
 3. **[Core Concepts & Glossary](core-concepts.md)**: A visual primer on CSR/CSC matrices, per-domain dense IDs ($0 \dots N_d-1$), domain-to-domain set reduction, and SoA attributes.
-4. **[Building Snapshots (Java)](building-snapshots.md)**: A step-by-step tutorial building `.imps` snapshots programmatically in Java and streaming from relational databases via JDBC.
-5. **[Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)](snapshot-builder-reference.md)**: Compile `.imps` snapshots from Apache Parquet and CSV files using the standalone `impulse` CLI and query/train on them in Python and PyTorch.
-6. **[Changing Data & Live Updates](handling-mutations.md)**: Answering *"My data isn't read-only—is Impulse for me?"*, `< 5 min` near-real-time rebuilds, S3/GCS distribution, and zero-downtime Blue/Green swaps.
+4. **[Building Snapshots (Java)](../ecosystems/java/building-snapshots.md)**: Step-by-step tutorial building `.imps` snapshots programmatically in Java and streaming from relational databases via JDBC.
+5. **[Building Snapshots (CLI, CSV/Parquet & Python/PyTorch)](../ecosystems/python/snapshots-from-parquet-csv.md)**: Compile `.imps` snapshots from Apache Parquet and CSV files using the `impulse` CLI and query/train on them in Python and PyTorch.
+6. **[Changing Data & Live Updates](handling-mutations.md)**: `< 5 min` near-real-time rebuilds, S3/GCS distribution, and zero-downtime Blue/Green swaps.
+7. **[Querying & DSLs Decision Matrix](../query-api/index.md)**: Choose the right query interface (Fluent/AOT API, CEL, openCypher, ImpLog, or ImpK) for your application.

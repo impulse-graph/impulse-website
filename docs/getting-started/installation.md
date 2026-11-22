@@ -1,15 +1,15 @@
 # Installation
 
-Impulse Graph Engine provides two equivalent, zero-dependency core engines over the `.imps` binary snapshot format:
+Impulse Graph Engine provides pluggable, zero-dependency execution runtimes over the portable `.imps` binary snapshot format and `impOps` bytecode ISA:
 
-* **Pure Java 25 Engine (`org.impulsegraph`)**: 100% pure Java 25 implementation (FFM off-heap memory segments & Vector API) distributed on Maven Central. Requires no native `.so`/`.dylib`/`.dll` libraries.
-* **Native C++20 / C-ABI Engine (`impulse-graph`)**: Native C-ABI kernel (`libimpulse_graph`) and language bindings for C++, Rust, Python, Go, .NET/C#, and Node.js.
+* **Pure JVM Runtime (`org.impulsegraph`)**: 100% pure Java 21 LTS / 25 implementation (FFM off-heap memory segments, Vector API, and `MethodHandle` JIT) distributed on Maven Central—powering Java, Kotlin, Scala 3, and Clojure with zero JNI `.so`/`.dylib`/`.dll` libraries.
+* **Native C++20 / C-ABI Runtime (`impulse-graph`)**: Native C-ABI kernel (`libimpulse_graph`) and SDK bindings for C/C++20, Rust, Python, Go, .NET/C# (P/Invoke), and Node.js.
 
 Choose your language ecosystem below:
 
-=== "Java 22+ / 25 (Maven / Gradle)"
+=== "Java 21 LTS / 25 (Maven / Gradle)"
 
-    The pure Java engine is packaged under groupId `org.impulsegraph`. The core runtime (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) has **zero third-party runtime dependencies**.
+    The pure JVM runtime is packaged under groupId `org.impulsegraph`. The core engine (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) has **zero third-party runtime dependencies**.
 
     !!! note "Maven Central (`0.10.0`)"
         `org.impulsegraph:*:0.10.0` is published on Maven Central (release JARs are also on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.0)). To install a local snapshot from source:
@@ -18,7 +18,10 @@ Choose your language ecosystem below:
         cd impulse-graph-java && mvn clean install -DskipTests
         ```
 
-    **Maven (`pom.xml`)**:
+    !!! info "Upcoming in `v0.11`: `impulse-bom`, AOT Codegen & `impulse-j`"
+        `v0.11` introduces **`org.impulsegraph:impulse-bom`** for single-version dependency management, **`impulse-maven-plugin` / `impulse-codegen`** for schema-first `.imps.schema.yaml` AOT Java code generation, **`SnapshotLifecycleManager`** for S3/Kubernetes hot-reload, and **`impulse-j`** (a pure-Java CLI requiring no native binaries). See the **[Java & JVM Ecosystem Hub](../ecosystems/java/index.md)**, **[Maven & Build Tooling](../ecosystems/java/maven-and-build-tooling.md)**, and **[AOT Code Generation](../ecosystems/java/aot-codegen.md)**.
+
+    **Maven (`pom.xml` — `0.10.0`)**:
 
     ```xml
     <dependencies>
@@ -52,7 +55,7 @@ Choose your language ecosystem below:
     </dependencies>
     ```
 
-    **Gradle (`build.gradle.kts`)**:
+    **Gradle (`build.gradle.kts` — `0.10.0`)**:
 
     ```kotlin
     dependencies {
@@ -82,7 +85,7 @@ Choose your language ecosystem below:
     target_link_libraries(your_target PRIVATE impulse-graph::impulse-graph)
     ```
 
-    *(Official `vcpkg` and Conan port manifests are in progress for upcoming releases.)*
+    *(Official `vcpkg` and Conan port manifests are in progress for upcoming releases; see the [Native, Rust & Polyglot Hub](../ecosystems/native/index.md).)*
 
 === "Python"
 
@@ -98,6 +101,8 @@ Choose your language ecosystem below:
     cd impulse-graph-core/impulse-python && pip install .
     ```
 
+    *(See the [Python & PyTorch Hub](../ecosystems/python/index.md) for Parquet snapshot building and GNN sampling.)*
+
 === "Rust"
 
     Add the self-contained crate from crates.io:
@@ -106,19 +111,22 @@ Choose your language ecosystem below:
     cargo add impulse-graph
     ```
 
-## Developer CLI (`impulse-cli`)
+## Developer CLI Toolchains (`impulse-graph` & `impulse-j`)
 
-The CLI toolchain (`impulse build`, `impulse compile`, `impulse run`, `impulse snapshot inspect`, `impulse snapshot validate`) lives in `impulse-graph-core/impulse-cli` (binary name: `impulse-graph`) and can be run via Docker or compiled from source:
+Impulse Graph provides two CLI distributions for building (`build`), inspecting (`snapshot inspect`), validating (`snapshot validate`), optimizing (`snapshot optimize`), and running (`compile` / `run`) `.imps` snapshots:
+
+1. **Native CLI (`impulse-graph`, aliased as `impulse`)**: Standalone native binary in `impulse-graph-core/impulse-cli` with zero JVM dependency—recommended for Python, C/C++, Rust, data engineering, and CI containers (see [Native CLI Reference](../ecosystems/native/cli-reference.md)).
+2. **Pure-Java CLI (`impulse-j`, `v0.11`)**: 100% JVM CLI in `impulse-graph-java/impulse-cli` for locked-down enterprise Java environments where native executables are prohibited (see [Pure-Java CLI (`impulse-j`)](../ecosystems/java/cli-impulse-j.md)).
 
 ```bash
-# Run via Docker
+# Option A: Run the native CLI via Docker
 docker pull ghcr.io/impulse-graph/impulse-tools:latest
 docker run --rm -v $(pwd):/data ghcr.io/impulse-graph/impulse-tools:latest impulse snapshot inspect /data/snapshot.imps
 
-# Or build and install from source (Rust 1.80+)
+# Option B: Build and install the native CLI from source (Rust 1.80+)
 git clone https://github.com/impulse-graph/impulse-graph-core.git
 cargo install --path impulse-graph-core/impulse-cli
 
-# The binary is named 'impulse-graph'. You can create a shell alias:
+# The native binary is named 'impulse-graph'. Create a shell alias if desired:
 alias impulse="impulse-graph"
 ```

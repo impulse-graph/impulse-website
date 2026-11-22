@@ -60,14 +60,14 @@ You can compile an `.imps` file in two ways:
     }
     ```
 
-    Compile the `.imps` snapshot and inspect its 128-byte-aligned sections (using `impulse-graph` or the `impulse` alias):
+    Compile the `.imps` snapshot and inspect its 128-byte-aligned sections (using `impulse-graph` or the `impulse` alias; see [Building Snapshots from Parquet & CSV](../ecosystems/python/snapshots-from-parquet-csv.md)):
     ```bash
     impulse-graph build --manifest manifest.json -o social.imps
     impulse-graph snapshot inspect social.imps
     ```
 
 === "Java 25 (`SnapshotBuilder`)"
-    For JVM applications or streaming JDBC pipelines, use `org.impulsegraph.builder.api.SnapshotBuilder` (see the full [Building Snapshots Walkthrough](building-snapshots.md)):
+    For JVM applications or streaming JDBC pipelines, use `org.impulsegraph.builder.api.SnapshotBuilder` (see the full [Building Snapshots Walkthrough](../ecosystems/java/building-snapshots.md)):
 
     ```java
     import org.impulsegraph.builder.api.*;
@@ -253,3 +253,11 @@ Both the Pure Java 25 engine and the C++20 / C-ABI kernel include an in-kernel c
         )
         print("Matched friend IDs:", matched_ids)
     ```
+
+---
+
+## Next Steps
+
+* **[Querying & DSLs Decision Matrix](../query-api/index.md)**: Compare AOT/Fluent builders, Google CEL, openCypher, ImpLog, and ImpK.
+* **[Ecosystem Hubs](../ecosystems/index.md)**: Deep dives for [Java & JVM](../ecosystems/java/index.md), [Python & PyTorch](../ecosystems/python/index.md), and [C++ / Rust / Polyglot](../ecosystems/native/index.md).
+* **[Changing Data & Live Updates](handling-mutations.md)**: Out-of-band snapshot rebuilds and lock-free Blue/Green swaps.
