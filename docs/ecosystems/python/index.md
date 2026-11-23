@@ -21,7 +21,7 @@ The `impulse-graph` Python SDK embeds the C++20 `ImpulseVM` kernel via `pybind11
 Install the pre-built `impulse-graph` wheel from PyPI. Wheels for Linux (`manylinux` `x86_64`/`aarch64`), macOS (`macosx_11_0_arm64`), and Windows (`win_amd64`) statically embed `libimpulse_graph_static.a` with zero external C++ runtime dependencies:
 
 ```bash
-pip install impulse-graph==0.10.0
+pip install impulse-graph==0.10.1
 ```
 
 To compile multi-million-edge `.parquet`, `.csv`, or `.tsv` tables into `.imps` snapshots from the command line, install the standalone `impulse-graph` (`impulse`) CLI binary from [GitHub Releases](https://github.com/impulse-graph/impulse-graph-core/releases) or Cargo:

@@ -61,7 +61,7 @@ List<String> flagged = snap.domain("User")
 ## 5. Idiomatic Java Enterprise Configuration (`impulse-graph-java`)
 
 * **Prefer Schema-First AOT Codegen (`v0.11`)**: Define graph contracts in `.imps.schema.yaml` and generate zero-dependency typed wrappers (`<Graph>Snapshot`, `<Domain>Id`, `<Domain>Traversal`, `<Domain>Attrs`, flyweight `<Domain>RowView`) via `org.impulsegraph:impulse-maven-plugin` (`generate` goal) or `impulse-j codegen`.
-* **Use `impulse-bom`**: Import `org.impulsegraph:impulse-bom` (`0.11.0` for full AOT/CLI suite; `0.10.0` for core Maven Central runtime artifacts `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`). Core runtime modules have **zero third-party dependencies**.
+* **Use `impulse-bom`**: Import `org.impulsegraph:impulse-bom` (`0.11.0` for full AOT/CLI suite; `0.10.1` for core Maven Central runtime artifacts `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`). Core runtime modules have **zero third-party dependencies**.
 * **Mandatory JDK Compiler & Runtime Flags**:
   * **JDK 22+ / JDK 25 LTS (Recommended)**:
     * `javac`: `--release 25 --add-modules jdk.incubator.vector` (do **not** pass `--enable-native-access` to `javac`).
@@ -75,7 +75,7 @@ List<String> flagged = snap.domain("User")
 
 * **Build Snapshots via Official Tooling Only**: Never write ad-hoc Python/C++/shell byte-packing scripts to create `.imps` files. Always compile CSV/TSV/Parquet datasets with `impulse-graph build --manifest manifest.json -o graph.imps` (or `SnapshotBuilder` / `SnapshotWriter` / `impulse_writer_t`). Enable `"include_csc": true` on relations that will be traversed in reverse (`.in(...)` / `.in_(...)` / `<-[]-`).
 * **Python & Multi-Worker PyTorch (`impulse-graph`)**:
-  * Open snapshots with `with Snapshot("graph.imps") as snap:` (`pip install impulse-graph==0.10.0`).
+  * Open snapshots with `with Snapshot("graph.imps") as snap:` (`pip install impulse-graph==0.10.1`).
   * Anchor traversals via `snap.domain("User").from_key("...").out("...").to_key_list()` or `snap.cypher(query, params={...})`.
   * Access CSR and SoA tensors zero-copy via `snap.get_row_offsets_array(rel_idx)`, `snap.get_col_indices_array(rel_idx)`, `snap.get_attribute_array(rel_idx, attr_idx, dtype=np.float32, shape=...)`, and `snap.sample_neighbors(...)`.
   * In `multiprocessing` or PyTorch `DataLoader(num_workers > 0)`, pass only the `.imps` **file path string** to workers and instantiate `Snapshot(path)` lazily inside each worker so all processes share one read-only OS page-cache mapping (`0 bytes` CoW duplication).

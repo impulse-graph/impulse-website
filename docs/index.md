@@ -46,7 +46,7 @@ Impulse Graph separates the **normative data and bytecode contract** from the **
    * **`impOps` 64-Register ISA (`R0`..`R63`)**: Fixed-width 64-bit bytecode instructions verified by compliance test vectors (`tc01`–`tc38`, `vm-impas/`).
 2. **Independent Execution Runtimes**:
 
-| Runtime | Implementation & Memory Access | Language Ecosystem | Distribution (`0.10.0`) |
+| Runtime | Implementation & Memory Access | Language Ecosystem | Distribution (`0.10.1`) |
 | :--- | :--- | :--- | :--- |
 | **Pure JVM Engine** (`impulse-graph-java`) | 100% Java 21 LTS / 25 (`MemorySegment`, `Arena`, Vector API, `MethodHandle` JIT); zero JNI, zero third-party runtime dependencies | Java, Kotlin, Scala 3, Clojure | Maven Central (`org.impulsegraph`) |
 | **Native C++20 / C-ABI Engine** (`impulse-graph-core`) | C++20 (`libimpulse_graph`, `impulse_graph.h`) with OS `mmap`, Google Highway SIMD, and OpenMP; zero third-party runtime dependencies | C, C++20, Rust, Python (NumPy/PyTorch), Go, .NET (P/Invoke), Node.js | PyPI (`impulse-graph`), crates.io (`impulse-graph`), GitHub Releases |

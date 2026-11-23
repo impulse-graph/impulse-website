@@ -11,8 +11,8 @@ Choose your language ecosystem below:
 
     The pure JVM runtime is packaged under groupId `org.impulsegraph`. The core engine (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`) has **zero third-party runtime dependencies**.
 
-    !!! note "Maven Central (`0.10.0`)"
-        `org.impulsegraph:*:0.10.0` is published on Maven Central (release JARs are also on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.0)). To install a local snapshot from source:
+    !!! note "Maven Central (`0.10.1`)"
+        `org.impulsegraph:*:0.10.1` is published on Maven Central (release JARs are also on [GitHub Releases](https://github.com/impulse-graph/impulse-graph-java/releases/tag/v0.10.1)). To install a local snapshot from source:
         ```bash
         git clone https://github.com/impulse-graph/impulse-graph-java.git
         cd impulse-graph-java && mvn clean install -DskipTests
@@ -21,49 +21,49 @@ Choose your language ecosystem below:
     !!! info "Upcoming in `v0.11`: `impulse-bom`, AOT Codegen & `impulse-j`"
         `v0.11` introduces **`org.impulsegraph:impulse-bom`** for single-version dependency management, **`impulse-maven-plugin` / `impulse-codegen`** for schema-first `.imps.schema.yaml` AOT Java code generation, **`SnapshotLifecycleManager`** for S3/Kubernetes hot-reload, and **`impulse-j`** (a pure-Java CLI requiring no native binaries). See the **[Java & JVM Ecosystem Hub](../ecosystems/java/index.md)**, **[Maven & Build Tooling](../ecosystems/java/maven-and-build-tooling.md)**, and **[AOT Code Generation](../ecosystems/java/aot-codegen.md)**.
 
-    **Maven (`pom.xml` — `0.10.0`)**:
+    **Maven (`pom.xml` — `0.10.1`)**:
 
     ```xml
     <dependencies>
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-api</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
         </dependency>
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-storage</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
         </dependency>
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-vm</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
         </dependency>
         <!-- Multi-pass openCypher, CEL, and ImpScheme compiler -->
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-compiler</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
         </dependency>
         <!-- Streaming .imps snapshot builder -->
         <dependency>
             <groupId>org.impulsegraph</groupId>
             <artifactId>impulse-builder</artifactId>
-            <version>0.10.0</version>
+            <version>0.10.1</version>
         </dependency>
     </dependencies>
     ```
 
-    **Gradle (`build.gradle.kts` — `0.10.0`)**:
+    **Gradle (`build.gradle.kts` — `0.10.1`)**:
 
     ```kotlin
     dependencies {
-        implementation("org.impulsegraph:impulse-api:0.10.0")
-        implementation("org.impulsegraph:impulse-storage:0.10.0")
-        implementation("org.impulsegraph:impulse-vm:0.10.0")
-        implementation("org.impulsegraph:impulse-compiler:0.10.0")
-        implementation("org.impulsegraph:impulse-builder:0.10.0")
+        implementation("org.impulsegraph:impulse-api:0.10.1")
+        implementation("org.impulsegraph:impulse-storage:0.10.1")
+        implementation("org.impulsegraph:impulse-vm:0.10.1")
+        implementation("org.impulsegraph:impulse-compiler:0.10.1")
+        implementation("org.impulsegraph:impulse-builder:0.10.1")
     }
     ```
 

@@ -1,7 +1,7 @@
 # Day-2 Operations: Kubernetes, Hot-Swap Lifecycle & Schema Evolution
 
 !!! info "Version Note: v0.11 Tooling Suite"
-    `SnapshotLifecycleManager`, `SnapshotResolver`, `LocalPathSnapshotResolver`, `ConsumerSchemaContext`, `SwapResult`, `SnapshotContractValidator`, and lifecycle-backed `ImpulseHealthIndicator` probes (`startup()`, `readiness()`, `liveness()`) ship in **`v0.11`** (`0.11.0`). Low-level `SnapshotSwapManager` and `GraphSnapshot`-backed `ImpulseHealthIndicator` are available in `0.10.0`.
+    `SnapshotLifecycleManager`, `SnapshotResolver`, `LocalPathSnapshotResolver`, `ConsumerSchemaContext`, `SwapResult`, `SnapshotContractValidator`, and lifecycle-backed `ImpulseHealthIndicator` probes (`startup()`, `readiness()`, `liveness()`) ship in **`v0.11`** (`0.11.0`). Low-level `SnapshotSwapManager` and `GraphSnapshot`-backed `ImpulseHealthIndicator` are available in `0.10.1`.
 
 Because Impulse Graph executes read-only traversals directly over immutable `.imps` files, production microservices never apply row-by-row mutations in place. Instead, an upstream job periodically writes a fresh `.imps` snapshot to object storage (S3/GCS) or a mounted volume, and stateless serving pods atomically rotate epochs in memory with zero query downtime (see [Long-Lived Dynamic Service](../../deployment/dynamic-service.md)).
 

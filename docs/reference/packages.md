@@ -1,15 +1,15 @@
 # Packages & Distribution
 
-Impulse Graph `v0.10.0` is published on **Maven Central**, **PyPI**, **crates.io**, and **GitHub Releases**.
+Impulse Graph `v0.10.1` is published on **Maven Central**, **PyPI**, **crates.io**, and **GitHub Releases** (100% compatible with `.imps` `v0.10.0` binary snapshots; zero breaking changes).
 
 | Ecosystem | Registry | Package / Coordinate | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Java 21/25 (JVM Core)** | Maven Central | `org.impulsegraph:impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder` | Live (`0.10.0`) | Pure Java FFM snapshot engine, VM/JIT, compiler suite, and streaming builder (see [Java & JVM Hub](../ecosystems/java/index.md)). |
+| **Java 21/25 (JVM Core)** | Maven Central | `org.impulsegraph:impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder` | Live (`0.10.1`) | Pure Java FFM snapshot engine, VM/JIT, compiler suite, and streaming builder (see [Java & JVM Hub](../ecosystems/java/index.md)). |
 | **Java Developer & Build Tooling** | Maven Central | `org.impulsegraph:impulse-bom`, `impulse-codegen`, `impulse-cli` (`impulse-j`), `impulse-maven-plugin` | Staged (`v0.11`) | Maven/Gradle BOM, v2 AOT schema codegen, pure-Java `impulse-j` CLI, and 7-Mojo Maven build/compatibility suite (see [Java & JVM Hub](../ecosystems/java/index.md)). |
-| **Kotlin / Scala 3 / Clojure** | Maven Central | `org.impulsegraph:impulse-kotlin`, `impulse-scala_3`, `impulse-clojure` | Live (`0.10.0`) | Idiomatic JVM language DSL extensions (see [JVM Languages](../ecosystems/java/jvm-languages.md)). |
-| **Python / PyTorch** | PyPI | `impulse-graph` | Live (`0.10.0`) | Pre-built `pybind11` wheels (Linux, macOS arm64, Windows) with NumPy & PyTorch interop. |
-| **Rust** | crates.io | `impulse-graph` | Live (`0.10.0`) | Self-contained Rust crate (bundled C++20/Highway sources, optional `IMPULSE_SDK_DIR` override). |
-| **CLI & C/C++20 SDK** | GitHub Releases | `impulse-cli`, `impulse-sdk` | Live (`v0.10.0`) | Pre-built CLI binaries, C-ABI headers (`impulse_graph.h`, `impulse_vm.h`), and static/shared libs. |
+| **Kotlin / Scala 3 / Clojure** | Maven Central | `org.impulsegraph:impulse-kotlin`, `impulse-scala_3`, `impulse-clojure` | Live (`0.10.1`) | Idiomatic JVM language DSL extensions (see [JVM Languages](../ecosystems/java/jvm-languages.md)). |
+| **Python / PyTorch** | PyPI | `impulse-graph` | Live (`0.10.1`) | Pre-built `pybind11` wheels (Linux, macOS arm64, Windows) with NumPy & PyTorch interop. |
+| **Rust** | crates.io | `impulse-graph` | Live (`0.10.1`) | Self-contained Rust crate (bundled C++20/Highway sources, optional `IMPULSE_SDK_DIR` override). |
+| **CLI & C/C++20 SDK** | GitHub Releases | `impulse-cli`, `impulse-sdk` | Live (`v0.10.1`) | Pre-built CLI binaries, C-ABI headers (`impulse_graph.h`, `impulse_vm.h`), and static/shared libs. |
 | **Go (CGo)** | Go Modules | `github.com/impulse-graph/impulse-graph/go` | Active | CGo bindings linked against `libimpulse_graph_static.a`. |
 | **.NET 8+ (C# / F#)** | NuGet.org | `ImpulseGraph`, `ImpulseGraph.Native` | Staged (`v1.0`) | Managed .NET P/Invoke API and native binaries. |
 | **Node.js / Bun** | npm | `impulse-graph` | Staged (`v1.0`) | TypeScript definitions and N-API native bindings. |

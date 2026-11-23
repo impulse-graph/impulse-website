@@ -11,9 +11,9 @@ For workspace setup and building individual repositories, see the [Contributing 
 | Layer | Location | What It Tests |
 | :--- | :--- | :--- |
 | **Binary Snapshot Vectors** | `impulse-graph-spec/test-vectors/tc01`–`tc38` | Positive layout, alignment, CSR/CSC, key catalog, and attribute vectors; negative SHA-256 corruption, bad flag, out-of-bounds offset, and truncation traps. |
-| **VM Assembly Suite** | `impulse-graph-spec/test-vectors/vm-impas/` | 531 self-contained `.impas` scripts with `{EXPECT: ...}` headers. `run_vm_asm_suite.py` enforces 100% coverage of all 166 opcodes (`0x00`..`0xCB`) and requires every opcode to appear in at least 2 test files. |
+| **VM Assembly Suite** | `impulse-graph-spec/test-vectors/vm-impas/` | 553 self-contained `.impas` scripts with `{EXPECT: ...}` headers. `run_vm_asm_suite.py` enforces 100% coverage of all 166 opcodes (`0x00`..`0xCB`) and requires every opcode to appear in at least 2 test files. |
 | **Four-Way VM Parity** | `impulse-verification/tools/four_way_validation.py` | Runs every `.impas` vector across C++ (`-O3`), C++ (`-O0`), Java 25, and OCaml (`impulse-ocaml`), requiring identical registers (`R0`..`R63`), PC, flags, status codes, and `ICTX` v1 SHA-256 state hashes. |
-| **Contract & Differential Fuzzing** | `impulse-verification/tools/fuzz_vm_contracts.py` & `test_opcode_contracts.cpp` | Validates all 188 opcode contract variants (`contracts.json`) for register type checks, bounds (`r >= 64`), in-place aliasing, and null-context safety. |
+| **Contract, Metamorphic & Mutation Fuzzing** | `fuzz_vm_contracts.py`, `metamorphic_vm_test.py` & `mutate_corpus_fuzzer.py` | Validates all 188 opcode contract variants (`contracts.json`), 10 fuzzing profiles, 25 algebraic/metamorphic VM laws, in-place aliasing, and null-context safety. |
 | **Cross-Compiler Parity** | `impulse-verification/tools/cross_compiler_parity.py` | Verifies consistent lowering and execution across frontends (ImpK, ImpLog, openCypher). |
 | **Engine vs. FFI Boundaries** | `impulse-graph-core` / `impulse-graph-java` | Engine kernels run the full ISA suite; FFI bindings (Python, Go, Node.js, .NET) run focused boundary tests covering C-ABI signatures, struct layout, memory lifecycle, and error propagation. |
 
@@ -44,7 +44,7 @@ For the `ICTX` v1 hash wire format and opcode contract definitions, see [VM Spec
 | **Engine Logic** | `impulse-cpp`, `impulse-rust`, `impulse-graph-java`, `impulse-ocaml` | Opcode execution, bitsets, SIMD kernels, memory mapping, and compiler passes. |
 | **FFI Boundaries** | `impulse-python`, `impulse-go`, `impulse-node`, `impulse-dotnet` | C-ABI signatures, struct padding, string/array marshaling, pointer lifecycle, and exception mapping. |
 
-Running all 531 VM vectors through every FFI wrapper on every PR adds build time without finding engine bugs already caught by the native kernel and four-way suites. PRs run focused FFI contract suites, while release validation exercises the full matrix.
+Running all 553 VM vectors through every FFI wrapper on every PR adds build time without finding engine bugs already caught by the native kernel and four-way suites. PRs run focused FFI contract suites, while release validation exercises the full matrix.
 
 ---
 
