@@ -9,11 +9,11 @@
 ## 1. Two Roles: Predicate Filters vs. Column Projections
 
 1. **Predicate Mode (`.filter(...)`, `.out(rel, cel)`, `WHERE`)**:
-   * Evaluates boolean expressions into off-heap bitmasks (`TYPE_BITSET_HANDLE`), driving SIMD frontier pruning (`OP_NODE_FILTER`, `OP_CSR_WALK_FILTERED`).
-   * Example: `.out("TRANSFERRED_TO", "edge.amount >= 1000.0 && !tgt.is_frozen")`
+    * Evaluates boolean expressions into off-heap bitmasks (`TYPE_BITSET_HANDLE`), driving SIMD frontier pruning (`OP_NODE_FILTER`, `OP_CSR_WALK_FILTERED`).
+    * Example: `.out("TRANSFERRED_TO", "edge.amount >= 1000.0 && !tgt.is_frozen")`
 2. **Projection Mode (`.outWithState(...)`, `.project(...)`, `RETURN`)**:
-   * Evaluates numeric, temporal, or conditional expressions over active nodes/edges into 128-byte-aligned off-heap state vectors and Apache Arrow-compatible result columns.
-   * Example: `.outWithState("FLIGHT", "state.min_cost:MIN = src.airport_fee + edge.price * 1.08")`
+    * Evaluates numeric, temporal, or conditional expressions over active nodes/edges into 128-byte-aligned off-heap state vectors and Apache Arrow-compatible result columns.
+    * Example: `.outWithState("FLIGHT", "state.min_cost:MIN = src.airport_fee + edge.price * 1.08")`
 
 ### Context Identifiers
 * **`node.<attr>`**: Attribute on the active domain during an in-domain `.filter(...)` or `.project(...)`.
@@ -46,8 +46,8 @@ All math functions compile directly to hardware SIMD instructions (`impOps` vect
 * **Rounding & Special**: `floor`, `ceil`, `trunc`, `round`, `erf`, `erfc`, `lgamma`.
 * **Bitwise**: `popcount`, `clz`, `ctz`, `rotl`, `rotr`.
 * **Safe Floating-Point Guards**:
-  * `safeDiv(num, den, fallback)`: Returns `fallback` when `den == 0.0` or non-finite, preventing `NaN` propagation.
-  * `isNan(x)`, `isInf(x)`, `isFinite(x)`: IEEE-754 classification predicates (backed by `OP_ASSERT_FINITE`).
+    * `safeDiv(num, den, fallback)`: Returns `fallback` when `den == 0.0` or non-finite, preventing `NaN` propagation.
+    * `isNan(x)`, `isInf(x)`, `isFinite(x)`: IEEE-754 classification predicates (backed by `OP_ASSERT_FINITE`).
 
 ---
 

@@ -140,8 +140,3 @@ impulse-graph assemble -i reachability.impas -o reachability.impb
 # 3. Execute compiled bytecode program against a snapshot
 impulse-graph run --snapshot production.imps --bytecode reachability.impb
 ```
-impulse assemble -i reachability.impas -o reachability.impb
-
-# 4. Execute query program against snapshot
-impulse run --snapshot production.imps --bytecode reachability.impb --input-val 1042
-```

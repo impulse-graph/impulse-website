@@ -76,48 +76,48 @@ Stack virtual machines (JVM bytecode, WebAssembly, Python CPython, SQLite pre-VD
 ### Pillar 1: Sparse Linear Algebra, Semirings & GraphBLAS
 
 1. **Jeremy Kepner, Peter Aaltonen, David Bader, Aydın Buluç, Franz Franchetti, John Gilbert, Dylan Hutchison, Manoj Kumar, Andrew Lumsdaine, Henning Meyerhenke, Scott McMillan, Carl Yang, Marcin Zalewski, and Timothy Mattson.** *"Mathematical Foundations of the GraphBLAS."* IEEE High Performance Extreme Computing Conference (**HPEC**), 2016.
-   - **Core Result**: Formalizes graph algorithms (BFS, shortest paths, centrality, subgraphs) as sparse matrix-vector (`MxV` / `vXM`) and matrix-matrix (`MxM`) operations over algebraic semirings and masks.
-   - **Realization in Impulse**: Direct mathematical basis for the **ImpK (`.impk`)** DSL, `OP_MXV` / `OP_VXM` opcodes, and masked frontier propagation over CSR/CSC segments.
+    - **Core Result**: Formalizes graph algorithms (BFS, shortest paths, centrality, subgraphs) as sparse matrix-vector (`MxV` / `vXM`) and matrix-matrix (`MxM`) operations over algebraic semirings and masks.
+    - **Realization in Impulse**: Direct mathematical basis for the **ImpK (`.impk`)** DSL, `OP_MXV` / `OP_VXM` opcodes, and masked frontier propagation over CSR/CSC segments.
 
 2. **Aydın Buluç and John R. Gilbert.** *"The Combinatorial BLAS: Design, Implementation, and Applications."* The International Journal of High Performance Computing Applications (**IJHPCA**), 25(4):496–509, 2011.
-   - **Core Result**: Demonstrates how customizable semiring `plus` ($\oplus$) and `times` ($\otimes$) combinators decouple parallel sparse matrix communication/storage from domain-specific graph logic.
-   - **Realization in Impulse**: Motivates Impulse's separation of topological walk instructions from customizable monoidal reducers (`Reducer.SUM`, `MIN`, `MAX`, `ANY`).
+    - **Core Result**: Demonstrates how customizable semiring `plus` ($\oplus$) and `times` ($\otimes$) combinators decouple parallel sparse matrix communication/storage from domain-specific graph logic.
+    - **Realization in Impulse**: Motivates Impulse's separation of topological walk instructions from customizable monoidal reducers (`Reducer.SUM`, `MIN`, `MAX`, `ANY`).
 
 3. **Mehryar Mohri.** *"Semiring Frameworks and Algorithms for Shortest-Distance Problems."* Journal of Automata, Languages and Combinatorics, 7(3):321–350, 2002; and **Michel Gondran and Michel Minoux**, *Graphs, Dioids and Semirings: New Models and Algorithms*, Springer, 2008.
-   - **Core Result**: Establishes $k$-closedness and idempotency conditions guaranteeing finite convergence of generalized shortest-distance and transitive-closure iterations over dioids/semirings.
-   - **Realization in Impulse**: Governs termination and asynchronous safety rules for `repeatUntilStable` and `ImpLog` fixed-point loops ([Mathematical Foundations §6.1](../academic.md#6-fixed-point-convergence-bit-sliced-algebras-direction-optimization)).
+    - **Core Result**: Establishes $k$-closedness and idempotency conditions guaranteeing finite convergence of generalized shortest-distance and transitive-closure iterations over dioids/semirings.
+    - **Realization in Impulse**: Governs termination and asynchronous safety rules for `repeatUntilStable` and `ImpLog` fixed-point loops ([Mathematical Foundations §6.1](../academic.md#6-fixed-point-convergence-bit-sliced-algebras-direction-optimization)).
 
 ---
 
 ### Pillar 2: Direction-Optimizing Traversal, Connectivity & Multi-Source Bit-Slicing
 
 4. **Scott Beamer, Krste Asanović, and David Patterson.** *"Direction-Optimizing Breadth-First Search."* IEEE/ACM International Conference for High Performance Computing, Networking, Storage and Analysis (**SC '12**), 2012; and *"The GAP Benchmark Suite"*, arXiv:1508.03619, 2015.
-   - **Core Result**: Switching dynamically between top-down CSR Push (sparse frontiers) and bottom-up CSC Pull with early exit (dense frontiers) eliminates redundant edge inspections on low-diameter scale-free graphs; GAPBS standardizes empirical graph benchmarking (`twitter-2010`).
-   - **Realization in Impulse**: Implemented in `DirectionSelectionPass` and `OP_ADAPTIVE_WALK` over paired CSR/CSC `.imps` sections, and used as the canonical baseline in [Benchmarks](../benchmarks.md) (`145.00 ms` C++20 / `240.29 ms` Java 25 on `twitter-2010`).
+    - **Core Result**: Switching dynamically between top-down CSR Push (sparse frontiers) and bottom-up CSC Pull with early exit (dense frontiers) eliminates redundant edge inspections on low-diameter scale-free graphs; GAPBS standardizes empirical graph benchmarking (`twitter-2010`).
+    - **Realization in Impulse**: Implemented in `DirectionSelectionPass` and `OP_ADAPTIVE_WALK` over paired CSR/CSC `.imps` sections, and used as the canonical baseline in [Benchmarks](../benchmarks.md) (`145.00 ms` C++20 / `240.29 ms` Java 25 on `twitter-2010`).
 
 5. **Julian Shun and Guy E. Blelloch.** *"Ligra: A Lightweight Graph Processing Framework for Shared Memory."* ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming (**PPoPP**), 2013.
-   - **Core Result**: Introduces dual sparse-array vs. dense-bitset `vertexSubset` representations with adaptive threshold switching across `EdgeMap` and `VertexMap` operators.
-   - **Realization in Impulse**: Mirrors `ImpulseVM`'s dual `TYPE_NODE_VECTOR` (sparse ID list) and `OffHeapBitSet` (dense $\lceil N_d / 64 \rceil$ words) frontier representations.
+    - **Core Result**: Introduces dual sparse-array vs. dense-bitset `vertexSubset` representations with adaptive threshold switching across `EdgeMap` and `VertexMap` operators.
+    - **Realization in Impulse**: Mirrors `ImpulseVM`'s dual `TYPE_NODE_VECTOR` (sparse ID list) and `OffHeapBitSet` (dense $\lceil N_d / 64 \rceil$ words) frontier representations.
 
 6. **Michael Sutton, Tal Ben-Nun, and Amnon Barak.** *"Optimizing Parallel Graph Connectivity Computation via Subgraph Sampling."* IEEE International Parallel and Distributed Processing Symposium (**IPDPS**), 2018 (**Afforest**).
-   - **Core Result**: Sampling just $k = 2$ outgoing edges per vertex discovers the giant connected component in power-law graphs, allowing subsequent full-CSR sweeps to skip >90% of vertices already linked to the dominant root.
-   - **Realization in Impulse**: Directly implemented as `OP_CC_AFFOREST` across both C++20 and Pure Java 25 (`39,681,514` components on `twitter-2010` in `156.73 ms` C++ / `311.23 ms` Graal JIT).
+    - **Core Result**: Sampling just $k = 2$ outgoing edges per vertex discovers the giant connected component in power-law graphs, allowing subsequent full-CSR sweeps to skip >90% of vertices already linked to the dominant root.
+    - **Realization in Impulse**: Directly implemented as `OP_CC_AFFOREST` across both C++20 and Pure Java 25 (`39,681,514` components on `twitter-2010` in `156.73 ms` C++ / `311.23 ms` Graal JIT).
 
 7. **Manuel Then, Moritz Kaufmann, Fernando Chirigati, Tuan-Anh Hoang-Vu, Kien Pham, Alfons Kemper, Thomas Neumann, and Huy T. Vo.** *"The More the Merrier: Efficient Multi-Source Graph Traversal."* Proceedings of the VLDB Endowment (**PVLDB**), 8(4):449–460, 2014 (**MS-BFS**).
-   - **Core Result**: Packs multiple concurrent BFS frontiers into machine bit-width lanes (64/128/256/512 bits) so one CSR adjacency scan advances dozens of traversals simultaneously, turning memory-bound walks into compute-dense bitwise operations.
-   - **Realization in Impulse**: Core inspiration for `v0.10.0` **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`)**, generalized in Impulse to support edge-outage trip masks (`OP_LANE_SET_EDGE_MASK`) for $N-1$/$N-2$ grid contingency sweeps and multi-anchor quorum filtering (`OP_LANE_FILTER_QUORUM`).
+    - **Core Result**: Packs multiple concurrent BFS frontiers into machine bit-width lanes (64/128/256/512 bits) so one CSR adjacency scan advances dozens of traversals simultaneously, turning memory-bound walks into compute-dense bitwise operations.
+    - **Realization in Impulse**: Core inspiration for `v0.10.0` **Multi-Lane Bit-Sliced Frontiers (`TYPE_LANE_FRONTIER = 0x10`, `0xC0`..`0xC9`)**, generalized in Impulse to support edge-outage trip masks (`OP_LANE_SET_EDGE_MASK`) for $N-1$/$N-2$ grid contingency sweeps and multi-anchor quorum filtering (`OP_LANE_FILTER_QUORUM`).
 
 8. **Yunming Zhang, Mengjiao Yang, Riyadh Baghdadi, Shoaib Kamil, Julian Shun, and Saman Amarasinghe.** *"GraphIt: A High-Performance Graph DSL."* Proceedings of the ACM on Programming Languages (**OOPSLA**), 2018.
-   - **Core Result**: Separates declarative graph algorithm specification from physical optimization schedules (direction, parallelization, data layout, kernel fusion).
-   - **Realization in Impulse**: Reflected in Impulse's split between Stage 1 (logical snapshot-agnostic AST rewrites) and Stage 2 (snapshot-bound physical schedule & kernel selection).
+    - **Core Result**: Separates declarative graph algorithm specification from physical optimization schedules (direction, parallelization, data layout, kernel fusion).
+    - **Realization in Impulse**: Reflected in Impulse's split between Stage 1 (logical snapshot-agnostic AST rewrites) and Stage 2 (snapshot-bound physical schedule & kernel selection).
 
 ---
 
 ### Pillar 3: Register Virtual Machines, Threaded Dispatch & Partial-Evaluation JIT
 
 9. **Roberto Ierusalimschy, Luiz Henrique de Figueiredo, and Waldemar Celes.** *"The Implementation of Lua 5.0."* Journal of Universal Computer Science (**J.UCS**), 11(7):1159–1176, 2005.
-   - **Core Result**: Introduces a mainstream register-based bytecode virtual machine packing opcode and explicit register indices into fixed-width 32-bit words, sharply cutting instruction count per loop iteration compared to stack VMs.
-   - **Realization in Impulse**: Primary inspiration for `ImpulseVM`'s 64-register (`R0`..`R63`) architecture and fixed 64-bit `impOps` instruction format (`opcode[8] | flags[8] | dst[16] | payload[32]`).
+    - **Core Result**: Introduces a mainstream register-based bytecode virtual machine packing opcode and explicit register indices into fixed-width 32-bit words, sharply cutting instruction count per loop iteration compared to stack VMs.
+    - **Realization in Impulse**: Primary inspiration for `ImpulseVM`'s 64-register (`R0`..`R63`) architecture and fixed 64-bit `impOps` instruction format (`opcode[8] | flags[8] | dst[16] | payload[32]`).
 
 10. **Yunhe Shi, Kevin Casey, M. Anton Ertl, and David Gregg.** *"Virtual Machine Showdown: Stack Versus Registers."* ACM Transactions on Architecture and Code Optimization (**TACO**), 4(4), 2008 (extended from **ACM VEE** 2005).
     - **Core Result**: Demonstrates empirically that register bytecode architectures execute ~45% fewer VM instructions and reduce dispatch overhead, especially when paired with direct/computed-`goto` threading.

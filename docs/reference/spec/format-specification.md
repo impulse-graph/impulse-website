@@ -87,8 +87,8 @@ Begins at byte offset `DataOffset` (4096):
 
 * `StringTableBytes` (`uint32_t`, 4B): Total byte size of string pool blob.
 * `StringPool` (`byte[StringTableBytes]`): Contiguous null-terminated UTF-8 byte stream starting with `\0` at offset `0`.
-  - String offset `0` corresponds to empty string `""`.
-  - All domain names, relation names, and attribute names store a 32-bit `name_offset` pointing directly to their null-terminated UTF-8 byte stream in this pool.
+    - String offset `0` corresponds to empty string `""`.
+    - All domain names, relation names, and attribute names store a 32-bit `name_offset` pointing directly to their null-terminated UTF-8 byte stream in this pool.
 
 ### 3.2 Domain Catalog Array (Fixed 16 Bytes per Domain)
 Begins immediately after String Table, aligned to a 128-byte boundary. Contains `DomainCount` fixed-size 16-byte records:
@@ -143,11 +143,11 @@ struct ImpulseVirtualRelationPayload {
 ```
 
 * **Overflow Extended Path ($\text{component\_count} > 10$, up to 65,536)**:
-  For large virtual relations composed of more than 10 physical relations:
+    For large virtual relations composed of more than 10 physical relations:
 
-  1. `component_ids[0]` is set to `0xFFFF` (Overflow Sentinel Flag).
-  2. `CsrColIdxOffset` (8-byte `uint64_t`) stores a 128B-aligned absolute file offset to an off-heap array of `uint16_t component_ids[component_count]`.
-  3. `CsrColIdxBytes` stores the byte size ($= \text{component\_count} \times 2$).
+    1. `component_ids[0]` is set to `0xFFFF` (Overflow Sentinel Flag).
+    2. `CsrColIdxOffset` (8-byte `uint64_t`) stores a 128B-aligned absolute file offset to an off-heap array of `uint16_t component_ids[component_count]`.
+    3. `CsrColIdxBytes` stores the byte size ($= \text{component\_count} \times 2$).
 * **Maximum Theoretical Capacity**: Up to **65,536 physical relations** per virtual super-relation (matching the overall `.imps` relation limit).
 
 ---
@@ -238,9 +238,9 @@ When `IndexType == 0x08` (`IMP_INDEX_VAMANA_ANN`), the `IndexDirectoryEntry.Data
 
 * **128-Byte-Aligned Fixed-Degree Adjacency Slab (`adj_slab_offset`)**: Stored as $N$ contiguous fixed-stride rows of $(R + 1)$ 32-bit unsigned integers (`N * (R + 1) * 4` bytes total). Row $u \in [0, N)$ begins at `adj_slab_offset + u * (R + 1) * 4` and encodes `[deg, nb_0, nb_1, ..., nb_{deg-1}, 0xFFFFFFFF, ...]`, where `deg <= R` is the out-degree and unused neighbor slots `[deg..R)` are padded with `0xFFFFFFFF`.
 * **128-Byte-Aligned Quantized Routing Code Slab (`quant_code_offset`)**: Optional compact vector representations scanned during greedy beam routing (`OP_VECTOR_ANN_SEARCH` `0xCA`) to reduce DRAM bandwidth before exact `FLOAT32` reranking (`OP_VECTOR_RERANK_DOT` `0xCB`):
-  - **`BQ1` (`quant_type = 1`)**: $\lceil D / 8 \rceil$ bytes per node; bit `(d & 7)` of byte `(d >> 3)` is `1` iff `vec[d] >= 0.0`.
-  - **`SQ8` (`quant_type = 2`)**: $D$ bytes per node (`uint8_t[D]`); encodes normalized/clamped values in $[-1.0, 1.0]$ via `round(v * 127.0 + 128.0)` and decodes via `(code - 128.0) / 127.0`.
-  - **`FP16` (`quant_type = 3`)**: $2 \times D$ bytes per node (`uint16_t[D]`, Little-Endian IEEE 754 binary16 half-precision).
+    - **`BQ1` (`quant_type = 1`)**: $\lceil D / 8 \rceil$ bytes per node; bit `(d & 7)` of byte `(d >> 3)` is `1` iff `vec[d] >= 0.0`.
+    - **`SQ8` (`quant_type = 2`)**: $D$ bytes per node (`uint8_t[D]`); encodes normalized/clamped values in $[-1.0, 1.0]$ via `round(v * 127.0 + 128.0)` and decodes via `(code - 128.0) / 127.0`.
+    - **`FP16` (`quant_type = 3`)**: $2 \times D$ bytes per node (`uint16_t[D]`, Little-Endian IEEE 754 binary16 half-precision).
 
 ---
 
@@ -358,11 +358,11 @@ The reverse mapping (External Key $\to$ Dense ID) requires a **Secondary Index D
 The structural format of the Section 4 index block depends on the `key_type` defined in the Domain Catalog:
 
 * **Variable Length Strings & UUIDs (`VAR_STRING`, `UUID128`)**:
-  - Requires **IndexType `0x04` (IMP_INDEX_MINIMAL_PERFECT_HASH)**. 
-  - Resolves string keys to dense IDs in $O(1)$ time with $\approx 2-3$ bits/key overhead.
+    - Requires **IndexType `0x04` (IMP_INDEX_MINIMAL_PERFECT_HASH)**. 
+    - Resolves string keys to dense IDs in $O(1)$ time with $\approx 2-3$ bits/key overhead.
 * **Fixed-Width Integers (`INT32`, `INT64`)**:
-  - Requires **IndexType `0x01` (IMP_INDEX_PERMUTATION)** or a direct sorted array.
-  - Resolves integer keys to dense IDs in $O(\log N)$ time via binary search.
+    - Requires **IndexType `0x01` (IMP_INDEX_PERMUTATION)** or a direct sorted array.
+    - Resolves integer keys to dense IDs in $O(\log N)$ time via binary search.
 
 ---
 

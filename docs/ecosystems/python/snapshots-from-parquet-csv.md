@@ -421,12 +421,13 @@ Always generate `.imps` snapshots using `impulse build` or the official writer A
 * **C / C++20 (`impulse_writer_*` C-ABI)**: `impulse_writer_create` / `impulse_writer_finalize` in `impulse_graph.h` ([C-ABI & C++20 Reference](../../reference/c-abi.md)).
 
 If you are implementing a custom writer:
+
 1. Follow the **[Binary Snapshot Format Specification](../../reference/spec/format-specification.md)** for exact header, catalog, CSR/CSC, and footer offsets.
 2. Validate output with:
-   ```bash
-   impulse snapshot validate output.imps --strict-alignment
-   impulse snapshot inspect output.imps --verbose
-   ```
+    ```bash
+    impulse snapshot validate output.imps --strict-alignment
+    impulse snapshot inspect output.imps --verbose
+    ```
 3. Cross-check against the specification test vectors (`tc01`–`tc38`; see [Polyglot Validation](../../contributing/polyglot-validation.md)).
 
 ---
