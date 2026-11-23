@@ -83,7 +83,11 @@ jobs:
         run: |
           mvn javadoc:aggregate -DskipTests -B
           mkdir -p ../impulse-website/site/javadoc
-          cp -R target/site/apidocs/* ../impulse-website/site/javadoc/
+          if [ -d target/reports/apidocs ]; then
+            cp -R target/reports/apidocs/* ../impulse-website/site/javadoc/
+          else
+            cp -R target/site/apidocs/* ../impulse-website/site/javadoc/
+          fi
 
       - name: Generate C-ABI & C++20 Doxygen HTML
         if: hashFiles('impulse-graph-core/impulse-cpp/Doxyfile') != ''
