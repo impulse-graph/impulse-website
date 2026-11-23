@@ -97,7 +97,7 @@ In `ImpulseVM`, an active frontier over a domain of $N_d$ nodes is represented a
 * **Zero Duplicate Work**: Converging paths across high-fanout graphs automatically coalesce via bitwise `OR` without hash-set deduplication overhead.
 * **Direction-Optimizing Push/Pull**: When the frontier is sparse, `ImpulseVM` walks outgoing CSR slices (**Push**); when the frontier becomes dense, it can switch to scanning incoming CSC slices (**Pull**) and terminate early as soon as a parent bit is found.
 
-### 6.1 Multi-Lane Bit-Sliced Frontiers (Planned `v0.10.0`: `0xC0`..`0xC9`)
+### 6.1 Multi-Lane Bit-Sliced Frontiers (`v0.10.0`: `0xC0`..`0xC9`)
 
 When a workload evaluates up to 64 independent seed queries, concept-group expansions, or counterfactual $N-1$ edge-outage contingencies over the same graph, running 64 separate 1-bit BFS passes streams `row_offsets[]` and `col_indices[]` from DRAM 64 times.
 

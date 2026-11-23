@@ -28,8 +28,8 @@ Because graph traversals over 128-byte-aligned CSR/CSC arrays are primarily **me
 
 ## 1. Maven & Gradle Coordinates (`org.impulsegraph`)
 
-!!! note "Maven Central (`0.10.0`)"
-    `org.impulsegraph:*:0.10.0` is published on Maven Central (`impulse.version = 0.10.0`). For local snapshot builds from source, run `mvn clean install -DskipTests` in `impulse-graph-java`.
+!!! note "Maven Central (`0.10.1`)"
+    `org.impulsegraph:*:0.10.1` is published on Maven Central (`impulse.version = 0.10.1`). For local snapshot builds from source, run `mvn clean install -DskipTests` in `impulse-graph-java`.
 
 === "Maven (`pom.xml`)"
     ```xml

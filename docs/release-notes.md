@@ -4,6 +4,34 @@ Chronological technical changelog across the **Impulse Graph Engine** repositori
 
 ---
 
+## `v0.10.1` — Fast-Follow Patch: VM Parity, Arena/C-ABI Lifetimes & FFI Safety
+
+**Release Date**: November 2026  
+**Format Version**: `.imps` Binary Snapshot Format `v0.10.0` (`0x000A`) — *100% binary and API compatible; zero breaking changes*
+
+`v0.10.1` is a fast-follow patch release consolidating four-way `ImpulseVM` differential-fuzzing fixes, off-heap arena and C-ABI memory-lifetime hardening, and multi-language FFI safety improvements across `impulse-graph-core` and `impulse-graph-java`. Existing `.imps` `v0.10.0` snapshots, `.impb` bytecode, and user queries require no changes.
+
+### 1. Updated Registry Artifacts (`0.10.1`)
+* **Maven Central (`org.impulsegraph:*:0.10.1`)**: Published `impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-kotlin` (pinned to Kotlin `2.1.10` for `0.10.x` patch ABI compatibility), `impulse-scala_3`, and `impulse-clojure`, with `-sources.jar` and `-javadoc.jar` attached across all JVM language modules.
+* **PyPI (`impulse-graph==0.10.1`)**, **crates.io (`impulse-graph@0.10.1`)**, & **GitHub Releases (`v0.10.1`)**: Updated pre-built wheels, self-contained Rust crate, standalone `impulse-cli` binaries, and native C/C++20 `impulse-sdk` archives.
+
+### 2. Four-Way `ImpulseVM` Parity & Opcode Contract Fixes (`553` `.impas` Vectors)
+* **38-Opcode Edge-Case Hardening**: Aligned register aliasing (`dst == src`), logical vector lengths (`0x39`, `0x43`, `0x44`), zero-length vector bounds, and `ICTX` v1 SHA-256 state hashes across C++ (`-O3`/`-O0`), Java 25, and OCaml (`impulse-ocaml`).
+* **Canonical Arithmetic, Coalesce & Degree Contracts**: Enforced canonical operand ordering in `OP_VEC_MATH_UNARY` and `0x2E`/`0x2F`, mixed `f32`/`f64` promotion, empty-vector preservation in `OP_COALESCE` (`0x3B`), IEEE-754 `-0.0f` sign-bit preservation in `OP_REDUCE` (`MUL`), short input vector handling and `relId >= 16` preservation in `OP_MXV`/`OP_VXM`, literal relation fallback in `OP_KCORE_DECOMPOSITION`, and `TYPE_NODE_VECTOR` contract acceptance in `OP_CSR_DEGREE` (`0x12`).
+* **Expanded Differential & Metamorphic Verification**: Added 22 `.impas` regression vectors (`531` $\to$ `553` total) surfaced by 10-profile contract fuzzing (`fuzz_vm_contracts.py`), 25-law metamorphic testing (`metamorphic_vm_test.py`), and corpus mutation (`mutate_corpus_fuzzer.py`).
+
+### 3. Pure Java Engine Hardening (`impulse-graph-java` `0.10.1`)
+* **Arena & Bitset Leak Remediation**: Eliminated `GLOBAL_POOL_ARENA` and `COMPILER_ARENA` retention leaks, cached compiled `ImpulseStatement` plans, and released temporary bitsets in `OP_SET_DIFFERENCE`.
+* **Swap & Boundary Safety**: Guarded `null` `executionArena` on empty-result fallback paths, added atomic drain gating and bounded swap close in `impulse-storage`, enforced `Math.toIntExact` overflow guards, and removed silent exception swallowing in `impulse-core`.
+
+### 4. Native C-ABI, Rust & Polyglot FFI Hardening (`impulse-graph-core` `v0.10.1`)
+* **Zero-Allocation `impulse_stmt_execute()` & C-ABI Exception Guards**: Wrapped all `extern "C"` entrypoints with `IMPULSE_C_ABI_CATCH_*` barriers, replaced `std::cerr` writes in `impulse_compile_to_impas()` with thread-local `g_last_error`, eliminated the per-call `impulse_exec()` heap leak via a thread-local execution buffer, and attached a reusable `impulse_vm_context_t` to `impulse_stmt_t` (with context-owned scratch for `0xCB` `FP16`, `0x92`, and `0x93`) so repeated executions perform zero heap allocations.
+* **Secondary Index & CMake Fixes**: Enforced IEEE-754 total-order `NaN`-last sorting and `NaN` range skipping in `impulse_index_build_permutation`, added strict `int64_t` outward rounding and base-type validation in `impulse_index_build_zone_map`, and installed missing `impulse_opcode_*.hpp` / `impulse_sexpr.hpp` CMake headers.
+* **Rust & CLI Bounds Fixes**: Replaced unchecked metadata footer offset math in `SnapshotReader::get_metadata()` with `checked_add` slice bounds and replaced `MIN`/`MAX` integer sentinels with `Option<i64>` in `impulse-rust` / `impulse-cli` statistics.
+* **Python, Go & .NET FFI Safety**: Pinned Python zero-copy `memoryview` exports with a refcounted `SnapshotLease` owner (preventing use-after-free after `Snapshot.close()`), released the Python GIL (`py::gil_scoped_release`) across native traversal/sampling/query calls, fixed `impulse_graph.__version__`, added `poolMu.RLock` + `runtime.KeepAlive` + safe slice copies in Go, and added atomic `Interlocked.Exchange` / `GC.KeepAlive` handle guards in .NET.
+
+---
+
 ## `v0.10.0` — Multi-Lane Bit-Sliced Execution, Embedded Vamana ANN & Registry Packages
 
 **Release Date**: November 2026  

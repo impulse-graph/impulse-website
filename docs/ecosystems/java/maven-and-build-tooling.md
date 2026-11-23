@@ -1,7 +1,7 @@
 # Maven Plugin & Build-Time AOT Pipeline
 
 !!! info "Version Note: v0.11 Tooling Suite"
-    The 7-Mojo `org.impulsegraph:impulse-maven-plugin` suite (`generate`, `generate-test`, `aot-compile`, `build-snapshot`, `extract-schema`, `validate`, `check-compat`) ships in **`v0.11`** (`0.11.0`). In `0.10.0` on Maven Central, only the baseline `generate` goal is published.
+    The 7-Mojo `org.impulsegraph:impulse-maven-plugin` suite (`generate`, `generate-test`, `aot-compile`, `build-snapshot`, `extract-schema`, `validate`, `check-compat`) ships in **`v0.11`** (`0.11.0`). In `0.10.1` on Maven Central, only the baseline `generate` goal is published.
 
 `impulse-maven-plugin` (goal prefix **`impulse`**) integrates schema-first Java code generation, snapshot-agnostic build-time query verification, deterministic `.imps` test fixture building, and multi-consumer compatibility gating directly into the standard Maven build lifecycle.
 

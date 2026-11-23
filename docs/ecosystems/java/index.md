@@ -22,7 +22,7 @@ Enterprise JVM teams traditionally face an architectural tradeoff when embedding
 ## Module Architecture & Bill of Materials (`impulse-bom`)
 
 !!! info "Version Note: v0.11 Tooling Suite"
-    Core runtime and JVM language artifacts (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-kotlin`, `impulse-scala_3`, `impulse-clojure`) are published on Maven Central at **`0.10.0`**.
+    Core runtime and JVM language artifacts (`impulse-spec`, `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`, `impulse-kotlin`, `impulse-scala_3`, `impulse-clojure`) are published on Maven Central at **`0.10.1`**.
     The enterprise developer tooling suite—**`impulse-bom`**, **`impulse-codegen` v2**, **`impulse-maven-plugin`** (7-Mojo lifecycle suite), **`impulse-cli`** (`impulse-j`), **`SchemaYamlCodec`**, and **`SnapshotLifecycleManager`**—ships in **`0.11.0`** (`v0.11`).
 
 ```mermaid
@@ -100,7 +100,7 @@ Impulse Graph relies on two modern JDK subsystems:
 
     ```xml
     <properties>
-        <!-- Use 0.10.0 on Maven Central today, or 0.11.0 for the v0.11 BOM + AOT suite -->
+        <!-- Use 0.10.1 on Maven Central today, or 0.11.0 for the v0.11 BOM + AOT suite -->
         <impulse.version>0.11.0</impulse.version>
     </properties>
 
@@ -181,7 +181,7 @@ Impulse Graph relies on two modern JDK subsystems:
         application
     }
 
-    val impulseVersion = "0.11.0" // or "0.10.0" on Maven Central today
+    val impulseVersion = "0.11.0" // or "0.10.1" on Maven Central today
 
     java {
         toolchain {

@@ -1,6 +1,6 @@
 # Kotlin, Scala 3, Clojure & Java API Reference
 
-Because `impulse-api` exposes clean Java interfaces without checked exceptions on traversal pipelines and `impulse-codegen` emits standard Java 21+ classes and `record` types, **Kotlin**, **Scala 3**, and **Clojure** applications can combine AOT-generated typed facades directly with Impulse's idiomatic JVM language extension modules (`0.10.0` on Maven Central; aligned via `impulse-bom` in `0.11.0`).
+Because `impulse-api` exposes clean Java interfaces without checked exceptions on traversal pipelines and `impulse-codegen` emits standard Java 21+ classes and `record` types, **Kotlin**, **Scala 3**, and **Clojure** applications can combine AOT-generated typed facades directly with Impulse's idiomatic JVM language extension modules (`0.10.1` on Maven Central; aligned via `impulse-bom` in `0.11.0`).
 
 ---
 
@@ -140,10 +140,10 @@ Because `ImpulseVM`'s canonical compiler IR (`ImpScheme`) is an S-expression AST
 ### Dependency (`deps.edn`)
 
 ```clojure
-{:deps {org.impulsegraph/impulse-clojure  {:mvn/version "0.10.0"}
-        org.impulsegraph/impulse-storage  {:mvn/version "0.10.0"}
-        org.impulsegraph/impulse-vm       {:mvn/version "0.10.0"}
-        org.impulsegraph/impulse-compiler {:mvn/version "0.10.0"}}
+{:deps {org.impulsegraph/impulse-clojure  {:mvn/version "0.10.1"}
+        org.impulsegraph/impulse-storage  {:mvn/version "0.10.1"}
+        org.impulsegraph/impulse-vm       {:mvn/version "0.10.1"}
+        org.impulsegraph/impulse-compiler {:mvn/version "0.10.1"}}
  :aliases {:run {:jvm-opts ["--add-modules" "jdk.incubator.vector"
                             "--enable-native-access=ALL-UNNAMED"]}}}
 ```
