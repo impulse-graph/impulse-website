@@ -119,32 +119,32 @@ snap.domain("Player").fromKey("player_42")
 There are three ways projected state and numeric attributes are consumed at the end of a query pipeline:
 
 1. **Downstream Frontier Filtering (`Traversal<T>`)**:
-   As shown above, any `state.<field>` computed by `.outWithState(...)` or `.project(...)` can be referenced in subsequent `.filter("state.<field> ...")` or `.outWithState(...)` steps to prune the active node frontier before calling `.toBitSet()`, `.toList()`, `.toKeyList()`, or `.count()`.
+    As shown above, any `state.<field>` computed by `.outWithState(...)` or `.project(...)` can be referenced in subsequent `.filter("state.<field> ...")` or `.outWithState(...)` steps to prune the active node frontier before calling `.toBitSet()`, `.toList()`, `.toKeyList()`, or `.count()`.
 2. **Terminal Scalar & Witness Reductions (`ImpulseQueryBuilder` & `ImpulseGraphQuery`)**:
-   When you want to reduce projected values across the surviving target frontier into a single scalar aggregate (`Double`) or extract the winning target node ID (`Integer`), `org.impulsegraph.api.ImpulseQueryBuilder` provides terminal reduction operators (`reduceMin()`, `reduceMax()`, `reduceSum()`, `reduceAvg()`, `reduceArgMin()`, `reduceArgMax()`):
-   ```java
-   import org.impulsegraph.api.ArgType;
-   import org.impulsegraph.api.ImpulseGraphQuery;
-   import org.impulsegraph.api.ImpulseQueryBuilder;
+    When you want to reduce projected values across the surviving target frontier into a single scalar aggregate (`Double`) or extract the winning target node ID (`Integer`), `org.impulsegraph.api.ImpulseQueryBuilder` provides terminal reduction operators (`reduceMin()`, `reduceMax()`, `reduceSum()`, `reduceAvg()`, `reduceArgMin()`, `reduceArgMax()`):
+    ```java
+    import org.impulsegraph.api.ArgType;
+    import org.impulsegraph.api.ImpulseGraphQuery;
+    import org.impulsegraph.api.ImpulseQueryBuilder;
 
-   // Terminal scalar reduction (OP_REDUCE / OP_VECTOR_REDUCE_SUM -> Double)
-   ImpulseGraphQuery<Double> minCostQuery = new ImpulseQueryBuilder<Double>()
-       .input("Warehouse", ArgType.SINGLE_NODE)
-       .walkEdge("TRUCK_ROUTE")
-       .projectExpression("handling_cost", "+", "freight_fee")
-       .reduceMin();
-   double minCost = minCostQuery.execute(snap, startWarehouseId);
+    // Terminal scalar reduction (OP_REDUCE / OP_VECTOR_REDUCE_SUM -> Double)
+    ImpulseGraphQuery<Double> minCostQuery = new ImpulseQueryBuilder<Double>()
+        .input("Warehouse", ArgType.SINGLE_NODE)
+        .walkEdge("TRUCK_ROUTE")
+        .projectExpression("handling_cost", "+", "freight_fee")
+        .reduceMin();
+    double minCost = minCostQuery.execute(snap, startWarehouseId);
 
-   // Terminal witness reduction (reduceArgMin / reduceArgMax -> winning target Node ID)
-   ImpulseGraphQuery<Integer> bestCenterQuery = new ImpulseQueryBuilder<Integer>()
-       .input("Warehouse", ArgType.SINGLE_NODE)
-       .walkEdge("TRUCK_ROUTE")
-       .projectExpression("handling_cost", "+", "freight_fee")
-       .reduceArgMin();
-   int bestCenterId = bestCenterQuery.execute(snap, startWarehouseId);
-   ```
+    // Terminal witness reduction (reduceArgMin / reduceArgMax -> winning target Node ID)
+    ImpulseGraphQuery<Integer> bestCenterQuery = new ImpulseQueryBuilder<Integer>()
+        .input("Warehouse", ArgType.SINGLE_NODE)
+        .walkEdge("TRUCK_ROUTE")
+        .projectExpression("handling_cost", "+", "freight_fee")
+        .reduceArgMin();
+    int bestCenterId = bestCenterQuery.execute(snap, startWarehouseId);
+    ```
 3. **Multi-Column Tabular State Extraction (`v1.0.0` Roadmap)**:
-   On the high-level `Traversal<T>` fluent interface, terminal collectors (`collect()`, `toBitSet()`, `toList()`, `toKeyList()`, `count()`) currently return the surviving target node frontier (`ImpulseBitSet` / dense IDs / keys). Direct multi-column tabular extraction of attached `state.*` registers (`Traversal.collectRows()`) is scheduled for the `v1.0.0` release.
+    On the high-level `Traversal<T>` fluent interface, terminal collectors (`collect()`, `toBitSet()`, `toList()`, `toKeyList()`, `count()`) currently return the surviving target node frontier (`ImpulseBitSet` / dense IDs / keys). Direct multi-column tabular extraction of attached `state.*` registers (`Traversal.collectRows()`) is scheduled for the `v1.0.0` release.
 
 ---
 
@@ -174,23 +174,25 @@ Standard 1-bit frontiers (`TYPE_BITSET_HANDLE` `0x04`) collapse all seed nodes i
 ### 4.1 The Five Multi-Lane Pipeline Stages (`0xC0..0xC9`)
 
 1. **Three Initialization Modes (`0xC0..0xC2`)**:
-   * **Distinct Seeds (`OP_LANE_INIT_SEEDS` `0xC0` / `.fromSeeds(...)` / `.fromKeys(...)`)**: Assigns each seed $s_b$ to its own bit lane (`lanes[s_b] |= (1ULL << b)`).
-   * **Concept Groups (`OP_LANE_INIT_GROUPS` `0xC1` / `.fromGroups(...)`)**: Maps multiple candidate nodes $(u, g)$ into shared group lane $g \in [0, K-1]$ (`lanes[u] |= (1ULL << g)`) for Group Steiner Tree discovery.
-   * **Counterfactual Edge Outages (`OP_LANE_SET_EDGE_MASK` `0xC2` / `.fromOutages(...)`)**: Attaches per-edge trip bitmasks (`edge_trip_mask[rel_id][e] |= (1ULL << b)`) so lane $b$ treats branch $e$ as open/tripped during $N-1$ / $N-2$ contingency screening.
+    * **Distinct Seeds (`OP_LANE_INIT_SEEDS` `0xC0` / `.fromSeeds(...)` / `.fromKeys(...)`)**: Assigns each seed $s_b$ to its own bit lane (`lanes[s_b] |= (1ULL << b)`).
+    * **Concept Groups (`OP_LANE_INIT_GROUPS` `0xC1` / `.fromGroups(...)`)**: Maps multiple candidate nodes $(u, g)$ into shared group lane $g \in [0, K-1]$ (`lanes[u] |= (1ULL << g)`) for Group Steiner Tree discovery.
+    * **Counterfactual Edge Outages (`OP_LANE_SET_EDGE_MASK` `0xC2` / `.fromOutages(...)`)**: Attaches per-edge trip bitmasks (`edge_trip_mask[rel_id][e] |= (1ULL << b)`) so lane $b$ treats branch $e$ as open/tripped during $N-1$ / $N-2$ contingency screening.
 2. **Single-Pass Bit-Sliced CSR/CSC Walks (`OP_LANE_CSR_WALK` `0xC3`, `OP_LANE_CSC_WALK` `0xC4`)**:
-   * Propagates all active lanes across outgoing (`0xC3`) or incoming (`0xC4`) edges in a single topology scan:
-     $$\text{next\_lanes}[v] \;\mathrel{\vert}=\; (\text{current\_lanes}[u] \land \text{active\_mask}) \land \neg\text{edge\_trip\_mask}[\text{rel\_id}][e]$$
-   * Setting the `FIXPOINT` modifier (`flags & 0x04` / `.repeatUntilStable(rel)`) executes delta-frontier propagation (`newly_reached = step_out[v] & ~out_lanes[v]`) until all lanes converge with zero per-iteration allocations.
+    * Propagates all active lanes across outgoing (`0xC3`) or incoming (`0xC4`) edges in a single topology scan:
+
+        $$\text{next\_lanes}[v] \;\mathrel{\vert}=\; (\text{current\_lanes}[u] \land \text{active\_mask}) \land \neg\text{edge\_trip\_mask}[\text{rel\_id}][e]$$
+
+    * Setting the `FIXPOINT` modifier (`flags & 0x04` / `.repeatUntilStable(rel)`) executes delta-frontier propagation (`newly_reached = step_out[v] & ~out_lanes[v]`) until all lanes converge with zero per-iteration allocations.
 3. **Bit-Lane Pruning (`OP_LANE_PRUNE_MASK` `0xC5`)**:
-   * **`mode = 0` (Explicit Deny Mask / `.pruneWhere` / `.pruneDeniedBy`)**: Clears denied nodes or strips specific lane bits via `lanes[u] &= ~deny_mask[u]`.
-   * **`mode = 1` (Intra-Word `ALLOW & ~DENY` Zanzibar Split)**: Splits the lane word into `allow_bits = low_half` and `deny_bits = high_half`, computing `lanes[u] = allow_bits & ~deny_bits` in one register operation.
-   * **`mode = 2` (Degree-Gated Hub Quorum Prune / `.pruneHubs(maxDeg, minQuorum)`)**: Suppresses promiscuous supernode hubs by zeroing `lanes[u]` whenever $\text{deg}(u) > \text{max\_deg}$ and $\text{popcount}(\text{lanes}[u]) < \text{min\_quorum}$.
+    * **`mode = 0` (Explicit Deny Mask / `.pruneWhere` / `.pruneDeniedBy`)**: Clears denied nodes or strips specific lane bits via `lanes[u] &= ~deny_mask[u]`.
+    * **`mode = 1` (Intra-Word `ALLOW & ~DENY` Zanzibar Split)**: Splits the lane word into `allow_bits = low_half` and `deny_bits = high_half`, computing `lanes[u] = allow_bits & ~deny_bits` in one register operation.
+    * **`mode = 2` (Degree-Gated Hub Quorum Prune / `.pruneHubs(maxDeg, minQuorum)`)**: Suppresses promiscuous supernode hubs by zeroing `lanes[u]` whenever $\text{deg}(u) > \text{max\_deg}$ and $\text{popcount}(\text{lanes}[u]) < \text{min\_quorum}$.
 4. **Quorum Filtering & Bridging Back to 1-Bit `Traversal` (`OP_LANE_FILTER_QUORUM` `0xC6`)**:
-   * Evaluates $\text{popcount}(\text{lanes}[u] \land \text{req\_mask}) \ge \text{min\_k} \land (\text{lanes}[u] \land \text{forbid\_mask}) = 0$ and emits a standard `TYPE_BITSET_HANDLE` (`0x04`) via `.toQuorumTraversal(minLanes)`.
+    * Evaluates $\text{popcount}(\text{lanes}[u] \land \text{req\_mask}) \ge \text{min\_k} \land (\text{lanes}[u] \land \text{forbid\_mask}) = 0$ and emits a standard `TYPE_BITSET_HANDLE` (`0x04`) via `.toQuorumTraversal(minLanes)`.
 5. **Terminal Per-Lane Reductions & Minimum Set Cover (`0xC7..0xC9`)**:
-   * **`OP_LANE_REDUCE_AND` (`0xC7` / `.checkAllNodesReachedPerLane()`)**: Bitwise AND across all $N_d$ nodes to identify which contingency lanes maintained full connectivity (`active_mask & ~all_reached`).
-   * **`OP_LANE_REDUCE_ATTR` (`0xC8` / `.reducePerLane(...)` / `.argMinNodesPerLane(...)`)**: Single-pass reduction of a scalar attribute into $K$ per-lane accumulators (`SUM`, `MIN`, `MAX`, `COUNT`, or deterministic lowest-ID-tie-broken `ARGMIN` / `ARGMAX` witness node IDs).
-   * **`OP_LANE_SET_COVER` (`0xC9` / `.findSetCoverPairs(...)` / `.findGreedySetCover(...)`)**: Finds exact 2-node pairs or a greedy minimum witness node cover (`argmax_u popcount(lanes[u] & uncovered)`) spanning `target_mask`.
+    * **`OP_LANE_REDUCE_AND` (`0xC7` / `.checkAllNodesReachedPerLane()`)**: Bitwise AND across all $N_d$ nodes to identify which contingency lanes maintained full connectivity (`active_mask & ~all_reached`).
+    * **`OP_LANE_REDUCE_ATTR` (`0xC8` / `.reducePerLane(...)` / `.argMinNodesPerLane(...)`)**: Single-pass reduction of a scalar attribute into $K$ per-lane accumulators (`SUM`, `MIN`, `MAX`, `COUNT`, or deterministic lowest-ID-tie-broken `ARGMIN` / `ARGMAX` witness node IDs).
+    * **`OP_LANE_SET_COVER` (`0xC9` / `.findSetCoverPairs(...)` / `.findGreedySetCover(...)`)**: Finds exact 2-node pairs or a greedy minimum witness node cover (`argmax_u popcount(lanes[u] & uncovered)`) spanning `target_mask`.
 
 ```cpp
 #include "impulse_vm_fluent.hpp"
@@ -234,11 +236,11 @@ In the companion N-64 transmission line contingency benchmark (`OP_LANE_SET_EDGE
 For GraphRAG, biomedical knowledge graphs, and semantic entity retrieval, Impulse embeds **Single-Layer Vamana / DiskANN Proximity Graphs (`IMP_INDEX_VAMANA_ANN = 0x08`)** directly into Section 2.6 of the `.imps` file so vector search and symbolic CSR/CSC graph walks share the **exact same $0 \dots N_d-1$ dense domain node IDs** with zero ID translation:
 
 1. **Two-Stage Quantized Vamana Beam Routing (`IMP_INDEX_VAMANA_ANN = 0x08`)**:
-   * During greedy beam expansion from `medoid_node_id`, `OP_VECTOR_ANN_SEARCH` (`0xCA`) evaluates compressed routing codes (`BQ1` 1-bit binary via `XOR + popcount`, `SQ8` 8-bit scalar quantization, or `FP16` half-precision) stored in the 128-byte-aligned `quant_slab`, reducing memory bandwidth by `4x–32x`, and then reranks the `ef_search` beam candidates against the full-precision `FLOAT32` attribute column.
+    * During greedy beam expansion from `medoid_node_id`, `OP_VECTOR_ANN_SEARCH` (`0xCA`) evaluates compressed routing codes (`BQ1` 1-bit binary via `XOR + popcount`, `SQ8` 8-bit scalar quantization, or `FP16` half-precision) stored in the 128-byte-aligned `quant_slab`, reducing memory bandwidth by `4x–32x`, and then reranks the `ef_search` beam candidates against the full-precision `FLOAT32` attribute column.
 2. **Fused `TYPE_LANE_FRONTIER` Handshake (`OP_VECTOR_ANN_SEARCH` `0xCA` with `flags = 1`)**:
-   * When `flags & 1 != 0` (or via `MultiLaneBuilder::fromConceptVectors`), `OP_VECTOR_ANN_SEARCH` directly seeds the top-$K$ ANN hits into a `TYPE_LANE_FRONTIER` (`0x10`) without materializing an intermediate host array.
+    * When `flags & 1 != 0` (or via `MultiLaneBuilder::fromConceptVectors`), `OP_VECTOR_ANN_SEARCH` directly seeds the top-$K$ ANN hits into a `TYPE_LANE_FRONTIER` (`0x10`) without materializing an intermediate host array.
 3. **Multi-Hop Graph Walk, Quorum Bridge & Exact SIMD Reranking (`OP_VECTOR_RERANK_DOT` `0xCB`)**:
-   * After expanding the vector seeds across symbolic graph relations (`OP_LANE_CSR_WALK` `0xC3`), pruning high-degree hubs (`OP_LANE_PRUNE_MASK` `0xC5`), and filtering for multi-concept bridge nodes (`OP_LANE_FILTER_QUORUM` `0xC6`), `OP_VECTOR_RERANK_DOT` (`0xCB`) computes exact hardware-SIMD similarity (`L2`, `COSINE`, `DOT`) over the 128-byte-aligned `FLOAT32` SoA vector attribute for only the surviving frontier nodes.
+    * After expanding the vector seeds across symbolic graph relations (`OP_LANE_CSR_WALK` `0xC3`), pruning high-degree hubs (`OP_LANE_PRUNE_MASK` `0xC5`), and filtering for multi-concept bridge nodes (`OP_LANE_FILTER_QUORUM` `0xC6`), `OP_VECTOR_RERANK_DOT` (`0xCB`) computes exact hardware-SIMD similarity (`L2`, `COSINE`, `DOT`) over the 128-byte-aligned `FLOAT32` SoA vector attribute for only the surviving frontier nodes.
 
 ```cpp
 #include "impulse_vm_fluent.hpp"

@@ -43,11 +43,11 @@ can_view(U, D) :- member(U, G), doc_viewer(D, G), !account_locked(U).
 ## 2. Key Compiler Optimizations
 
 1. **Semi-Naïve Fixed-Point Evaluation ($\Delta \mathcal{S}_{t+1} = \tau(\Delta \mathcal{S}_t) \setminus \mathcal{S}_{\text{visited}}$)**:
-   * Recursive rules never re-traverse edges from already-visited nodes. Each iteration expands only the newly discovered delta frontier $\Delta \mathcal{S}_t$ and subtracts $\mathcal{S}_{\text{visited}}$ via a single `OP_ROARING_BITMAP_AND_NOT` instruction until $\Delta \mathcal{S}_{t+1} = \emptyset$.
+    * Recursive rules never re-traverse edges from already-visited nodes. Each iteration expands only the newly discovered delta frontier $\Delta \mathcal{S}_t$ and subtracts $\mathcal{S}_{\text{visited}}$ via a single `OP_ROARING_BITMAP_AND_NOT` instruction until $\Delta \mathcal{S}_{t+1} = \emptyset$.
 2. **Magic Sets Goal-Directed Rewriting**:
-   * When a query binds a specific entity (e.g., `?- can_view("usr_alice", Doc)`), the compiler rewrites the recursive rules so `ImpulseVM` expands **only the subgraph reachable from `"usr_alice"`** rather than materializing group memberships for every user in the snapshot.
+    * When a query binds a specific entity (e.g., `?- can_view("usr_alice", Doc)`), the compiler rewrites the recursive rules so `ImpulseVM` expands **only the subgraph reachable from `"usr_alice"`** rather than materializing group memberships for every user in the snapshot.
 3. **Lattice Datalog ($\text{Datalog}^\mathcal{L}$ — Planned Roadmap)**:
-   * Formal semiring aggregations (`min`, `max`, `sum`) inside recursive rule heads are scheduled for `v1.0.0`. In `v0.10.0`, monotonic reductions are evaluated with zero heap allocations using the Fluent Traversal API (`.outWithState(...)`) and VM opcodes `OP_CSR_WALK_REDUCE` / `OP_MXV`.
+    * Formal semiring aggregations (`min`, `max`, `sum`) inside recursive rule heads are scheduled for `v1.0.0`. In `v0.10.0`, monotonic reductions are evaluated with zero heap allocations using the Fluent Traversal API (`.outWithState(...)`) and VM opcodes `OP_CSR_WALK_REDUCE` / `OP_MXV`.
 
 ---
 

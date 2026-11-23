@@ -130,15 +130,16 @@ Impulse Graph does not use global IDs. Instead, **each Node Domain possesses its
 ```
 
 ### Why Independent Dense IDs?
+
 1. **Direct Array Indexing**: If the `User` domain has 10,000 nodes, its `row_offsets` array has exactly 10,001 entries. Looking up User ID `42` is a direct array access (`offsets[42]`), requiring zero hash tables or ID translation.
 2. **Compact Integer Widths**:
-   - Small domains (e.g., categories, states, roles) with $< 65,536$ entities can use 16-bit integers (`PrimitiveWidth.UINT16`), cutting memory usage in half.
-   - Standard domains use 32-bit integers (`PrimitiveWidth.UINT32`), supporting up to 4.29 billion nodes.
-   - Hyperscale domains use 64-bit integers (`PrimitiveWidth.UINT64`).
+    - Small domains (e.g., categories, states, roles) with $< 65,536$ entities can use 16-bit integers (`PrimitiveWidth.UINT16`), cutting memory usage in half.
+    - Standard domains use 32-bit integers (`PrimitiveWidth.UINT32`), supporting up to 4.29 billion nodes.
+    - Hyperscale domains use 64-bit integers (`PrimitiveWidth.UINT64`).
 3. **Domain-Bound Traversals**: Every traversal begins by binding an explicit domain context:
-   ```java
-   snap.domain("User").from(42).out("OWNS").toList();
-   ```
+    ```java
+    snap.domain("User").from(42).out("OWNS").toList();
+    ```
 
 ---
 
@@ -151,14 +152,16 @@ Every traversal in Impulse Graph is a pipeline that steps from one **Node Domain
 
 1. **Anchor to a Single Starting Domain**: You start in one domain (e.g., `User`) with an initial frontier of nodes (one node, a list of nodes, a bitset, or the entire domain).
 2. **Step Across 0 or More Directed Relations**:
-   * If you walk **0 edges** (e.g., `snap.domain("User").all().filter("node.age >= 21").toList()`), you stay in `User` and return matching `User` nodes.
-   * Each edge walk transitions the active frontier from the relation's **Source Domain** to its **Target Domain**:
-     $$\text{User} \xrightarrow{\text{PLACED}} \text{Order} \xrightarrow{\text{CONTAINS}} \text{Product}$$
-   * Any `.filter(...)` or `.project(...)` step along the way operates on the attributes of whichever domain (or edge relation) is currently active at that step.
+    * If you walk **0 edges** (e.g., `snap.domain("User").all().filter("node.age >= 21").toList()`), you stay in `User` and return matching `User` nodes.
+    * Each edge walk transitions the active frontier from the relation's **Source Domain** to its **Target Domain**:
+
+        $$\text{User} \xrightarrow{\text{PLACED}} \text{Order} \xrightarrow{\text{CONTAINS}} \text{Product}$$
+
+    * Any `.filter(...)` or `.project(...)` step along the way operates on the attributes of whichever domain (or edge relation) is currently active at that step.
 3. **Materialize from the Single Final Target Domain**: The query finishes in a single target domain (above, `Product`) and returns results from that domain's surviving frontier:
-   * **Target Node IDs or Business Keys** (`toList()`, `toKeyList()`, `toBitSet()`)
-   * **Target Domain Attributes** (e.g., `product.price`, `product.category`)
-   * **Projected State** carried forward along the walk, or a scalar aggregate (`count()`, `sum()`, `max()`).
+    * **Target Node IDs or Business Keys** (`toList()`, `toKeyList()`, `toBitSet()`)
+    * **Target Domain Attributes** (e.g., `product.price`, `product.category`)
+    * **Projected State** carried forward along the walk, or a scalar aggregate (`count()`, `sum()`, `max()`).
 
 ### Rule 2: Set Semantics (Not Multi-Sets) & Monoidic Reduction (Collapsing Paths)
 Most query engines (relational SQL `JOIN`s, Neo4j Cypher, Gremlin) use **multi-set (bag-of-paths)** semantics. If User `0` and User `1` both follow User `2`, and User `2` follows 1,000 people, a multi-set engine produces **two duplicate rows** for User `2` at hop 1, and walks all 1,000 of User `2`'s outgoing edges **twice** at hop 2. Over 4 or 5 hops, duplicate paths multiply into millions of redundant intermediate rows.

@@ -152,15 +152,15 @@ When evaluating predicate opcodes (e.g., `OP_NODE_FILTER`, `OP_NODE_FILTER_STR_P
 When evaluating reduction opcodes (e.g., `OP_CSR_WALK_REDUCE_SUM`, `OP_REDUCE`, `OP_EWISE_REDUCE_MIN`, `OP_EWISE_REDUCE_MAX`):
 
 - **Skip Semantics**: Aggregators **MUST** skip (ignore) elements where the validity bit is `0`.
-  - For example, `OP_CSR_WALK_REDUCE_SUM` over weights `[5.0, NULL, 3.0]` yields `8.0`. 
-  - `OP_SET_CARDINALITY` or counting reductions over `[A, NULL, B]` yields `2`.
+    - For example, `OP_CSR_WALK_REDUCE_SUM` over weights `[5.0, NULL, 3.0]` yields `8.0`. 
+    - `OP_SET_CARDINALITY` or counting reductions over `[A, NULL, B]` yields `2`.
 - **Empty/Null State**: If a reduction operates entirely over null values (or an empty set), the VM **MUST** set the `ZF` (Zero Flag) to `1` and set the destination register to a default empty value (e.g., `0` for sums, `MAX_INT` for mins, `MIN_INT` for maxes).
 
 ### 5.3 Element-Wise Vector Algebra
 When evaluating vector math opcodes (e.g., `OP_EWISE_ADD`, `OP_EWISE_MULT`, `OP_VEC_MATH_TERNARY`):
 
 - **Poison / Propagation Semantics**: If any source element in a vector operation is null (validity bit is `0`), the resulting vector element **MUST** also be marked as null.
-  - For example, `[5.0, NULL, 2.0] + [1.0, 1.0, 1.0] = [6.0, NULL, 3.0]`.
+    - For example, `[5.0, NULL, 2.0] + [1.0, 1.0, 1.0] = [6.0, NULL, 3.0]`.
 - The destination register containing the resulting vector (`TYPE_FLOAT_VECTOR`, etc.) **MUST** have an associated validity bitmap allocated in the VM Context if any source vector was nullable.
 
 ### 5.4 Gather and Indirect Loads
@@ -174,46 +174,46 @@ The VM **MUST** execute bytecode instructions matching the opcode values and rul
 
 ### 6.1 Setup and Input Instructions
 - **`OP_HALT`** (`0x00`)
-  - **Behavior**: Stop virtual machine execution. Return execution status `IMPULSE_VM_OK`.
+    - **Behavior**: Stop virtual machine execution. Return execution status `IMPULSE_VM_OK`.
 - **`OP_NOP`** (`0x01`)
-  - **Behavior**: Increment `pc`. Do nothing.
+    - **Behavior**: Increment `pc`. Do nothing.
 - **`OP_INIT_INPUT_NODE`** (`0x02`)
-  - **Behavior**: Copy the single scalar query parameter Node ID into `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_NODE_ID`.
+    - **Behavior**: Copy the single scalar query parameter Node ID into `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_NODE_ID`.
 - **`OP_INIT_INPUT_SET`** (`0x03`)
-  - **Behavior**: Fetch input parameters, populate a new off-heap BitSet, and store its handle in `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Fetch input parameters, populate a new off-heap BitSet, and store its handle in `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_LOAD_CONST_INT`** (`0x04`)
-  - **Behavior**: Load a 64-bit integer into `dst_reg`. If the `OFFHEAP` modifier is set, the payload represents a pointer or offset; otherwise, it is loaded directly.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
+    - **Behavior**: Load a 64-bit integer into `dst_reg`. If the `OFFHEAP` modifier is set, the payload represents a pointer or offset; otherwise, it is loaded directly.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
 - **`OP_MAP_KEYS_TO_DENSE`** (`0x05`)
-  - **Behavior**: Maps external keys to continuous internal node indices.
-  - **Usage**: Expects `input_param` (via FFI query parameter) containing a pointer to a struct `impulse_vm_input_keys` with external string or integer keys. It matches these keys against the primary key attribute array of the domain specified by `domain_id` (retrieved from `payload & 0xFFFF`). Matches are populated into a BitSet. To check if a key catalog mapping exists for the domain prior to mapping, the VM **SHOULD** first execute `OP_HAS_KEY_CATALOG` (`0x1C`).
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if the resulting BitSet is empty.
+    - **Behavior**: Maps external keys to continuous internal node indices.
+    - **Usage**: Expects `input_param` (via FFI query parameter) containing a pointer to a struct `impulse_vm_input_keys` with external string or integer keys. It matches these keys against the primary key attribute array of the domain specified by `domain_id` (retrieved from `payload & 0xFFFF`). Matches are populated into a BitSet. To check if a key catalog mapping exists for the domain prior to mapping, the VM **SHOULD** first execute `OP_HAS_KEY_CATALOG` (`0x1C`).
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if the resulting BitSet is empty.
 - **`OP_LOAD_CONST_FLOAT`** (`0x06`)
-  - **Behavior**: Load a 32-bit single-precision float into `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_FLOAT`.
-  - **Note**: The instruction payload is constrained to 32 bits. To load 64-bit float constants (doubles), the constants **MUST** be loaded indirectly from attribute arrays, vector slices, or local scratch memory using `OP_LOAD_INDIRECT`, or loaded from inline float64 tables.
+    - **Behavior**: Load a 32-bit single-precision float into `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_FLOAT`.
+    - **Note**: The instruction payload is constrained to 32 bits. To load 64-bit float constants (doubles), the constants **MUST** be loaded indirectly from attribute arrays, vector slices, or local scratch memory using `OP_LOAD_INDIRECT`, or loaded from inline float64 tables.
 - **`OP_LOAD_CONST_STR_PREFIX`** (`0x07`)
-  - **Behavior**: Load a string prefix reference index from the instruction payload into `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
-  - **Note**: Since prefix string constants are stored in the Shared String Table, the register stores a 64-bit integer index/offset pointing to the string pool, not a string array handle.
+    - **Behavior**: Load a string prefix reference index from the instruction payload into `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
+    - **Note**: Since prefix string constants are stored in the Shared String Table, the register stores a 64-bit integer index/offset pointing to the string pool, not a string array handle.
 - **`OP_LOAD_INLINE_ARRAY`** (`0x08`)
-  - **Behavior**: Load floats from the inline metadata data binding into a vector register.
-  - **Usage**: Expects a bound inline metadata buffer on the thread-local query context. It reads `count` (upper 16 bits of payload) float values starting at `offset_bytes` (lower 16 bits of payload) and copies them into a newly acquired float vector register.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_FLOAT_VECTOR`.
+    - **Behavior**: Load floats from the inline metadata data binding into a vector register.
+    - **Usage**: Expects a bound inline metadata buffer on the thread-local query context. It reads `count` (upper 16 bits of payload) float values starting at `offset_bytes` (lower 16 bits of payload) and copies them into a newly acquired float vector register.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_FLOAT_VECTOR`.
 - **`OP_INIT_MOCK_GRAPH`** (`0x09`)
-  - **Behavior**: Configures a mock relation slot in the VM context using inline bytecode data.
-  - **Usage**: Sets up relation slot `slot_id` (specified by `dst_reg`) using raw row offsets and column targets from the inline data binding at byte offset `off_bytes` (lower 16 bits of payload) with node count `node_count` (upper 16 bits of payload).
-  - **Note**: The "mock graph" refers to a virtual, inline adjacency matrix defined directly in the thread context's inline bytecode data stream (rather than loaded from a physical `.imps` snapshot file). This is used primarily for isolated assembly unit testing of traversal opcodes.
-  - **Outcome**: Bypasses the need to mmap a physical `.imps` snapshot file. Does not modify register values.
+    - **Behavior**: Configures a mock relation slot in the VM context using inline bytecode data.
+    - **Usage**: Sets up relation slot `slot_id` (specified by `dst_reg`) using raw row offsets and column targets from the inline data binding at byte offset `off_bytes` (lower 16 bits of payload) with node count `node_count` (upper 16 bits of payload).
+    - **Note**: The "mock graph" refers to a virtual, inline adjacency matrix defined directly in the thread context's inline bytecode data stream (rather than loaded from a physical `.imps` snapshot file). This is used primarily for isolated assembly unit testing of traversal opcodes.
+    - **Outcome**: Bypasses the need to mmap a physical `.imps` snapshot file. Does not modify register values.
 - **`OP_LOAD_INLINE_SET`** (`0x0A`)
-  - **Behavior**: Load an inline BitSet from the inline metadata data stream into `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Load an inline BitSet from the inline metadata data stream into `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_INIT_MOCK_NODE_ATTR`** (`0x0B`)
-  - **Behavior**: Initialize mock node attribute slot using inline bytecode data.
+    - **Behavior**: Initialize mock node attribute slot using inline bytecode data.
 - **`OP_INIT_MOCK_EDGE_ATTR`** (`0x0C`)
-  - **Behavior**: Initialize mock edge attribute slot using inline bytecode data.
+    - **Behavior**: Initialize mock edge attribute slot using inline bytecode data.
 
 ### 6.2 Traversal and Filter Instructions
 
@@ -222,97 +222,97 @@ All Walk-based traversal instructions (`OP_CSR_WALK`, `OP_CSR_WALK_FILTERED`, `O
 - **Frontier Evaluation & Flag Behavior**: If the source nodes frontier is empty (contains no active node IDs), or if the traversal result set is empty, the VM **MUST** set the Zero Flag (`ZF`) to 1 in the `flags` register. Otherwise, `flags[ZF]` **MUST** be cleared (set to 0).
 - **BitSet Materialization**: By default, Walk opcodes allocate a new off-heap BitSet handle in `dst_reg`. If the `ACCUMULATE` modifier flag is set on the instruction, the result set is unioned directly into the existing BitSet in `dst_reg` without deallocation.
 - **Valid Filters and Reductions**:
-  - **Filters**: Filter-based opcodes (`OP_NODE_FILTER`, `OP_NODE_FILTER_STR_PREFIX`, `OP_CSR_WALK_FILTERED`) check scalar values or prefix matching against attributes loaded from the snapshot's Structure-of-Arrays (SoA) attribute pools. These are mapped into the query context's `attribute_slots[rel_id][attr_id]` during initialization.
-  - **Reducers**: Reductions (`OP_CSR_WALK_REDUCE_SUM`, `OP_CSR_WALK_REDUCE`, `OP_REDUCE`) aggregate values over the traversed frontier. Valid reducers are defined by GraphBLAS binary operator IDs (e.g., `BINARY_OP_ADD`, `BINARY_OP_MUL`).
+    - **Filters**: Filter-based opcodes (`OP_NODE_FILTER`, `OP_NODE_FILTER_STR_PREFIX`, `OP_CSR_WALK_FILTERED`) check scalar values or prefix matching against attributes loaded from the snapshot's Structure-of-Arrays (SoA) attribute pools. These are mapped into the query context's `attribute_slots[rel_id][attr_id]` during initialization.
+    - **Reducers**: Reductions (`OP_CSR_WALK_REDUCE_SUM`, `OP_CSR_WALK_REDUCE`, `OP_REDUCE`) aggregate values over the traversed frontier. Valid reducers are defined by GraphBLAS binary operator IDs (e.g., `BINARY_OP_ADD`, `BINARY_OP_MUL`).
 
 - **`OP_CSR_WALK_2HOP`** (`0x0E`)
-  - **Behavior**: Two-hop fused CSR walk traversing two consecutive relations in a single vectorized pass.
-  - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Two-hop fused CSR walk traversing two consecutive relations in a single vectorized pass.
+    - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CSR_WALK_STATE`** (`0x0F`)
-  - **Behavior**: State-propagating CSR walk updating attached node frontier state vectors.
-  - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: State-propagating CSR walk updating attached node frontier state vectors.
+    - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CSR_WALK`** (`0x10`)
-  - **Behavior**: Traverse relationship edges using Compressed Sparse Row topology. Takes source nodes from `src` (lower 16 bits of payload), follows the relation `rel` (upper 16 bits of payload), and writes target nodes into `dst_reg`.
-  - **Usage**: If `src` contains a BitSet handle or single Node ID, it retrieves offsets and column targets from relation slot `rel` and performs a union of targets into `dst_reg`. Respects `ACCUMULATE` modifier flag to append targets.
-  - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Traverse relationship edges using Compressed Sparse Row topology. Takes source nodes from `src` (lower 16 bits of payload), follows the relation `rel` (upper 16 bits of payload), and writes target nodes into `dst_reg`.
+    - **Usage**: If `src` contains a BitSet handle or single Node ID, it retrieves offsets and column targets from relation slot `rel` and performs a union of targets into `dst_reg`. Respects `ACCUMULATE` modifier flag to append targets.
+    - **Type Requirements**: Source nodes register `src` **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CSR_WALK_FILTERED`** (`0x11`)
-  - **Behavior**: Walk CSR applying attribute filter constraints.
-  - **Usage**: Performs a CSR walk over relation `rel` from source `src` while validating a filter condition on edge or target node attributes.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Walk CSR applying attribute filter constraints.
+    - **Usage**: Performs a CSR walk over relation `rel` from source `src` while validating a filter condition on edge or target node attributes.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CSR_DEGREE`** (`0x12`)
-  - **Behavior**: Computes the degree of specified nodes.
+    - **Behavior**: Computes the degree of specified nodes.
 - **`OP_CSR_WALK_PREDICATE`** (`0x13`)
-  - **Behavior**: Walk CSR and evaluate boolean predicate.
+    - **Behavior**: Walk CSR and evaluate boolean predicate.
 - **`OP_NODE_FILTER`** (`0x14`)
-  - **Behavior**: Filter node identifiers using an attribute constraint.
-  - **Usage**: Evaluates the condition `attr[u] == registers[val_reg]` for each node `u` in `src`. Attributes are pre-configured in `vm_state->query_context->attribute_slots[rel_id][attr_id]`, which are resolved from target snapshot Structure-of-Arrays (SoA) attribute blocks (with `src` = `payload & 0xFF`, `val_reg` = `(payload >> 8) & 0xFF`, `attr_id` = `(payload >> 16) & 0xFF`, `rel_id` = `(payload >> 24) & 0xFF`).
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Filter node identifiers using an attribute constraint.
+    - **Usage**: Evaluates the condition `attr[u] == registers[val_reg]` for each node `u` in `src`. Attributes are pre-configured in `vm_state->query_context->attribute_slots[rel_id][attr_id]`, which are resolved from target snapshot Structure-of-Arrays (SoA) attribute blocks (with `src` = `payload & 0xFF`, `val_reg` = `(payload >> 8) & 0xFF`, `attr_id` = `(payload >> 16) & 0xFF`, `rel_id` = `(payload >> 24) & 0xFF`).
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_NODE_FILTER_STR_PREFIX`** (`0x15`)
-  - **Behavior**: Filter nodes using a string prefix matching condition.
+    - **Behavior**: Filter nodes using a string prefix matching condition.
 - **`OP_CSR_WALK_REDUCE_SUM`** (`0x16`)
-  - **Behavior**: Walk CSR and calculate reduction sum.
-  - **Note**: This opcode is specialized strictly for summation reductions. By hardcoding the float addition (`+=`) and optional multiply-by-weight logic directly in the inner loop body without conditional branching, it enables aggressive compiler auto-vectorization (e.g., Fused Multiply-Add SIMD instructions) and delivers maximum execution performance.
+    - **Behavior**: Walk CSR and calculate reduction sum.
+    - **Note**: This opcode is specialized strictly for summation reductions. By hardcoding the float addition (`+=`) and optional multiply-by-weight logic directly in the inner loop body without conditional branching, it enables aggressive compiler auto-vectorization (e.g., Fused Multiply-Add SIMD instructions) and delivers maximum execution performance.
 - **`OP_CSR_WALK_REDUCE`** (`0x17`)
-  - **Behavior**: Walk CSR and evaluate reduction logic.
-  - **Note**: This opcode is a generalized reduction operation that dynamically evaluates the operator (e.g., `0` = Minimum, `1` = Maximum) specified by `reduce_op` (`(payload >> 8) & 0xFF`) via conditional branch evaluations inside the traversal loops. The branch checking overhead prevents auto-vectorization, resulting in lower execution throughput compared to the specialized `0x16` opcode.
+    - **Behavior**: Walk CSR and evaluate reduction logic.
+    - **Note**: This opcode is a generalized reduction operation that dynamically evaluates the operator (e.g., `0` = Minimum, `1` = Maximum) specified by `reduce_op` (`(payload >> 8) & 0xFF`) via conditional branch evaluations inside the traversal loops. The branch checking overhead prevents auto-vectorization, resulting in lower execution throughput compared to the specialized `0x16` opcode.
 - **`OP_CSC_WALK`** (`0x18`)
-  - **Behavior**: Traverse relationship edges backwards using Compressed Sparse Column topology.
-  - **Type Requirements**: Source nodes register **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Traverse relationship edges backwards using Compressed Sparse Column topology.
+    - **Type Requirements**: Source nodes register **MUST** be `TYPE_BITSET_HANDLE` or `TYPE_NODE_ID`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_HAS_CSR`** (`0x19`)
-  - **Behavior**: Verify if relation has a CSR layout. Sets `flags[EQ]` accordingly.
+    - **Behavior**: Verify if relation has a CSR layout. Sets `flags[EQ]` accordingly.
 - **`OP_HAS_CSC`** (`0x1A`)
-  - **Behavior**: Verify if relation has a CSC layout. Sets `flags[EQ]` accordingly.
+    - **Behavior**: Verify if relation has a CSC layout. Sets `flags[EQ]` accordingly.
 - **`OP_HAS_COO`** (`0x1B`)
-  - **Behavior**: Verify if relation has a COO layout. Sets `flags[EQ]` accordingly.
+    - **Behavior**: Verify if relation has a COO layout. Sets `flags[EQ]` accordingly.
 - **`OP_HAS_KEY_CATALOG`** (`0x1C`)
-  - **Behavior**: Verify if domain catalog exists. Sets `flags[EQ]` accordingly.
+    - **Behavior**: Verify if domain catalog exists. Sets `flags[EQ]` accordingly.
 - **`OP_ADAPTIVE_WALK`** (`0x1D`)
-  - **Behavior**: Dynamically select CSR vs COO traversal strategy based on frontier density.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Dynamically select CSR vs COO traversal strategy based on frontier density.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_CREATE_SCRATCH_INDEX`** (`0x1E`)
-  - **Behavior**: Allocate a temporary scratch index for hash joins or traversal acceleration.
+    - **Behavior**: Allocate a temporary scratch index for hash joins or traversal acceleration.
 - **`OP_DROP_SCRATCH_INDEX`** (`0x1F`)
-  - **Behavior**: Deallocate a temporary scratch index.
+    - **Behavior**: Deallocate a temporary scratch index.
 
 ### 6.3 Vector Predicates, SIMD Masks, and Set Mathematics Instructions
 
 #### 6.3.1 Vector Predicates, SIMD Masks, and Math (`0x20` - `0x2F`)
 
 - **`OP_VEC_CMP_EQ`** (`0x20`)
-  - **Behavior**: Vector element-wise equality comparison returning BitSet mask of matching node IDs.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+    - **Behavior**: Vector element-wise equality comparison returning BitSet mask of matching node IDs.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
 - **`OP_VEC_CMP_GT`** (`0x21`)
-  - **Behavior**: Vector element-wise greater-than comparison returning BitSet mask of matching node IDs.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+    - **Behavior**: Vector element-wise greater-than comparison returning BitSet mask of matching node IDs.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
 - **`OP_VEC_CMP_LT`** (`0x22`)
-  - **Behavior**: Vector element-wise less-than comparison returning BitSet mask of matching node IDs.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+    - **Behavior**: Vector element-wise less-than comparison returning BitSet mask of matching node IDs.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
 - **`OP_VEC_CMP_BETWEEN`** (`0x23`)
-  - **Behavior**: Vector range inclusion comparison returning BitSet mask of nodes within `[low, high]`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
+    - **Behavior**: Vector range inclusion comparison returning BitSet mask of nodes within `[low, high]`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`. Sets `flags[ZF]` if result is empty.
 - **`OP_MASK_AND`** (`0x24`)
-  - **Behavior**: Bitwise AND of two SIMD masks / BitSets.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Bitwise AND of two SIMD masks / BitSets.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_MASK_OR`** (`0x25`)
-  - **Behavior**: Bitwise OR of two SIMD masks / BitSets.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Bitwise OR of two SIMD masks / BitSets.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_MASK_NOT`** (`0x26`)
-  - **Behavior**: Bitwise NOT (inversion) of a SIMD mask / BitSet up to active domain cardinality.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Bitwise NOT (inversion) of a SIMD mask / BitSet up to active domain cardinality.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_VEC_BLEND`** (`0x27`)
-  - **Behavior**: Element-wise blend of two vector registers selected by a BitSet condition mask.
+    - **Behavior**: Element-wise blend of two vector registers selected by a BitSet condition mask.
 - **`OP_ASSERT_FINITE`** (`0x2A`)
-  - **Behavior**: Asserts that target numerical register or vector elements are finite (non-NaN, non-Inf). Throws `IMPULSE_VM_ERR_FLOATING_POINT` if non-finite.
+    - **Behavior**: Asserts that target numerical register or vector elements are finite (non-NaN, non-Inf). Throws `IMPULSE_VM_ERR_FLOATING_POINT` if non-finite.
 - **`OP_VEC_MATH_UNARY`** (`0x2D`)
-  - **Behavior**: Vectorized unary transcendental/algebraic mathematical evaluation (e.g., `exp`, `log`, `sqrt`, `abs`).
+    - **Behavior**: Vectorized unary transcendental/algebraic mathematical evaluation (e.g., `exp`, `log`, `sqrt`, `abs`).
 - **`OP_VEC_MATH_BINARY`** (`0x2E`)
-  - **Behavior**: Vectorized binary transcendental/algebraic mathematical evaluation (e.g., `pow`, `atan2`, `hypot`).
+    - **Behavior**: Vectorized binary transcendental/algebraic mathematical evaluation (e.g., `pow`, `atan2`, `hypot`).
 - **`OP_VEC_MATH_TERNARY`** (`0x2F`)
-  - **Behavior**: Vectorized ternary fused mathematical evaluation (e.g., `lerp`, fused multiply-add `fma`).
+    - **Behavior**: Vectorized ternary fused mathematical evaluation (e.g., `lerp`, fused multiply-add `fma`).
 
 #### 6.3.2 Set Mathematics and Algebra Instructions (`0x30` - `0x3D`)
 
@@ -324,158 +324,158 @@ Set math and algebraic instructions are classified based on the number and struc
 - **Vector-to-Scalar Reductions**: Operations (e.g. `OP_VECTOR_REDUCE_SUM`) that accumulate vector elements into a scalar destination register.
 
 - **`OP_SET_UNION`** (`0x30`)
-  - **Behavior**: Union bitset arrays from two source registers.
-  - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Union bitset arrays from two source registers.
+    - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
 - **`OP_SET_INTERSECT`** (`0x31`)
-  - **Behavior**: Intersect bitset arrays from two source registers.
-  - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Intersect bitset arrays from two source registers.
+    - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
 - **`OP_SET_DIFFERENCE`** (`0x32`)
-  - **Behavior**: Subtract second register bitset from the first register bitset.
-  - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Subtract second register bitset from the first register bitset.
+    - **Type Requirements**: Source registers **MUST** be `TYPE_BITSET_HANDLE`.
 - **`OP_SET_CARDINALITY`** (`0x33`)
-  - **Behavior**: Compute population count of BitSet. Writes count to `dst_reg`.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
+    - **Behavior**: Compute population count of BitSet. Writes count to `dst_reg`.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_INT64`.
 - **`OP_VECTOR_MUL_ATTR`** (`0x34`)
-  - **Behavior**: Element-wise multiplication of vector and attribute arrays.
+    - **Behavior**: Element-wise multiplication of vector and attribute arrays.
 - **`OP_VECTOR_REDUCE_SUM`** (`0x35`)
-  - **Behavior**: Compute sum of elements in a vector register.
+    - **Behavior**: Compute sum of elements in a vector register.
 - **`OP_VECTOR_DIV`** (`0x36`)
-  - **Behavior**: Element-wise division.
+    - **Behavior**: Element-wise division.
 - **`OP_VECTOR_STR_CONCAT`** (`0x37`)
-  - **Behavior**: Join vector string fields.
+    - **Behavior**: Join vector string fields.
 - **`OP_FLOAT_VECTOR_SCALE`** (`0x38`)
-  - **Behavior**: Perform float vector scaling operation.
+    - **Behavior**: Perform float vector scaling operation.
 - **`OP_L1_NORM_DIFF`** (`0x39`)
-  - **Behavior**: Calculate L1 Norm of differences between vectors.
+    - **Behavior**: Calculate L1 Norm of differences between vectors.
 
 - **`OP_PROJECT_STATE`** (`0x3A`)
-  - **Behavior**: Projects or mutates attached node state in-place across the active frontier (`state' = f(state, attr)`).
+    - **Behavior**: Projects or mutates attached node state in-place across the active frontier (`state' = f(state, attr)`).
 - **`OP_COALESCE`** (`0x3B`)
-  - **Behavior**: Coalesces a nullable vector into a dense vector by replacing null elements with a fallback value.
-  - **Usage**: Expects `dst_reg`, `src_reg` (nullable vector), and a fallback loaded in a third register (specified in the payload). Replaces elements where validity bit is `0` with the fallback value. The resulting `dst_reg` vector **MUST NOT** have a validity bitmap.
+    - **Behavior**: Coalesces a nullable vector into a dense vector by replacing null elements with a fallback value.
+    - **Usage**: Expects `dst_reg`, `src_reg` (nullable vector), and a fallback loaded in a third register (specified in the payload). Replaces elements where validity bit is `0` with the fallback value. The resulting `dst_reg` vector **MUST NOT** have a validity bitmap.
 - **`OP_EXTRACT_VALIDITY`** (`0x3C`)
-  - **Behavior**: Extracts the validity bitmap of a nullable vector as a BitSet.
-  - **Usage**: Expects `dst_reg` and `src_reg` (the nullable vector). If `src_reg` is nullable, creates a BitSet handle in `dst_reg` wrapping the validity bitmap (yielding an $O(1)$ `IS NOT NULL` mask). If `src_reg` is not nullable, returns a BitSet containing all `1`s for the length of the vector.
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Extracts the validity bitmap of a nullable vector as a BitSet.
+    - **Usage**: Expects `dst_reg` and `src_reg` (the nullable vector). If `src_reg` is nullable, creates a BitSet handle in `dst_reg` wrapping the validity bitmap (yielding an $O(1)$ `IS NOT NULL` mask). If `src_reg` is not nullable, returns a BitSet containing all `1`s for the length of the vector.
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 - **`OP_VECTOR_TIME_VALID_AT`** (`0x3D`)
-  - **Behavior**: Evaluates temporal bounds to determine which elements are active at a given timestamp.
-  - **Usage**: Expects `dst_reg` and `ts_reg`. The `ts_reg` can dynamically contain either a scalar timestamp (`TYPE_INT64`) or a vector of timestamps (`TYPE_UINT64_VECTOR` / `TYPE_NODE_VECTOR`) evaluated element-wise. It requires the **128-bit Extended Instruction** format to specify `rel_id` (upper 16 bits of base payload), `attr_id_start` (lower 16 bits of extension word), and `attr_id_end` (upper 16 bits of extension word). Returns a BitSet containing all target nodes where `attr_start <= ts_val < attr_end`. If an attribute bound is missing/null, it is treated as open (infinity).
-  - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Evaluates temporal bounds to determine which elements are active at a given timestamp.
+    - **Usage**: Expects `dst_reg` and `ts_reg`. The `ts_reg` can dynamically contain either a scalar timestamp (`TYPE_INT64`) or a vector of timestamps (`TYPE_UINT64_VECTOR` / `TYPE_NODE_VECTOR`) evaluated element-wise. It requires the **128-bit Extended Instruction** format to specify `rel_id` (upper 16 bits of base payload), `attr_id_start` (lower 16 bits of extension word), and `attr_id_end` (upper 16 bits of extension word). Returns a BitSet containing all target nodes where `attr_start <= ts_val < attr_end`. If an attribute bound is missing/null, it is treated as open (infinity).
+    - **Type Transition**: `dst_reg` type tag **MUST** become `TYPE_BITSET_HANDLE`.
 
 ### 6.4 GraphBLAS and Matrix Instructions
 - **`OP_CC_AFFOREST`** (`0x40`)
-  - **Behavior**: Component step in Afforest algorithm.
+    - **Behavior**: Component step in Afforest algorithm.
 - **`OP_MXV`** (`0x41`)
-  - **Behavior**: Multiply adjacency matrix by a vector using GraphBLAS semirings.
+    - **Behavior**: Multiply adjacency matrix by a vector using GraphBLAS semirings.
 - **`OP_VXM`** (`0x42`)
-  - **Behavior**: Multiply vector by adjacency matrix using GraphBLAS semirings.
+    - **Behavior**: Multiply vector by adjacency matrix using GraphBLAS semirings.
 - **`OP_EWISE_ADD`** (`0x43`)
-  - **Behavior**: Element-wise addition.
+    - **Behavior**: Element-wise addition.
 - **`OP_EWISE_MULT`** (`0x44`)
-  - **Behavior**: Element-wise multiplication.
+    - **Behavior**: Element-wise multiplication.
 - **`OP_REDUCE`** (`0x45`)
-  - **Behavior**: Reduce matrix rows/columns.
+    - **Behavior**: Reduce matrix rows/columns.
 - **`OP_CC_HOOK_COMPRESS`** (`0x46`)
-  - **Behavior**: Tree compress operation.
+    - **Behavior**: Tree compress operation.
 - **`OP_TC_SWEEP_BATCH`** (`0x47`)
-  - **Behavior**: Parallel batch sweep for Triangle Counting.
+    - **Behavior**: Parallel batch sweep for Triangle Counting.
 - **`OP_BRANDES_FORWARD`** (`0x48`)
-  - **Behavior**: Brandes betweenness centrality forward traversal.
+    - **Behavior**: Brandes betweenness centrality forward traversal.
 - **`OP_BRANDES_BACKWARD`** (`0x49`)
-  - **Behavior**: Brandes betweenness centrality dependency accumulation.
+    - **Behavior**: Brandes betweenness centrality dependency accumulation.
 - **`OP_DELTA_STEP_RELAX`** (`0x4A`)
-  - **Behavior**: Relaxes shortest path distance boundaries.
+    - **Behavior**: Relaxes shortest path distance boundaries.
 - **`OP_READ_EDGE_WEIGHT`** (`0x4B`)
-  - **Behavior**: Reads weight value associated with edge offset.
+    - **Behavior**: Reads weight value associated with edge offset.
 
 ### 6.5 Control Flow and Branching Instructions
 - **`OP_JMP`** (`0x50`)
-  - **Behavior**: Set program counter `pc` to execution offset in payload.
+    - **Behavior**: Set program counter `pc` to execution offset in payload.
 - **`OP_JZ`** (`0x51`)
-  - **Behavior**: If `flags[ZF]` is set to 1, set `pc` to payload execution offset.
+    - **Behavior**: If `flags[ZF]` is set to 1, set `pc` to payload execution offset.
 - **`OP_JNZ`** (`0x52`)
-  - **Behavior**: If `flags[ZF]` is set to 0, set `pc` to payload execution offset.
+    - **Behavior**: If `flags[ZF]` is set to 0, set `pc` to payload execution offset.
 - **`OP_LOOP_DECR`** (`0x53`)
-  - **Behavior**: Decrement `dst_reg` (which **MUST** be `TYPE_INT64`). If result > 0, set `pc` to payload execution offset.
+    - **Behavior**: Decrement `dst_reg` (which **MUST** be `TYPE_INT64`). If result > 0, set `pc` to payload execution offset.
 - **`OP_STABLE_CHECK`** (`0x54`)
-  - **Behavior**: Check convergence between two set states. Sets `flags[ST]` if converged.
+    - **Behavior**: Check convergence between two set states. Sets `flags[ST]` if converged.
 - **`OP_CALL`** (`0x55`)
-  - **Behavior**: Save current `pc` to subroutine stack, then set `pc` to payload execution offset.
-  - **Constraint**: If call stack pointer exceeds depth limits, return `IMPULSE_VM_ERR_STACK_OVERFLOW`.
+    - **Behavior**: Save current `pc` to subroutine stack, then set `pc` to payload execution offset.
+    - **Constraint**: If call stack pointer exceeds depth limits, return `IMPULSE_VM_ERR_STACK_OVERFLOW`.
 - **`OP_RET`** (`0x56`)
-  - **Behavior**: Pop caller PC from subroutine stack and set `pc`.
-  - **Constraint**: If call stack is empty, return `IMPULSE_VM_ERR_STACK_UNDERFLOW`.
+    - **Behavior**: Pop caller PC from subroutine stack and set `pc`.
+    - **Constraint**: If call stack is empty, return `IMPULSE_VM_ERR_STACK_UNDERFLOW`.
 - **`OP_ENTER_FRAME`** (`0x57`)
-  - **Behavior**: Allocate a new execution stack frame with the frame size specified in `dst_reg`.
+    - **Behavior**: Allocate a new execution stack frame with the frame size specified in `dst_reg`.
 - **`OP_LEAVE_FRAME`** (`0x58`)
-  - **Behavior**: Tear down the active execution stack frame.
+    - **Behavior**: Tear down the active execution stack frame.
 - **`OP_THROW`** (`0x5A`)
-  - **Behavior**: Stop execution and return custom runtime exception status. Writes the exception payload directly into `R0` as a `TYPE_INT64`.
-  - **Outcome**: Returns status `IMPULSE_VM_ERR_USER_THROW` (`7`).
+    - **Behavior**: Stop execution and return custom runtime exception status. Writes the exception payload directly into `R0` as a `TYPE_INT64`.
+    - **Outcome**: Returns status `IMPULSE_VM_ERR_USER_THROW` (`7`).
 - **`OP_ASSERT`** (`0x5B`)
-  - **Behavior**: Verify invariant condition on register values or flags. If check fails, return `IMPULSE_VM_ERR_ASSERTION_FAILED` (`8`).
+    - **Behavior**: Verify invariant condition on register values or flags. If check fails, return `IMPULSE_VM_ERR_ASSERTION_FAILED` (`8`).
 - **`OP_TRAP`** (`0x5C`)
-  - **Behavior**: Interrupt execution context and invoke registered debugger hooks. Returns `IMPULSE_VM_ERR_TRAP` (`9`).
+    - **Behavior**: Interrupt execution context and invoke registered debugger hooks. Returns `IMPULSE_VM_ERR_TRAP` (`9`).
 
 > **Instruction Gas / Fuel Enforcement (`IMPULSE_VM_ERR_GAS_EXHAUSTED`)**: Instruction gas exhaustion is a VM runtime status code rather than an instruction opcode. When an execution loop or query exceeds its configured instruction fuel / gas budget in `impulse_vm_context_t` (`impulse_vm_context_set_fuel`), the VM halts execution safely and returns status code `IMPULSE_VM_ERR_GAS_EXHAUSTED` (`13` / `0x0D`).
 
 ### 6.6 Extended Operations
 - **`OP_SAMPLE_NEIGHBORS`** (`0x60`)
-  - **Behavior**: Perform neighbor sampling (GNN target).
+    - **Behavior**: Perform neighbor sampling (GNN target).
 - **`OP_RANDOM_WALK`** (`0x61`)
-  - **Behavior**: Perform node random walk traversals.
+    - **Behavior**: Perform node random walk traversals.
 - **`OP_SCATTER_GATHER`** (`0x62`)
-  - **Behavior**: Gather attributes from neighbors and scatter to state vectors.
+    - **Behavior**: Gather attributes from neighbors and scatter to state vectors.
 - **`OP_REBAC_CHECK`** (`0x63`)
-  - **Behavior**: Relationship-Based Access Control Zanzibar check path evaluation.
+    - **Behavior**: Relationship-Based Access Control Zanzibar check path evaluation.
 - **`OP_ROARING_BITMAP_AND`** (`0x64`)
-  - **Behavior**: Compute logical AND on compressed roaring bitmap structures.
+    - **Behavior**: Compute logical AND on compressed roaring bitmap structures.
 - **`OP_ISLAND_DETECT`** (`0x65`)
-  - **Behavior**: Power grid component island traversal.
+    - **Behavior**: Power grid component island traversal.
 - **`OP_SPARSE_MATVEC`** (`0x66`)
-  - **Behavior**: Compute sparse matrix-vector product.
+    - **Behavior**: Compute sparse matrix-vector product.
 - **`OP_LOUVAIN_MODULARITY`** (`0x67`)
-  - **Behavior**: Louvain community clustering modularity optimization step.
+    - **Behavior**: Louvain community clustering modularity optimization step.
 - **`OP_KCORE_DECOMPOSITION`** (`0x68`)
-  - **Behavior**: Node k-core graph shell decomposition.
+    - **Behavior**: Node k-core graph shell decomposition.
 - **`OP_MOTIF_MATCH_3`** (`0x69`)
-  - **Behavior**: Search and list 3-node motifs/subgraphs.
+    - **Behavior**: Search and list 3-node motifs/subgraphs.
 - **`OP_GRAPH_ISOMORPHISM`** (`0x6A`)
-  - **Behavior**: Compare structure topology similarity.
+    - **Behavior**: Compare structure topology similarity.
 - **`OP_ROARING_BITMAP_OR`** (`0x6B`)
-  - **Behavior**: Bitwise logical OR on roaring bitmaps.
+    - **Behavior**: Bitwise logical OR on roaring bitmaps.
 - **`OP_ROARING_BITMAP_AND_NOT`** (`0x6C`)
-  - **Behavior**: Bitwise logical AND-NOT subtraction on roaring bitmaps.
+    - **Behavior**: Bitwise logical AND-NOT subtraction on roaring bitmaps.
 
 ### 6.7 Registers and Memory Management Instructions
 - **`OP_MOV`** (`0x70`)
-  - **Behavior**: Copy value and type tag from source register (payload) into `dst_reg`.
+    - **Behavior**: Copy value and type tag from source register (payload) into `dst_reg`.
 - **`OP_CLEAR_REG`** (`0x71`)
-  - **Behavior**: Set `dst_reg` value to 0 and type tag to `TYPE_NULL`.
+    - **Behavior**: Set `dst_reg` value to 0 and type tag to `TYPE_NULL`.
 - **`OP_LOAD_INDIRECT`** (`0x72`)
-  - **Behavior**: Load value into `dst_reg` from address located in source register.
+    - **Behavior**: Load value into `dst_reg` from address located in source register.
 - **`OP_ALLOC_SCRATCH`** (`0x73`)
-  - **Behavior**: Allocate local thread-private memory chunk.
+    - **Behavior**: Allocate local thread-private memory chunk.
 - **`OP_ASSERT_SCRATCH_BYTES`** (`0x74`)
-  - **Behavior**: Assert scratch space matches bounds constraints.
+    - **Behavior**: Assert scratch space matches bounds constraints.
 - **`OP_SET_MAX_DOP`** (`0x75`)
-  - **Behavior**: Set concurrency limits (maximum degree of parallelism) for multi-threaded opcodes.
+    - **Behavior**: Set concurrency limits (maximum degree of parallelism) for multi-threaded opcodes.
 
 ### 6.8 Materialization, Columnar Gather, and Multi-Layout Walk Instructions
 - **`OP_LOAD_COLUMN_VECTOR`** (`0x80`), **`OP_GATHER_NODE_ATTR`** (`0x81`), **`OP_GATHER_EDGE_ATTR`** (`0x82`), **`OP_BRIN_ZONE_SKIP`** (`0x83`)
-  - **Behavior**: Direct columnar attribute vector loads, indirect node/edge attribute gathers over active frontiers, and 2-tier BRIN / Zone Map block skipping.
+    - **Behavior**: Direct columnar attribute vector loads, indirect node/edge attribute gathers over active frontiers, and 2-tier BRIN / Zone Map block skipping.
 - **`OP_CSR_WALK_DIRECT_STORE`** (`0x84`), **`OP_CSR_WALK_DENSE_STREAM`** (`0x85`), **`OP_COO_WALK`** (`0x86`), **`OP_CSC_WALK_DIRECT_STORE`** (`0x87`), **`OP_FIXPOINT_KLEENE_STAR`** (`0x88`), **`OP_SWAP_REG`** (`0x89`), **`OP_FRONTIER_DIFF`** (`0x8A`), **`OP_COO_WALK_FILTERED`** (`0x8B`), **`OP_COO_WALK_REDUCE`** (`0x8C`), **`OP_COO_WALK_DIRECT_STORE`** (`0x8D`), **`OP_DENSE_WALK`** (`0x8E`), **`OP_DENSE_WALK_BITMATRIX`** (`0x8F`)
-  - **Behavior**: Multiplicity-specialized direct-store walks ($1:N$, $N:1$, $1:1$), COO/Dense bit-matrix sweeps, in-place register swapping (`OP_SWAP_REG`), frontier delta extraction (`OP_FRONTIER_DIFF`), and fused Kleene-star fixpoint loops.
+    - **Behavior**: Multiplicity-specialized direct-store walks ($1:N$, $N:1$, $1:1$), COO/Dense bit-matrix sweeps, in-place register swapping (`OP_SWAP_REG`), frontier delta extraction (`OP_FRONTIER_DIFF`), and fused Kleene-star fixpoint loops.
 - **`OP_COLLECT_BITSET`** (`0x90`)
-  - **Behavior**: Materialize target BitSet items into caller array buffer.
+    - **Behavior**: Materialize target BitSet items into caller array buffer.
 - **`OP_COLLECT_ARRAY`** (`0x91`)
-  - **Behavior**: Copy values from node vector register into client memory.
+    - **Behavior**: Copy values from node vector register into client memory.
 - **`OP_MAP_DENSE_TO_KEYS`** (`0x92`)
-  - **Behavior**: Resolve dense offsets into user domain key formats.
+    - **Behavior**: Resolve dense offsets into user domain key formats.
 - **`OP_COLLECT_VALUE_MAP`** (`0x93`)
-  - **Behavior**: Materialize map keys/values into FFI structs.
+    - **Behavior**: Materialize map keys/values into FFI structs.
 - **`OP_DENSE_WALK_REDUCE`** (`0x94`), **`OP_DENSE_WALK_DIRECT_STORE`** (`0x95`)
-  - **Behavior**: Monoidal reduction and injective direct-store fast paths over dense bit-matrix relations.
+    - **Behavior**: Monoidal reduction and injective direct-store fast paths over dense bit-matrix relations.
 
 ### 6.9 Reserved Opcodes
 The following unallocated opcode ranges in `0x00`–`0xFF` are strictly reserved in `impulse_vm.h`:
@@ -490,47 +490,47 @@ The following unallocated opcode ranges in `0x00`–`0xFF` are strictly reserved
 - **`OP_RESERVED_76`** through **`OP_RESERVED_7F`** (`0x76`–`0x7F`; `0x80`–`0x8F` are allocated to columnar gather and multiplicity fast-path opcodes)
 - **`OP_RESERVED_96`** through **`OP_RESERVED_9F`** (`0x96`–`0x9F`; `0x90`–`0x95` are allocated to output materialization and dense walk opcodes)
 - **`OP_RESERVED_CC`** through **`OP_RESERVED_FE`** (`0xCC`–`0xFE`; `0xA0`–`0xBF` are allocated to §6.10 Edge Stream Shader instructions, `0xC0`–`0xCB` are allocated in `v0.10.0` to §6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN instructions, and `0xFF` is reserved for the 128-bit `OP_EXTENSION_PAYLOAD` marker per §3.2.1)
-  - **Behavior**: Execution of any reserved opcode **MUST** immediately halt virtual machine execution and return the status `IMPULSE_VM_ERR_RESERVED_OPCODE` (`10`).
+    - **Behavior**: Execution of any reserved opcode **MUST** immediately halt virtual machine execution and return the status `IMPULSE_VM_ERR_RESERVED_OPCODE` (`10`).
 
 ### 6.10 Edge Stream Shader Instructions (`0xA0` - `0xBF`)
 Edge Stream Shaders enable execution of inline Common Expression Language (CEL) pipelines, per-edge predicates, and mathematical reductions natively during graph traversal loops without manifesting intermediate buffers.
 
 - **`OP_COO_WALK_STREAM`** (`0xA0`), **`OP_CSR_WALK_STREAM`** (`0xA9`), **`OP_CSC_WALK_STREAM`** (`0xAA`)
-  - **Behavior**: Executes an edge shader pipeline over an adjacency matrix (COO, CSR, or CSC respectively).
-  - **Usage**: Expects `dst_reg` (the graph/relation handle loaded via `OP_INIT_MOCK_GRAPH` or similar), `src_reg` (source vector or node set passed in `payload_low`), `rel_id` (relationship ID in `payload_high`), and `flags` containing the `shader_pc` (the instruction index where the shader pipeline begins).
+    - **Behavior**: Executes an edge shader pipeline over an adjacency matrix (COO, CSR, or CSC respectively).
+    - **Usage**: Expects `dst_reg` (the graph/relation handle loaded via `OP_INIT_MOCK_GRAPH` or similar), `src_reg` (source vector or node set passed in `payload_low`), `rel_id` (relationship ID in `payload_high`), and `flags` containing the `shader_pc` (the instruction index where the shader pipeline begins).
 - **`OP_STREAM_FUNC_BEGIN`** (`0xA1`), **`OP_STREAM_FUNC_END`** (`0xA2`)
-  - **Behavior**: Lexical delimiters defining the boundaries of an edge shader pipeline. The VM **MUST** ensure execution remains bounded within these markers.
+    - **Behavior**: Lexical delimiters defining the boundaries of an edge shader pipeline. The VM **MUST** ensure execution remains bounded within these markers.
 - **`OP_STREAM_LOAD_SRC`** (`0xA3`), **`OP_STREAM_LOAD_TGT`** (`0xAB`), **`OP_STREAM_LOAD_EDGE`** (`0xA4`)
-  - **Behavior**: Loads data attributes associated with the current Source Node, Target Node, or Edge into a shader register (`S0-S15`).
-  - **Usage**: `dst_reg` points to the destination shader register. Payload indicates the `attr_id`.
+    - **Behavior**: Loads data attributes associated with the current Source Node, Target Node, or Edge into a shader register (`S0-S15`).
+    - **Usage**: `dst_reg` points to the destination shader register. Payload indicates the `attr_id`.
 - **`OP_STREAM_LOAD_SRC_ID`** (`0xBA`), **`OP_STREAM_LOAD_TGT_ID`** (`0xBB`), **`OP_STREAM_LOAD_EDGE_ID`** (`0xBC`)
-  - **Behavior**: Loads the exact physical topological integer ID (source node ID, target node ID, or edge offset ID) as a float into the shader register.
+    - **Behavior**: Loads the exact physical topological integer ID (source node ID, target node ID, or edge offset ID) as a float into the shader register.
 - **`OP_STREAM_LOAD_CONST`** (`0xBD`)
-  - **Behavior**: Loads an inline scalar constant into a shader register.
-  - **Usage**: `dst_reg` is the target shader register. The 32-bit payload is interpreted dynamically as an exact IEEE-754 single-precision float (`f32`) bitcast.
+    - **Behavior**: Loads an inline scalar constant into a shader register.
+    - **Usage**: `dst_reg` is the target shader register. The 32-bit payload is interpreted dynamically as an exact IEEE-754 single-precision float (`f32`) bitcast.
 - **`OP_STREAM_MATH_ADD`** (`0xA5`), **`SUB`** (`0xAC`), **`MUL`** (`0xAD`), **`DIV`** (`0xA6`), **`MOD`** (`0xAE`)
-  - **Behavior**: Scalar binary math operations executed strictly between two shader registers.
-  - **Usage**: `dst_reg` = Output. `payload_low` = `src1`. `payload_high` = `src2`.
-  - **Safety**: `DIV` and `MOD` **MUST** adhere to `SAFE_DIV` semantics (if the divisor is `0.0`, the result evaluates to `0.0` instead of `Infinity` or trapping the VM).
+    - **Behavior**: Scalar binary math operations executed strictly between two shader registers.
+    - **Usage**: `dst_reg` = Output. `payload_low` = `src1`. `payload_high` = `src2`.
+    - **Safety**: `DIV` and `MOD` **MUST** adhere to `SAFE_DIV` semantics (if the divisor is `0.0`, the result evaluates to `0.0` instead of `Infinity` or trapping the VM).
 - **`OP_STREAM_MATH_UNARY`** (`0xAF`)
-  - **Behavior**: Maps standard scalar operations (trigonometric, exponential, algebraic, neural activations).
-  - **Usage**: `dst_reg` = Output. `payload_low` = `src`. `payload_high` = `func_id`. The `func_id` **MUST** strictly correlate to the canonical subset declared in `impulse_math_ops.h` (e.g. `0x01` = ABS, `0x02` = SQRT, `0x34` = ISNAN). Out of domain bounds (e.g. `SQRT(-1.0)`) **MUST** yield an IEEE-754 `NaN` propagating natively without throwing an exception.
+    - **Behavior**: Maps standard scalar operations (trigonometric, exponential, algebraic, neural activations).
+    - **Usage**: `dst_reg` = Output. `payload_low` = `src`. `payload_high` = `func_id`. The `func_id` **MUST** strictly correlate to the canonical subset declared in `impulse_math_ops.h` (e.g. `0x01` = ABS, `0x02` = SQRT, `0x34` = ISNAN). Out of domain bounds (e.g. `SQRT(-1.0)`) **MUST** yield an IEEE-754 `NaN` propagating natively without throwing an exception.
 - **`OP_STREAM_CMP_EQ`** (`0xB0`), **`NEQ`** (`0xB1`), **`GT`** (`0xB2`), **`LT`** (`0xB3`)
-  - **Behavior**: Binary comparison ops. Evaluate to `1.0` if true, `0.0` if false.
+    - **Behavior**: Binary comparison ops. Evaluate to `1.0` if true, `0.0` if false.
 - **`OP_STREAM_LOGIC_AND`** (`0xB4`), **`OR`** (`0xB5`), **`NOT`** (`0xB6`)
-  - **Behavior**: Boolean logic ops evaluating on shader float values (`0.0` = False, otherwise True).
+    - **Behavior**: Boolean logic ops evaluating on shader float values (`0.0` = False, otherwise True).
 - **`OP_STREAM_FILTER`** (`0xA7`)
-  - **Behavior**: Evaluates a stream predicate (`0.0` or `1.0`). If `0.0`, the shader pipeline unconditionally aborts for the current edge context, preventing further execution and skipping reductions.
+    - **Behavior**: Evaluates a stream predicate (`0.0` or `1.0`). If `0.0`, the shader pipeline unconditionally aborts for the current edge context, preventing further execution and skipping reductions.
 - **`OP_STREAM_SELECT`** (`0xB7`)
-  - **Behavior**: Ternary conditional select (multiplexer). `S[dst] = (S[cond] != 0.0) ? S[val] : S[dst]`.
+    - **Behavior**: Ternary conditional select (multiplexer). `S[dst] = (S[cond] != 0.0) ? S[val] : S[dst]`.
 - **`OP_STREAM_REDUCE`** (`0xA8`)
-  - **Behavior**: Accumulates a computed scalar result from the shader register bank back into a global vector register handle using a defined Monoid (`0 = SUM, 1 = MAX, 2 = MIN`).
+    - **Behavior**: Accumulates a computed scalar result from the shader register bank back into a global vector register handle using a defined Monoid (`0 = SUM, 1 = MAX, 2 = MIN`).
 - **`OP_STREAM_REDUCE_ARGMIN`** (`0xB8`), **`OP_STREAM_REDUCE_ARGMAX`** (`0xB9`)
-  - **Behavior**: Fuses topological reduction with index tracking, updating a global vector while capturing the node identifier that resulted in the extrema.
+    - **Behavior**: Fuses topological reduction with index tracking, updating a global vector while capturing the node identifier that resulted in the extrema.
 - **`OP_STREAM_YIELD`** (`0xBE`)
-  - **Behavior**: Emits the current target node ID `v` into the destination BitSet handle when `S[src]` is non-zero (`!= 0.0` and `!NaN`).
+    - **Behavior**: Emits the current target node ID `v` into the destination BitSet handle when `S[src]` is non-zero (`!= 0.0` and `!NaN`).
 - **`OP_STREAM_SCATTER_REDUCE`** (`0xBF`)
-  - **Behavior**: Scatters and accumulates `S[src]` into `float_vector[v]` using the specified monoid (`0 = SUM, 1 = MAX, 2 = MIN`).
+    - **Behavior**: Scatters and accumulates `S[src]` into `float_vector[v]` using the specified monoid (`0 = SUM, 1 = MAX, 2 = MIN`).
 
 ### 6.11 Multi-Lane Bit-Sliced Execution & Hybrid Vector ANN Instructions (`0xC0` - `0xCB`) (`v0.10.0`)
 
@@ -551,67 +551,71 @@ Multi-Lane Bit-Sliced Execution generalizes single-bit frontier propagation (`1`
 #### 6.11.2 Multi-Lane & Hybrid ANN Opcodes
 
 - **`OP_LANE_INIT_SEEDS`** (`0xC0`)
-  - **Behavior**: Initializes a `TYPE_LANE_FRONTIER` handle in `dst_reg` by assigning up to 64 distinct seed nodes $s_0, \dots, s_{k-1}$ to lanes $b = 0 \dots k-1$ (`lanes[s_b] |= (1ULL << b)`).
-  - **Encoding**: `src_reg = payload & 0xFFFF`, `k_or_dom = (payload >> 16) & 0xFFFF`.
-  - **Allowed `src_reg` Types**:
-    - `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR`: Reads $k = \min(64, \text{len})$ seed node IDs from the vector.
-    - `TYPE_BITSET_HANDLE`: Extracts the first $k \le 64$ set bits in ascending node ID order.
-    - `TYPE_NODE_ID` / `TYPE_INT64`: Reads base seed $s_0$; if `(flags & 1) != 0` and `k_or_dom > 1`, initializes $k = \min(64, \text{k\_or\_dom})$ contiguous seeds $s_0 + b$; otherwise initializes $k = 1$ lane at $s_0$.
-    - `TYPE_NULL`: Initializes $k = \min(64, \text{k\_or\_dom} > 0 \text{ ? k\_or\_dom : } 8)$ lanes (if `(flags & 1) != 0`, seeds $0 \dots k-1$; else seed $0$ in lane $0$).
-  - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `lanes[u] == 0`.
+    - **Behavior**: Initializes a `TYPE_LANE_FRONTIER` handle in `dst_reg` by assigning up to 64 distinct seed nodes $s_0, \dots, s_{k-1}$ to lanes $b = 0 \dots k-1$ (`lanes[s_b] |= (1ULL << b)`).
+    - **Encoding**: `src_reg = payload & 0xFFFF`, `k_or_dom = (payload >> 16) & 0xFFFF`.
+    - **Allowed `src_reg` Types**:
+        - `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR`: Reads $k = \min(64, \text{len})$ seed node IDs from the vector.
+        - `TYPE_BITSET_HANDLE`: Extracts the first $k \le 64$ set bits in ascending node ID order.
+        - `TYPE_NODE_ID` / `TYPE_INT64`: Reads base seed $s_0$; if `(flags & 1) != 0` and `k_or_dom > 1`, initializes $k = \min(64, \text{k\_or\_dom})$ contiguous seeds $s_0 + b$; otherwise initializes $k = 1$ lane at $s_0$.
+        - `TYPE_NULL`: Initializes $k = \min(64, \text{k\_or\_dom} > 0 \text{ ? k\_or\_dom : } 8)$ lanes (if `(flags & 1) != 0`, seeds $0 \dots k-1$; else seed $0$ in lane $0$).
+    - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `lanes[u] == 0`.
 - **`OP_LANE_INIT_GROUPS`** (`0xC1`)
-  - **Behavior**: Initializes a `TYPE_LANE_FRONTIER` handle in `dst_reg` where multiple seed nodes may map to the same group/concept lane $g \in [0, 63]$ (`lanes[u] |= (1ULL << g)`).
-  - **Encoding**: `nodes_reg = payload & 0xFF`, `groups_reg = (payload >> 8) & 0xFF`, `num_groups = (payload >> 16) & 0xFFFF`.
-  - **Allowed `nodes_reg` Types**: `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR` (paired with `groups_reg` vector or packed `(group_id << 32) | node_id` when `groups_reg == 0` or `flags & 1 != 0`) or `TYPE_NULL`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff no lane bits are set.
+    - **Behavior**: Initializes a `TYPE_LANE_FRONTIER` handle in `dst_reg` where multiple seed nodes may map to the same group/concept lane $g \in [0, 63]$ (`lanes[u] |= (1ULL << g)`).
+    - **Encoding**: `nodes_reg = payload & 0xFF`, `groups_reg = (payload >> 8) & 0xFF`, `num_groups = (payload >> 16) & 0xFFFF`.
+    - **Allowed `nodes_reg` Types**: `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR` (paired with `groups_reg` vector or packed `(group_id << 32) | node_id` when `groups_reg == 0` or `flags & 1 != 0`) or `TYPE_NULL`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff no lane bits are set.
 - **`OP_LANE_SET_EDGE_MASK`** (`0xC2`)
-  - **Behavior**: Clones the source `TYPE_LANE_FRONTIER` and attaches per-edge counterfactual trip masks (`edge_trip_mask[rel_id][e] |= (1ULL << b)`), causing lane $b$ to treat edge index $e$ as removed/tripped during subsequent `OP_LANE_CSR_WALK` / `OP_LANE_CSC_WALK` traversals.
-  - **Encoding**: `src_reg = payload & 0xFF`, `edge_reg = (payload >> 8) & 0xFF`, `rel_id = (payload >> 16) & 0xFFFF`.
-  - **Allowed `edge_reg` Types**: `TYPE_INT64` / `TYPE_NODE_ID` (trips edge `registers[edge_reg]` in lane `flags & 0x3F`), `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR` (if `(flags & 1) != 0`, unpacks `(lane_b << 32) | edge_idx`; else trips `vec[b]` in lane $b$), or `TYPE_NULL`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`.
+    - **Behavior**: Clones the source `TYPE_LANE_FRONTIER` and attaches per-edge counterfactual trip masks (`edge_trip_mask[rel_id][e] |= (1ULL << b)`), causing lane $b$ to treat edge index $e$ as removed/tripped during subsequent `OP_LANE_CSR_WALK` / `OP_LANE_CSC_WALK` traversals.
+    - **Encoding**: `src_reg = payload & 0xFF`, `edge_reg = (payload >> 8) & 0xFF`, `rel_id = (payload >> 16) & 0xFFFF`.
+    - **Allowed `edge_reg` Types**: `TYPE_INT64` / `TYPE_NODE_ID` (trips edge `registers[edge_reg]` in lane `flags & 0x3F`), `TYPE_NODE_VECTOR` / `TYPE_UINT64_VECTOR` (if `(flags & 1) != 0`, unpacks `(lane_b << 32) | edge_idx`; else trips `vec[b]` in lane $b$), or `TYPE_NULL`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`.
 - **`OP_LANE_CSR_WALK`** (`0xC3`) & **`OP_LANE_CSC_WALK`** (`0xC4`)
-  - **Behavior**: Executes a bit-sliced forward (`0xC3` CSR) or reverse (`0xC4` CSC) step across all active lanes simultaneously:
-    $$\text{next\_lanes}[v] \;\mathrel{\vert}=\; (\text{current\_lanes}[u] \land \text{active\_mask}) \land \neg\text{edge\_trip\_mask}[\text{rel\_id}][e]$$
-  - **Encoding**: `src_reg = payload & 0xFFFF` (**MUST** be `TYPE_LANE_FRONTIER`), `rel_id = (payload >> 16) & 0xFFFF`.
-  - **Modifier Flags**:
-    - `flags & 0x03 != 0` (`ACCUMULATE`): Preserves existing `current_lanes[u]` bits in `next_lanes[u]`.
-    - `flags & 0x04 != 0` (`FIXPOINT`): Iterates delta-frontier propagation (`newly_reached = step_out[v] & ~out_lanes[v]`) until `newly_reached == 0` for all $v \in [0, N)$, with zero per-iteration heap allocations.
-  - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `out_lanes[u] == 0`.
+    - **Behavior**: Executes a bit-sliced forward (`0xC3` CSR) or reverse (`0xC4` CSC) step across all active lanes simultaneously:
+
+        $$\text{next\_lanes}[v] \;\mathrel{\vert}=\; (\text{current\_lanes}[u] \land \text{active\_mask}) \land \neg\text{edge\_trip\_mask}[\text{rel\_id}][e]$$
+
+    - **Encoding**: `src_reg = payload & 0xFFFF` (**MUST** be `TYPE_LANE_FRONTIER`), `rel_id = (payload >> 16) & 0xFFFF`.
+    - **Modifier Flags**:
+        - `flags & 0x03 != 0` (`ACCUMULATE`): Preserves existing `current_lanes[u]` bits in `next_lanes[u]`.
+        - `flags & 0x04 != 0` (`FIXPOINT`): Iterates delta-frontier propagation (`newly_reached = step_out[v] & ~out_lanes[v]`) until `newly_reached == 0` for all $v \in [0, N)$, with zero per-iteration heap allocations.
+    - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `out_lanes[u] == 0`.
 - **`OP_LANE_PRUNE_MASK`** (`0xC5`)
-  - **Behavior**: Prunes lane bits from a `TYPE_LANE_FRONTIER` according to `mode = flags & 0x03`:
-    - **Mode `0` (Explicit Deny Set / Per-Node Mask)**: Clears all lanes on nodes in a `TYPE_BITSET_HANDLE`, or clears `lanes[u] &= ~deny_vec[u]` for a vector, or clears `lanes[u] &= ~scalar_mask` for `TYPE_INT64`.
-    - **Mode `1` (Disjoint Split-Half Collision Prune)**: Splits active lanes into low half $[0, \text{half})$ and high half $[\text{half}, k)$; zeroes `lanes[u]` if node $u$ is not reached by at least one lane in both halves.
-    - **Mode `2` (Degree-Gated Hub Quorum Prune)**: For `max_deg = (payload >> 8) & 0xFF`, `min_quorum = (payload >> 16) & 0xFF`, `rel_id = (payload >> 24) & 0xFF`, zeroes `lanes[u]` whenever $\text{deg}(u) > \text{max\_deg}$ and $\text{popcount}(\text{lanes}[u]) < \text{min\_quorum}$.
-  - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `out_lanes[u] == 0`.
+    - **Behavior**: Prunes lane bits from a `TYPE_LANE_FRONTIER` according to `mode = flags & 0x03`:
+        - **Mode `0` (Explicit Deny Set / Per-Node Mask)**: Clears all lanes on nodes in a `TYPE_BITSET_HANDLE`, or clears `lanes[u] &= ~deny_vec[u]` for a vector, or clears `lanes[u] &= ~scalar_mask` for `TYPE_INT64`.
+        - **Mode `1` (Disjoint Split-Half Collision Prune)**: Splits active lanes into low half $[0, \text{half})$ and high half $[\text{half}, k)$; zeroes `lanes[u]` if node $u$ is not reached by at least one lane in both halves.
+        - **Mode `2` (Degree-Gated Hub Quorum Prune)**: For `max_deg = (payload >> 8) & 0xFF`, `min_quorum = (payload >> 16) & 0xFF`, `rel_id = (payload >> 24) & 0xFF`, zeroes `lanes[u]` whenever $\text{deg}(u) > \text{max\_deg}$ and $\text{popcount}(\text{lanes}[u]) < \text{min\_quorum}$.
+    - **Type Transition**: `dst_reg` becomes `TYPE_LANE_FRONTIER`. Sets `flags[ZF] = 1` iff all `out_lanes[u] == 0`.
 - **`OP_LANE_FILTER_QUORUM`** (`0xC6`)
-  - **Behavior**: Bridges from `TYPE_LANE_FRONTIER` (`0x10`) to a 1-bit `TYPE_BITSET_HANDLE` (`0x04`) by selecting nodes $u$ where at least `min_k` required lanes are set and zero forbidden lanes are set:
-    $$\text{popcount}(\text{lanes}[u] \land \text{req\_mask}) \ge \text{min\_k} \;\land\; (\text{lanes}[u] \land \text{forbid\_mask}) = 0$$
-  - **Encoding**: Standard mode (`(flags & 1) == 0`): `src_reg = payload & 0xFFFF`, `min_k = (payload >> 16) & 0xFFFF` (defaults to `1` if `0`). Extended mask mode (`(flags & 1) != 0`): `src_reg = payload & 0xFF`, `min_k = (payload >> 8) & 0xFF`, `req_mask_reg = (payload >> 16) & 0xFF`, `forbid_mask_reg = (payload >> 24) & 0xFF`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_BITSET_HANDLE`. Sets `flags[ZF] = 1` iff the output BitSet is empty.
+    - **Behavior**: Bridges from `TYPE_LANE_FRONTIER` (`0x10`) to a 1-bit `TYPE_BITSET_HANDLE` (`0x04`) by selecting nodes $u$ where at least `min_k` required lanes are set and zero forbidden lanes are set:
+
+        $$\text{popcount}(\text{lanes}[u] \land \text{req\_mask}) \ge \text{min\_k} \;\land\; (\text{lanes}[u] \land \text{forbid\_mask}) = 0$$
+
+    - **Encoding**: Standard mode (`(flags & 1) == 0`): `src_reg = payload & 0xFFFF`, `min_k = (payload >> 16) & 0xFFFF` (defaults to `1` if `0`). Extended mask mode (`(flags & 1) != 0`): `src_reg = payload & 0xFF`, `min_k = (payload >> 8) & 0xFF`, `req_mask_reg = (payload >> 16) & 0xFF`, `forbid_mask_reg = (payload >> 24) & 0xFF`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_BITSET_HANDLE`. Sets `flags[ZF] = 1` iff the output BitSet is empty.
 - **`OP_LANE_REDUCE_AND`** (`0xC7`)
-  - **Behavior**: Reduces a `TYPE_LANE_FRONTIER` across $n_{\text{check}} = (\text{payload\_high} > 0) \text{ ? } \min(N, \text{payload\_high}) \text{ : } N$ nodes into a 64-bit integer in `dst_reg`:
-    - `flags == 0`: Bitwise AND of `lanes[u] & active_mask` across all $u \in [0, n_{\text{check}})$ (mask of lanes reaching *every* checked node).
-    - `(flags & 1) != 0`: Complement `active_mask & ~all_reached` (mask of lanes failing to reach at least one node, e.g., islanded contingencies).
-    - `(flags & 2) != 0`: Count of universal nodes $u \in [0, n_{\text{check}})$ where `(lanes[u] & active_mask) == active_mask`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_INT64`. Sets `flags[ZF] = 1` iff result is `0`.
+    - **Behavior**: Reduces a `TYPE_LANE_FRONTIER` across $n_{\text{check}} = (\text{payload\_high} > 0) \text{ ? } \min(N, \text{payload\_high}) \text{ : } N$ nodes into a 64-bit integer in `dst_reg`:
+        - `flags == 0`: Bitwise AND of `lanes[u] & active_mask` across all $u \in [0, n_{\text{check}})$ (mask of lanes reaching *every* checked node).
+        - `(flags & 1) != 0`: Complement `active_mask & ~all_reached` (mask of lanes failing to reach at least one node, e.g., islanded contingencies).
+        - `(flags & 2) != 0`: Count of universal nodes $u \in [0, n_{\text{check}})$ where `(lanes[u] & active_mask) == active_mask`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_INT64`. Sets `flags[ZF] = 1` iff result is `0`.
 - **`OP_LANE_REDUCE_ATTR`** (`0xC8`)
-  - **Behavior**: Performs a single-pass bit-sliced reduction of a node attribute array (`attr_id` or vector register when `(flags & 1) != 0`) across all $k$ active lanes simultaneously.
-  - **Encoding**: `src_reg = payload & 0xFF`, `attr_or_reg = (payload >> 8) & 0xFF`, `red_op = (payload >> 16) & 0xFFFF`.
-  - **Reduction Modes (`red_op`)**:
-    - `0` (`BINARY_OP_ADD` / `SUM`), `1` (`MUL`), `2` (`MIN`), `3` (`MAX`), `4`/`5` (`COUNT`): Outputs `TYPE_FLOAT_VECTOR` of length $k$. Untouched lanes receive `0.0f`. `NaN` attribute values are skipped.
-    - `6` (`BINARY_OP_ARGMIN`), `7` (`BINARY_OP_ARGMAX`): Outputs `TYPE_UINT64_VECTOR` / `TYPE_NODE_VECTOR` of length $k$ containing the witness node ID for each lane (`-1` if untouched). **Deterministic Tie-Breaking**: Strictly uses `<` (for `ARGMIN`) or `>` (for `ARGMAX`) in ascending node ID order $u = 0 \dots N-1$ so the lowest node ID wins ties.
+    - **Behavior**: Performs a single-pass bit-sliced reduction of a node attribute array (`attr_id` or vector register when `(flags & 1) != 0`) across all $k$ active lanes simultaneously.
+    - **Encoding**: `src_reg = payload & 0xFF`, `attr_or_reg = (payload >> 8) & 0xFF`, `red_op = (payload >> 16) & 0xFFFF`.
+    - **Reduction Modes (`red_op`)**:
+        - `0` (`BINARY_OP_ADD` / `SUM`), `1` (`MUL`), `2` (`MIN`), `3` (`MAX`), `4`/`5` (`COUNT`): Outputs `TYPE_FLOAT_VECTOR` of length $k$. Untouched lanes receive `0.0f`. `NaN` attribute values are skipped.
+        - `6` (`BINARY_OP_ARGMIN`), `7` (`BINARY_OP_ARGMAX`): Outputs `TYPE_UINT64_VECTOR` / `TYPE_NODE_VECTOR` of length $k$ containing the witness node ID for each lane (`-1` if untouched). **Deterministic Tie-Breaking**: Strictly uses `<` (for `ARGMIN`) or `>` (for `ARGMAX`) in ascending node ID order $u = 0 \dots N-1$ so the lowest node ID wins ties.
 - **`OP_LANE_SET_COVER`** (`0xC9`)
-  - **Behavior**: Computes a greedy minimum witness node cover over `src_reg` (`TYPE_LANE_FRONTIER`). At each step (up to `max_k`), selects the node $u$ that covers the maximum number of remaining uncovered lanes in `uncovered_mask` (with optional positive cost weighting from `cost_reg` when `(flags & 1) != 0`). **Deterministic Tie-Breaking**: Lowest node ID $u$ wins ties.
-  - **Encoding**: `src_reg = payload & 0xFF`, `cost_reg = (payload >> 8) & 0xFF`, `max_k = (payload >> 16) & 0xFFFF`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_NODE_VECTOR` containing the selected witness node IDs. Sets `flags[ZF] = 1` iff `uncovered_mask != 0` after termination (i.e., full cover was not achieved).
+    - **Behavior**: Computes a greedy minimum witness node cover over `src_reg` (`TYPE_LANE_FRONTIER`). At each step (up to `max_k`), selects the node $u$ that covers the maximum number of remaining uncovered lanes in `uncovered_mask` (with optional positive cost weighting from `cost_reg` when `(flags & 1) != 0`). **Deterministic Tie-Breaking**: Lowest node ID $u$ wins ties.
+    - **Encoding**: `src_reg = payload & 0xFF`, `cost_reg = (payload >> 8) & 0xFF`, `max_k = (payload >> 16) & 0xFFFF`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_NODE_VECTOR` containing the selected witness node IDs. Sets `flags[ZF] = 1` iff `uncovered_mask != 0` after termination (i.e., full cover was not achieved).
 - **`OP_VECTOR_ANN_SEARCH`** (`0xCA`)
-  - **Behavior**: Executes top-$k$ approximate nearest neighbor seed retrieval from a query embedding vector in `q_reg` (`TYPE_FLOAT_VECTOR`).
-  - **Encoding**: `q_reg = payload & 0xFF`, `top_k = (payload >> 8) & 0xFF` (or `(payload >> 16) & 0xFFFF`).
-  - **Type Transition**: If `(flags & 1) != 0`, initializes a `TYPE_LANE_FRONTIER` with $k = \text{top\_k}$ lanes; otherwise outputs a `TYPE_BITSET_HANDLE`.
+    - **Behavior**: Executes top-$k$ approximate nearest neighbor seed retrieval from a query embedding vector in `q_reg` (`TYPE_FLOAT_VECTOR`).
+    - **Encoding**: `q_reg = payload & 0xFF`, `top_k = (payload >> 8) & 0xFF` (or `(payload >> 16) & 0xFFFF`).
+    - **Type Transition**: If `(flags & 1) != 0`, initializes a `TYPE_LANE_FRONTIER` with $k = \text{top\_k}$ lanes; otherwise outputs a `TYPE_BITSET_HANDLE`.
 - **`OP_VECTOR_RERANK_DOT`** (`0xCB`)
-  - **Behavior**: Computes exact dot-product reranking scores for candidate nodes in `cand_reg` (`TYPE_BITSET_HANDLE` or `TYPE_LANE_FRONTIER`) against query vector `q_reg` (`TYPE_FLOAT_VECTOR`).
-  - **Encoding**: `cand_reg = payload & 0xFF`, `q_reg = (payload >> 8) & 0xFF`, `attr_id = (payload >> 16) & 0xFFFF`.
-  - **Type Transition**: `dst_reg` becomes `TYPE_FLOAT_VECTOR`. Sets `flags[ZF] = 1` iff candidate set is empty.
+    - **Behavior**: Computes exact dot-product reranking scores for candidate nodes in `cand_reg` (`TYPE_BITSET_HANDLE` or `TYPE_LANE_FRONTIER`) against query vector `q_reg` (`TYPE_FLOAT_VECTOR`).
+    - **Encoding**: `cand_reg = payload & 0xFF`, `q_reg = (payload >> 8) & 0xFF`, `attr_id = (payload >> 16) & 0xFFFF`.
+    - **Type Transition**: `dst_reg` becomes `TYPE_FLOAT_VECTOR`. Sets `flags[ZF] = 1` iff candidate set is empty.
 
 ---
 
@@ -707,36 +711,36 @@ All multi-byte integer and floating-point values **MUST** be encoded in Little-E
 When register $r$ contains an off-heap object handle, its canonical payload is serialized into the stream based on its type tag:
 
 1. **`TYPE_BITSET_HANDLE` (`0x04`)**:
-   - `cardinality` (`uint64_t` LE): Total count of set bits across the BitSet.
-   - `node_ids` (`uint64_t[cardinality]` LE): Monotonically ascending list of set node IDs.
-   - If the handle is null, out of bounds, or unallocated, `cardinality = 0` is serialized.
+    - `cardinality` (`uint64_t` LE): Total count of set bits across the BitSet.
+    - `node_ids` (`uint64_t[cardinality]` LE): Monotonically ascending list of set node IDs.
+    - If the handle is null, out of bounds, or unallocated, `cardinality = 0` is serialized.
 2. **`TYPE_FLOAT_VECTOR` (`0x0C`)**:
-   - `length` (`uint32_t` LE): Number of float elements.
-   - `values` (`float32[length]` LE): IEEE 754 single-precision floats.
-   - **Canonical Float Normalization**: All `NaN` representations are normalized to `0x7FC00000`. Negative zero (`-0.0f`) is normalized to positive zero (`+0.0f`).
-   - If handle is invalid, `length = 0` is serialized.
+    - `length` (`uint32_t` LE): Number of float elements.
+    - `values` (`float32[length]` LE): IEEE 754 single-precision floats.
+    - **Canonical Float Normalization**: All `NaN` representations are normalized to `0x7FC00000`. Negative zero (`-0.0f`) is normalized to positive zero (`+0.0f`).
+    - If handle is invalid, `length = 0` is serialized.
 3. **`TYPE_DOUBLE_VECTOR` (`0x0D`)**:
-   - `length` (`uint32_t` LE): Number of double elements.
-   - `values` (`float64[length]` LE): IEEE 754 double-precision floats.
-   - **Canonical Double Normalization**: All `NaN` representations are normalized to `0x7FF8000000000000ULL`. Negative zero (`-0.0`) is normalized to positive zero (`+0.0`).
-   - If handle is invalid, `length = 0` is serialized.
+    - `length` (`uint32_t` LE): Number of double elements.
+    - `values` (`float64[length]` LE): IEEE 754 double-precision floats.
+    - **Canonical Double Normalization**: All `NaN` representations are normalized to `0x7FF8000000000000ULL`. Negative zero (`-0.0`) is normalized to positive zero (`+0.0`).
+    - If handle is invalid, `length = 0` is serialized.
 4. **`TYPE_NODE_VECTOR` (`0x05`) & `TYPE_UINT64_VECTOR` (`0x0E`)**:
-   - `length` (`uint32_t` LE): Number of 64-bit integer elements.
-   - `values` (`uint64_t[length]` LE): Contiguous 64-bit elements.
-   - If handle is invalid, `length = 0` is serialized.
+    - `length` (`uint32_t` LE): Number of 64-bit integer elements.
+    - `values` (`uint64_t[length]` LE): Contiguous 64-bit elements.
+    - If handle is invalid, `length = 0` is serialized.
 5. **`TYPE_LANE_FRONTIER` (`0x10`)**:
-   - `num_lanes` (`uint32_t` LE): Number of configured logical lanes ($1 \le k \le 64$).
-   - `max_lanes` (`uint32_t` LE): Physical bit-slice capacity (`8`, `16`, `32`, or `64`).
-   - `active_mask` (`uint64_t` LE): Active bitmask indicating live lanes.
-   - `node_count` (`uint32_t` LE): Number of domain nodes.
-   - `lanes` (`uint64_t[node_count]` LE): Dense array of per-node bit-sliced masks.
-   - If handle is invalid, four zero words (`0U`, `0U`, `0ULL`, `0U`) are serialized.
+    - `num_lanes` (`uint32_t` LE): Number of configured logical lanes ($1 \le k \le 64$).
+    - `max_lanes` (`uint32_t` LE): Physical bit-slice capacity (`8`, `16`, `32`, or `64`).
+    - `active_mask` (`uint64_t` LE): Active bitmask indicating live lanes.
+    - `node_count` (`uint32_t` LE): Number of domain nodes.
+    - `lanes` (`uint64_t[node_count]` LE): Dense array of per-node bit-sliced masks.
+    - If handle is invalid, four zero words (`0U`, `0U`, `0ULL`, `0U`) are serialized.
 6. **`TYPE_STRING_VECTOR` (`0x0B`)**:
-   - `count` (`uint32_t` LE): Number of strings.
-   - For each string $j = 0 \dots \text{count}-1$: length `slen` (`uint32_t` LE) followed by `slen` raw UTF-8 bytes.
+    - `count` (`uint32_t` LE): Number of strings.
+    - For each string $j = 0 \dots \text{count}-1$: length `slen` (`uint32_t` LE) followed by `slen` raw UTF-8 bytes.
 7. **`TYPE_VALUE_MAP` (`0x0A`)**:
-   - `count` (`uint32_t` LE): Number of key-value pairs.
-   - For each entry $j = 0 \dots \text{count}-1$: key length `klen` (`uint32_t` LE), `klen` UTF-8 key bytes, and `float32` LE value.
+    - `count` (`uint32_t` LE): Number of key-value pairs.
+    - For each entry $j = 0 \dots \text{count}-1$: key length `klen` (`uint32_t` LE), `klen` UTF-8 key bytes, and `float32` LE value.
 8. **Scalar and Null Registers**: No extra bytes are appended.
 
 ### 9.3 C-ABI State Hash Functions
@@ -760,6 +764,7 @@ IMPULSE_API int impulse_vm_state_hash_hex(
 ### 9.4 Four-Way Polyglot Validation Harness
 
 The `four_way_validation.py` test harness runs `.impas` test vectors across four independent execution engines:
+
 1. **C++ Kernel (Optimizations ON)** (`-O3`, Highway SIMD, OpenMP)
 2. **C++ Kernel (Optimizations OFF)** (`-O0`, baseline interpretation)
 3. **Pure Java 25 Engine** (`MemorySegment` off-heap FFM, `jdk.incubator.vector`, `MethodHandle` C2 JIT)
@@ -837,20 +842,20 @@ Type checking is performed branchlessly in $\le 2$ CPU cycles using 17-bit regis
 The `test_opcode_contracts.cpp` test suite automatically verifies all 188 contracts through five exhaustive passes:
 
 1. **Pass 1: Disallowed Register Type Rejection**:
-   - Synthesizes instructions with each of the 17 possible register dynamic types (`TYPE_NULL` through `TYPE_LANE_FRONTIER`) injected into `src`, `aux1`, and `aux2`.
-   - Verifies that any type excluded by `allowed_src_types`, `allowed_aux1_types`, or `allowed_aux2_types` immediately returns `IMPULSE_VM_ERR_INVALID_REGISTER`.
+    - Synthesizes instructions with each of the 17 possible register dynamic types (`TYPE_NULL` through `TYPE_LANE_FRONTIER`) injected into `src`, `aux1`, and `aux2`.
+    - Verifies that any type excluded by `allowed_src_types`, `allowed_aux1_types`, or `allowed_aux2_types` immediately returns `IMPULSE_VM_ERR_INVALID_REGISTER`.
 2. **Pass 2: Allowed Type Acceptance & Destination Conformity**:
-   - Executes the opcode with valid input mock operands and verifies that execution returns `IMPULSE_VM_OK`.
-   - Confirms that `vm_state.register_types[dst_reg]` matches `output_dst_types`.
+    - Executes the opcode with valid input mock operands and verifies that execution returns `IMPULSE_VM_OK`.
+    - Confirms that `vm_state.register_types[dst_reg]` matches `output_dst_types`.
 3. **Pass 3: Out-of-Bounds Register Validation**:
-   - Injects invalid register indices ($r \ge 64$, e.g. `64`, `128`, `255`) into operand positions.
-   - Verifies that the interpreter traps or returns `IMPULSE_VM_ERR_INVALID_REGISTER` without memory access violations.
+    - Injects invalid register indices ($r \ge 64$, e.g. `64`, `128`, `255`) into operand positions.
+    - Verifies that the interpreter traps or returns `IMPULSE_VM_ERR_INVALID_REGISTER` without memory access violations.
 4. **Pass 4: In-Place Register Aliasing Safety**:
-   - Tests operand aliasing conditions (`dst == src`, `dst == aux1`, `dst == aux2`, `src == aux1`).
-   - Asserts that in-place mutation does not read overwritten destination state prematurely.
+    - Tests operand aliasing conditions (`dst == src`, `dst == aux1`, `dst == aux2`, `src == aux1`).
+    - Asserts that in-place mutation does not read overwritten destination state prematurely.
 5. **Pass 5: Null Context & Snapshot Safety**:
-   - For opcodes where `requires_context == true`, executes the instruction with `query_context = nullptr`.
-   - Verifies that the VM safely returns `IMPULSE_VM_ERR_NULL_SNAPSHOT` without null-pointer dereferences.
+    - For opcodes where `requires_context == true`, executes the instruction with `query_context = nullptr`.
+    - Verifies that the VM safely returns `IMPULSE_VM_ERR_NULL_SNAPSHOT` without null-pointer dereferences.
 
 
 

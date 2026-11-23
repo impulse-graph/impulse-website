@@ -35,8 +35,8 @@ flowchart LR
 
 * **Start with a Single Domain**: You anchor the traversal to one starting domain (e.g., `snap.domain("User")`) and choose your starting nodes (a single node, a list of IDs/keys, a bitset, or all nodes in the domain).
 * **Walk Zero or More Edges**:
-  * Walking **0 edges** simply filters or projects attributes within that starting domain (`User` $\to$ `User`).
-  * Each `.out(...)` or `.in(...)` step transitions the active frontier across a directed relation into the next domain (`User` $\to$ `Order` $\to$ `Product`).
+    * Walking **0 edges** simply filters or projects attributes within that starting domain (`User` $\to$ `User`).
+    * Each `.out(...)` or `.in(...)` step transitions the active frontier across a directed relation into the next domain (`User` $\to$ `Order` $\to$ `Product`).
 * **Finish in a Single Target Domain**: Unlike a SQL `JOIN` that returns a wide Cartesian table of columns from every intermediate hop at once, an Impulse traversal finishes at a **single target domain** (e.g., `Product`) and returns the surviving nodes in that domain—their **Dense IDs**, **External Business Keys**, **target domain attributes**, or **projected/aggregated state** carried along the walk.
 
 ### 2. Set Behavior (Not Multi-Sets) & Collapsing Intermediate Results
@@ -46,10 +46,10 @@ Most databases (SQL `JOIN`s, standard Cypher, Gremlin) operate on **multi-sets (
 
 * **Pure Reachability (Set Union)**: The active frontier in a domain is a **BitSet** (1 bit per node). If 500 different edges land on `Product #42` during a hop, bit `42` is simply set to `1` via bitwise `OR`. On the next hop, Impulse walks out of `Product #42` **exactly once**.
 * **Carrying Computed Values Across Hops (Monoidic Reduction)**: What if each incoming path carries a number—like an order `amount`, a hop `distance`, or a `risk_score`—and multiple paths land on the same target node? You specify a simple reduction rule (**a monoid**) that tells the engine how to collapse converging values into a single value per target node:
-  * **`SUM` (`+`)**: Add converging values together (e.g., total money transferred into an account, or PageRank weight).
-  * **`MIN`**: Keep the smallest value (e.g., shortest path distance or earliest timestamp).
-  * **`MAX`**: Keep the largest value (e.g., maximum transaction size or highest confidence score).
-  * **`ANY` / `OR`**: Boolean reachability.
+    * **`SUM` (`+`)**: Add converging values together (e.g., total money transferred into an account, or PageRank weight).
+    * **`MIN`**: Keep the smallest value (e.g., shortest path distance or earliest timestamp).
+    * **`MAX`**: Keep the largest value (e.g., maximum transaction size or highest confidence score).
+    * **`ANY` / `OR`**: Boolean reachability.
 
 Because intermediate results are collapsed into a fixed-size per-domain set at every hop, **queries never suffer from exponential path explosion**, and the engine knows the **exact memory required for the query before it even runs**.
 

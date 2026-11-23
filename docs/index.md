@@ -41,9 +41,9 @@ For the architectural rationale, JFR/C++ empirical analysis, and foundational CS
 Impulse Graph separates the **normative data and bytecode contract** from the **execution runtimes** that evaluate it:
 
 1. **Open Data & Bytecode Contract (`impulse-graph-spec`)**:
-   * **`.imps` Binary Snapshot Format**: 128-byte-aligned sections containing per-domain key indices, CSR/CSC topologies, SoA columns, and Vamana ANN indices.
-   * **`.imps.schema.yaml` / `manifest.json`**: Declarative schema contract defining independent node domains ($0 \dots N_d - 1$), integer widths (`uint16`/`uint32`/`uint64`), directed relations, and attribute types.
-   * **`impOps` 64-Register ISA (`R0`..`R63`)**: Fixed-width 64-bit bytecode instructions verified by compliance test vectors (`tc01`–`tc38`, `vm-impas/`).
+    * **`.imps` Binary Snapshot Format**: 128-byte-aligned sections containing per-domain key indices, CSR/CSC topologies, SoA columns, and Vamana ANN indices.
+    * **`.imps.schema.yaml` / `manifest.json`**: Declarative schema contract defining independent node domains ($0 \dots N_d - 1$), integer widths (`uint16`/`uint32`/`uint64`), directed relations, and attribute types.
+    * **`impOps` 64-Register ISA (`R0`..`R63`)**: Fixed-width 64-bit bytecode instructions verified by compliance test vectors (`tc01`–`tc38`, `vm-impas/`).
 2. **Independent Execution Runtimes**:
 
 | Runtime | Implementation & Memory Access | Language Ecosystem | Distribution (`0.10.1`) |

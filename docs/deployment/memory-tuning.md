@@ -15,11 +15,11 @@ When a snapshot is loaded via `BinarySnapshotLoader.loadSnapshot(...)`:
 1. **Memory Mapping**: The `.imps` file is mapped via `FileChannel.map(FileChannel.MapMode.READ_ONLY, 0, size, arena)`, producing an off-heap `MemorySegment`.
 2. **Kernel Prefetching (`MADV_WILLNEED`)**: `BinarySnapshotLoader` immediately invokes `segment.load()`. At the OS level, this issues an `madvise(..., MADV_WILLNEED)` call, prefetching pages into the OS page cache asynchronously to eliminate soft page fault stalls during cold start.
 3. **Relation Slices**: The root segment is sliced into sub-segments encapsulated inside `RelationSnapshot`:
-   * `rowOffsetsSegment`: CSR row offsets array (`(N + 1) * edgeIndexWidth` bytes).
-   * `columnTargetsSegment`: CSR target node IDs (`E * nodeIdWidth` bytes).
-   * `cscRowOffsetsSegment` & `cscColumnTargetsSegment`: Optional CSC reverse transpose index buffers.
-   * `attributeSegments`: Structure-of-Arrays (SoA) contiguous primitive and vector arrays.
-   * `validitySegments`: Aligned bitmasks for nullable attributes.
+    * `rowOffsetsSegment`: CSR row offsets array (`(N + 1) * edgeIndexWidth` bytes).
+    * `columnTargetsSegment`: CSR target node IDs (`E * nodeIdWidth` bytes).
+    * `cscRowOffsetsSegment` & `cscColumnTargetsSegment`: Optional CSC reverse transpose index buffers.
+    * `attributeSegments`: Structure-of-Arrays (SoA) contiguous primitive and vector arrays.
+    * `validitySegments`: Aligned bitmasks for nullable attributes.
 4. **Container**: `GraphSnapshot` aggregates all domain relation snapshots and string catalog metadata.
 
 ---
@@ -40,10 +40,10 @@ FFM arenas govern off-heap memory lifetimes. Choosing the proper arena determine
 In high-throughput 24/7 environments, incoming CDC streams or scheduled updates generate new `.imps` snapshots. To avoid JVM segmentation faults from unmapping off-heap memory while query threads are reading:
 
 1. **Active Query Accounting**: `GraphSnapshot` maintains an off-heap reader count via `LongAdder`:
-   * `enterQuery()`: Increments active query count.
-   * `exitQuery()`: Decrements active query count.
-   * `awaitDrained(timeout, unit)`: Non-blocking spin-wait until active reader count drops to 0.
-   * `drainAndClose(timeout, unit)`: Waits for readers to complete, then unmaps the arena.
+    * `enterQuery()`: Increments active query count.
+    * `exitQuery()`: Decrements active query count.
+    * `awaitDrained(timeout, unit)`: Non-blocking spin-wait until active reader count drops to 0.
+    * `drainAndClose(timeout, unit)`: Waits for readers to complete, then unmaps the arena.
 2. **Atomic Pointer Swapping**: Use `SnapshotSwapManager` for atomic A/B pointer swaps:
 
 ```java

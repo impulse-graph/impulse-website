@@ -63,10 +63,10 @@ List<String> flagged = snap.domain("User")
 * **Prefer Schema-First AOT Codegen (`v0.11`)**: Define graph contracts in `.imps.schema.yaml` and generate zero-dependency typed wrappers (`<Graph>Snapshot`, `<Domain>Id`, `<Domain>Traversal`, `<Domain>Attrs`, flyweight `<Domain>RowView`) via `org.impulsegraph:impulse-maven-plugin` (`generate` goal) or `impulse-j codegen`.
 * **Use `impulse-bom`**: Import `org.impulsegraph:impulse-bom` (`0.11.0` for full AOT/CLI suite; `0.10.1` for core Maven Central runtime artifacts `impulse-api`, `impulse-storage`, `impulse-vm`, `impulse-compiler`, `impulse-builder`). Core runtime modules have **zero third-party dependencies**.
 * **Mandatory JDK Compiler & Runtime Flags**:
-  * **JDK 22+ / JDK 25 LTS (Recommended)**:
-    * `javac`: `--release 25 --add-modules jdk.incubator.vector` (do **not** pass `--enable-native-access` to `javac`).
-    * `java` / Surefire / Failsafe: `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED`.
-  * **JDK 21 LTS**: Add `--enable-preview` to **both** `javac` (`--release 21 --enable-preview --add-modules jdk.incubator.vector`) and `java` (FFM `Arena`/`MemorySegment` is preview in JDK 21 JEP 442).
+    * **JDK 22+ / JDK 25 LTS (Recommended)**:
+        * `javac`: `--release 25 --add-modules jdk.incubator.vector` (do **not** pass `--enable-native-access` to `javac`).
+        * `java` / Surefire / Failsafe: `--add-modules jdk.incubator.vector --enable-native-access=ALL-UNNAMED`.
+    * **JDK 21 LTS**: Add `--enable-preview` to **both** `javac` (`--release 21 --enable-preview --add-modules jdk.incubator.vector`) and `java` (FFM `Arena`/`MemorySegment` is preview in JDK 21 JEP 442).
 * **Container & Kubernetes Memory Sizing**: `.imps` files reside off-heap in the OS `mmap` page cache (counted against container `cgroups v2` memory limits, **not** `-Xmx` or `-XX:MaxDirectMemorySize`). Size the JVM heap lean (`-Xms2g -Xmx4g -XX:+UseZGC -XX:+ZGenerational`) and leave container memory headroom for mapped `.imps` pages. Use `Arena.ofShared()` for concurrent multi-threaded snapshots.
 
 ---
@@ -75,12 +75,12 @@ List<String> flagged = snap.domain("User")
 
 * **Build Snapshots via Official Tooling Only**: Never write ad-hoc Python/C++/shell byte-packing scripts to create `.imps` files. Always compile CSV/TSV/Parquet datasets with `impulse-graph build --manifest manifest.json -o graph.imps` (or `SnapshotBuilder` / `SnapshotWriter` / `impulse_writer_t`). Enable `"include_csc": true` on relations that will be traversed in reverse (`.in(...)` / `.in_(...)` / `<-[]-`).
 * **Python & Multi-Worker PyTorch (`impulse-graph`)**:
-  * Open snapshots with `with Snapshot("graph.imps") as snap:` (`pip install impulse-graph==0.10.1`).
-  * Anchor traversals via `snap.domain("User").from_key("...").out("...").to_key_list()` or `snap.cypher(query, params={...})`.
-  * Access CSR and SoA tensors zero-copy via `snap.get_row_offsets_array(rel_idx)`, `snap.get_col_indices_array(rel_idx)`, `snap.get_attribute_array(rel_idx, attr_idx, dtype=np.float32, shape=...)`, and `snap.sample_neighbors(...)`.
-  * In `multiprocessing` or PyTorch `DataLoader(num_workers > 0)`, pass only the `.imps` **file path string** to workers and instantiate `Snapshot(path)` lazily inside each worker so all processes share one read-only OS page-cache mapping (`0 bytes` CoW duplication).
+    * Open snapshots with `with Snapshot("graph.imps") as snap:` (`pip install impulse-graph==0.10.1`).
+    * Anchor traversals via `snap.domain("User").from_key("...").out("...").to_key_list()` or `snap.cypher(query, params={...})`.
+    * Access CSR and SoA tensors zero-copy via `snap.get_row_offsets_array(rel_idx)`, `snap.get_col_indices_array(rel_idx)`, `snap.get_attribute_array(rel_idx, attr_idx, dtype=np.float32, shape=...)`, and `snap.sample_neighbors(...)`.
+    * In `multiprocessing` or PyTorch `DataLoader(num_workers > 0)`, pass only the `.imps` **file path string** to workers and instantiate `Snapshot(path)` lazily inside each worker so all processes share one read-only OS page-cache mapping (`0 bytes` CoW duplication).
 * **Native C / C++20 / Rust (`impulse-cpp` & `impulse-rust`)**:
-  * Use caller-allocated prepared statements (`impulse_stmt_prepare` $\to$ `impulse_stmt_buffer_size` $\to$ `impulse_stmt_execute` $\to$ `impulse_stmt_finalize`) for zero-`malloc` execution, C++20 `impulse::vm::SnapshotView` (`impulse_vm_fluent.hpp`), or Rust `impulse_graph::reader::SnapshotReader`.
+    * Use caller-allocated prepared statements (`impulse_stmt_prepare` $\to$ `impulse_stmt_buffer_size` $\to$ `impulse_stmt_execute` $\to$ `impulse_stmt_finalize`) for zero-`malloc` execution, C++20 `impulse::vm::SnapshotView` (`impulse_vm_fluent.hpp`), or Rust `impulse_graph::reader::SnapshotReader`.
 
 ---
 

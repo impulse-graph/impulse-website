@@ -57,8 +57,8 @@ To guarantee sub-millisecond latency and deterministic memory bounds, the compil
 * **Seed Anchoring (`WHERE u._key = $key` or `WHERE u.id = $id`)**: Constraining the starting node variable anchors the initial traversal frontier to that key or dense node ID.
 * **Inline Node & Edge Attribute Filtering**: Predicates on edge variables (`t.amount >= $minAmt`) or node variables (`a.balance > 0`) compile directly into vectorized [Google CEL](cel.md) shaders (`OP_CSR_WALK_FILTERED` / `OP_NODE_FILTER`) evaluated inline during the CSR/CSC walk step.
 * **`RETURN` Target Frontier Projections**:
-  * `RETURN c` (or `RETURN c.id`): Projects the surviving **target domain node frontier** into a zero-copy result set (`BitSetRowReader` yielding surviving dense node IDs in Java, `List[int]` in Python `snap.cypher(...)`, or bitset words in C-ABI `impulse_stmt_column_data(stmt, 0)`).
-  * `RETURN count(c)`: Computes the scalar cardinality or aggregate of the surviving target frontier (`OP_SET_CARDINALITY` / `OP_VECTOR_REDUCE_SUM` / `OP_COLLECT_VALUE_MAP`) without materializing full arrays.
+    * `RETURN c` (or `RETURN c.id`): Projects the surviving **target domain node frontier** into a zero-copy result set (`BitSetRowReader` yielding surviving dense node IDs in Java, `List[int]` in Python `snap.cypher(...)`, or bitset words in C-ABI `impulse_stmt_column_data(stmt, 0)`).
+    * `RETURN count(c)`: Computes the scalar cardinality or aggregate of the surviving target frontier (`OP_SET_CARDINALITY` / `OP_VECTOR_REDUCE_SUM` / `OP_COLLECT_VALUE_MAP`) without materializing full arrays.
 
 !!! important
     **Set Semantics vs. Traditional Cypher Multi-Sets (Why Edge & Intermediate Hop Tuples Collapse)**:

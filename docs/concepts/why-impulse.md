@@ -17,6 +17,7 @@ Making the graph **immutable and read-only** unlocks **Compressed Sparse Row (CS
 ## 2. Filling a Real Open-Source Format Gap
 
 To persist multi-domain property graphs without paying a load/deserialization tax, the on-disk format needed:
+
 1. Multiple typed node domains, directed relations, and node/edge attribute columns.
 2. Hardware-aligned sections (128-byte boundaries) so applications can `mmap` the file and query immediately.
 
