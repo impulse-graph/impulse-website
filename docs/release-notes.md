@@ -25,7 +25,7 @@ Chronological technical changelog across the **Impulse Graph Engine** repositori
   * **Spec Compliance Suite**: `682/682` `.impas` vectors PASS (`116` metamorphic checks across geometry profiles `P0..P3`), `78/78` opcodes (100%), `452/452` subops (100%).
   * **Metamorphic Property Gate**: `2,000/2,000` PASS across 18 algebraic/structural laws × 4 engines (`5.01s`).
   * **4-Way Differential Fuzzer**: `20,000/20,000` random fixtures (`0` divergences) + `500,000/500,000` corpus mutation iterations (`0` divergences, `14,269.9` iters/s, Dual ICTX v2 logical+physical digest identity).
-  * **E2E Graph500 Benchmark (`16,384` nodes, `261,829` edges)**: C++ `2hop = 150.50 µs`, `bfs = 185.33 µs`; Java 25 `2hop = 391.79 µs`, `bfs = 719.13 µs` (exact cardinality parity: `10,308` and `10,918`).
+  * **E2E Graph500 Benchmark (`16,384` nodes, `261,829` edges)**: C++ `2hop = 142.96 µs`, `bfs = 171.58 µs`; Java 25 `2hop = 107.63 µs`, `bfs = 181.38 µs` (exact cardinality parity: `10,308` and `10,918`).
 
 ---
 
