@@ -4,6 +4,31 @@ Chronological technical changelog across the **Impulse Graph Engine** repositori
 
 ---
 
+## `v0.11.0` — Unified `impOps` v0.11 ISA, `.imps` v0.11 COO Layout & 2-Buffer Zero-Allocation Lifecycle
+
+**Format Version**: `.imps` Binary Snapshot Format `v0.11.0` (`0x000B`, backward-compatible reader for `v0.9.0` and `v0.10.0`)  
+**Bytecode Container**: `.impb` v11 (32-byte header + fixed 64-bit nibble-encoded instruction words)
+
+### 1. `ImpulseVM` v0.11 Architecture & ISA Cutover
+* **Compact 78-Opcode ISA (452 Subops)**: Consolidated the retired v0.10 ISA into 78 active opcodes + `0xFF` extension payload (`isa_v0_11.yaml` single source of truth generating C++, Java, OCaml, and Rust ISA tables).
+* **256-Byte Hot Frame & 3-Bank Register File**: Partitioned registers into 16 scalars (`R0..R15` with Kleene 3VL validity mask & 4-bit type word), 16 frontiers (`F0..F15` with adaptive Tier-0/Tier-1/Tier-2 representation), and 16 vectors (`V0..V15`).
+* **Deterministic 2-Buffer Caller-Owned Lifecycle**: `impulse_vm_plan_memory` computes static worst-case scratch and result buffer bounds; `impulse_workspace_init` placement-initializes caller-owned 128-byte-aligned scratch memory once per worker thread with zero heap allocations on hot query execution.
+* **Morsel-Driven Graph Traversal**: Added `OP_WALK_MORSEL`, `OP_FILTER_MORSEL`, `OP_MORSEL_COMMIT`, and `OP_MORSEL_END` for bounded-working-set fused traversal, attribute gathering, Kleene 3VL filtering, and monoidic reduction.
+
+### 2. `.imps` Binary Snapshot Format `v0.11.0` (`0x000B`)
+* **192-Byte Relation Directory Entry**: Extended relation descriptors with dedicated 128-byte-aligned COO source, target, and edge-id arrays (`coo_src`, `coo_tgt`, `coo_edge_id`) and `coo_order` flags (`SRC_MAJOR`, `TGT_MAJOR`, `UNSORTED`, `EDGE_ID_SORTED`).
+* **CLI & Writer Support**: Added v0.11 COO serialization to `impulse-rust` (`SnapshotWriter::set_relation_coo_v11`, `set_domain_dense_id_width`) and updated `impulse-cli` (`assemble`, `disassemble`, `compile`, `run`) to canonical `.impb` v11.
+
+### 3. Polyglot FFI & Verification Gate
+* **Polyglot FFI Bindings**: Migrated `impulse-rust`, `impulse-python`, `impulse-node`, `impulse-go`, and `impulse-dotnet` to `impulse_vm_v11.h` (`VmWorkspace` / `impulse_vm_execute_v11` / `impulse_vm_plan_memory`).
+* **Empirical Verification Results (4-Way Parity: C++ `-O3`, C++ `-O0`, Java 25, OCaml)**:
+  * **Spec Compliance Suite**: `682/682` `.impas` vectors PASS (`116` metamorphic checks across geometry profiles `P0..P3`), `78/78` opcodes (100%), `452/452` subops (100%).
+  * **Metamorphic Property Gate**: `2,000/2,000` PASS across 18 algebraic/structural laws × 4 engines (`5.01s`).
+  * **4-Way Differential Fuzzer**: `20,000/20,000` random fixtures (`0` divergences) + `500,000/500,000` corpus mutation iterations (`0` divergences, `14,269.9` iters/s, Dual ICTX v2 logical+physical digest identity).
+  * **E2E Graph500 Benchmark (`16,384` nodes, `261,829` edges)**: C++ `2hop = 150.50 µs`, `bfs = 185.33 µs`; Java 25 `2hop = 391.79 µs`, `bfs = 719.13 µs` (exact cardinality parity: `10,308` and `10,918`).
+
+---
+
 ## `v0.10.1` — Fast-Follow Patch: VM Parity, Arena/C-ABI Lifetimes & FFI Safety
 
 **Release Date**: November 2026  
