@@ -126,6 +126,7 @@ nav:
       - Binary Snapshot Spec (.imps): reference/spec/format-specification.md
       - Schema & Manifest Spec (.yaml): reference/spec/schema-specification.md
       - ImpulseVM, ImpOps & ImpAs Spec: reference/spec/vm-specification.md
+      - Fixed-Point Decimal (DECIMAL64): reference/spec/decimal64.md
     - Production Operations:
       - Dynamic Service (Blue/Green): deployment/dynamic-service.md
       - Fixed Snapshot Deployment: deployment/fixed-snapshot.md
